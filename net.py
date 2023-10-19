@@ -67,8 +67,8 @@ class ConformalNet(nn.Module):
         self.Dx, self.Dy = diff_operator(self.face, self.vertex.reshape(-1,2))
         self.unet = Unet(2)
         
-        self.Dx.to(device)
-        self.Dy.to(device)
+        self.Dx = self.Dx.to(device)
+        self.Dy = self.Dy.to(device)
         self.unet.to(device)
         
     def forward(self, x):
