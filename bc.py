@@ -18,7 +18,7 @@ def bc_metric(f_map, Dx, Dy):
 
     fx = f_map[:, :, 0]
     fy = f_map[:, :, 1]
-    fz = torch.ones(H*W, N, dtype=torch.float64)
+    fz = torch.ones(H*W, N, dtype=torch.float64, device=f_map.device)
 
     dXdu = Dx.mm(fx).transpose(0, 1)
     dXdv = Dy.mm(fx).transpose(0, 1)

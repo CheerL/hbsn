@@ -31,7 +31,7 @@ train_epochs_loss = []
 valid_epochs_loss = []
 
 
-device = 'cpu'
+device = 'cuda:3'
 # device = torch_directml.device()
 img = img.to(device)
 net = ConformalNet(H, W, alpha, beta, device=device)
