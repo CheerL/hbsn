@@ -57,7 +57,7 @@ def qc_loss(predict_map, img, Dx, Dy, alpha=1., beta=1., label=None):
     return img_loss+ alpha * mu_loss + beta * label_loss
 
 class ConformalNet(nn.Module):
-    def __init__(self, height, width, alpha=1., beta=1.):
+    def __init__(self, height, width, alpha=1., beta=1., device='cpu'):
         super(ConformalNet, self).__init__()
         self.height = height
         self.width = width
@@ -66,6 +66,10 @@ class ConformalNet(nn.Module):
         self.face, self.vertex = create_rect_mesh(height, width)
         self.Dx, self.Dy = diff_operator(self.face, self.vertex.reshape(-1,2))
         self.unet = Unet(2)
+        
+        self.Dx.to(device)
+        self.Dy.to(device)
+        self.unet.to(device)
         
     def forward(self, x):
         x.reshape(-1, 1, self.height, self.width)

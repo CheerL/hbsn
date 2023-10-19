@@ -2,7 +2,7 @@ from utils import read_image
 from net import ConformalNet
 import torch
 import scipy.io
-import torch_directml
+# import torch_directml
 
 
 mat = scipy.io.loadmat('nmap.mat')
@@ -23,7 +23,7 @@ f_map = torch.stack(f_maps, dim=0)
 alpha = 1.
 beta = 1.
 total_epochs = 500
-lr = 1e-3
+lr = 1e-5
 
 train_loss = []
 valid_loss = []
@@ -34,7 +34,7 @@ valid_epochs_loss = []
 device = 'cpu'
 # device = torch_directml.device()
 img = img.to(device)
-net = ConformalNet(H, W, alpha, beta).to(device)
+net = ConformalNet(H, W, alpha, beta, device=device)
 optimizer = torch.optim.Adam(net.parameters(), lr=lr)
 
 
