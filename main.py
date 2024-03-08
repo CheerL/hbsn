@@ -1,28 +1,32 @@
-from utils import read_image
-from net import ConformalNet, check_inside_unit_disk
-import torch
-import torch.nn as nn
-import scipy.io
 import matplotlib.pyplot as plt
-
-# import torch_directml
-
+import numpy as np
+import scipy.io
+import torch
+from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
+from utils import read_image
+from net import HBSNet
 
+DEVICE = "cuda:0"
+DTYPE = torch.float32
+IMAGE_INTERVAL = 100
 
 k = 1.0
 alpha = 1.0
 beta = 0.01
 total_epochs = 50000
-lr = 5e-5
-device = "cuda:0"
 
-DTYPE = torch.float32
-IMAGE_INTERVAL = 50
+lr = 1e-3
+lr_decay_step = 5000
+lr_decay_rate = 0.75
+weight_norm = 1e-5
+moments = 0.9
+
+
 
 
 def get_data():
-    mat = scipy.io.loadmat("nmap.mat")
+    mat = scipy.io.loadmat("hbs.mat")
     imgs = []
     f_maps = []
     for i in range(5):
@@ -45,15 +49,14 @@ def get_data():
     return img, f_map
 
 
-def plot_scatter(x):
-    plt.scatter(x[:, :, 0], x[:, :, 1], s=0.5)
+def plot_mu(x):
+    mu = np.linalg.norm(x, axis=2)
+    plt.imshow(mu, cmap="jet")
     return plt.gcf()
 
 
-def init_summary(log_writer: SummaryWriter, img, f_map, net, k=0):
-    label_k = f_map[k].detach().cpu().numpy()
+def init_summary(log_writer: SummaryWriter, img, net, k=0):
     log_writer.add_image("train_img/original", img[k])
-    log_writer.add_figure("train_map/label", plot_scatter(label_k))
     log_writer.add_graph(net, img[k : k + 1])
     log_writer.flush()
 
@@ -61,34 +64,33 @@ def init_summary(log_writer: SummaryWriter, img, f_map, net, k=0):
 def summary_loss(log_writer: SummaryWriter, epoch, loss):
     # log_writer.add_scalars("train_loss/loss", loss, epoch)
     log_writer.add_scalar("train_loss/total", loss['total_loss'], epoch)
-    log_writer.add_scalar("train_loss/img", loss['img_loss'], epoch)
-    log_writer.add_scalar("train_loss/mu", loss['mu_loss'], epoch)
-    log_writer.add_scalar("train_loss/label", loss['label_loss'], epoch)
-    log_writer.add_scalar("train_loss/area", loss['area_loss'], epoch)
+    # log_writer.add_scalar("train_loss/img", loss['img_loss'], epoch)
+    # log_writer.add_scalar("train_loss/mu", loss['mu_loss'], epoch)
+    # log_writer.add_scalar("train_loss/label", loss['label_loss'], epoch)
+    # log_writer.add_scalar("train_loss/area", loss['area_loss'], epoch)
     log_writer.flush()
 
 
-def summary_output(log_writer: SummaryWriter, epoch, output, k=0):
+def summary_output(log_writer: SummaryWriter, epoch, f_map, output, k=0):
     output_map_k = output[k].detach().cpu().numpy()
-    log_writer.add_figure("train_map/output", plot_scatter(output_map_k), epoch)
-    is_inside = check_inside_unit_disk(output[k:k+1])
-    log_writer.add_image("train_img/inside_unit", is_inside, epoch)
+    label_k = f_map[k].detach().cpu().numpy()
+    log_writer.add_figure("train_map/label", plot_mu(label_k), epoch)
+    log_writer.add_figure("train_map/output", plot_mu(output_map_k), epoch)
     log_writer.flush()
 
 
 def main():
     img, f_map = get_data()
-    img = img[0:1]
-    f_map = f_map[0:1]
     N, C, H, W = img.shape
-    img = img.to(device)
-    f_map = f_map.to(device)
-    net = ConformalNet(H, W, k, alpha, beta, device=device, dtype=DTYPE)
+    img = img.to(DEVICE)
+    f_map = f_map.to(DEVICE)
+    net = HBSNet(H, W, device=DEVICE, dtype=DTYPE)
     net.initialize()
-    optimizer = torch.optim.Adam(net.parameters(), lr=lr)
-
+    optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=weight_norm, betas=(moments, 0.999))
+    # scheduler = StepLR(optimizer, step_size=lr_decay_step, gamma=lr_decay_rate)  # Learning rate decay
+    
     log_writer = SummaryWriter()
-    init_summary(log_writer, img, f_map, net)
+    init_summary(log_writer, img, net)
 
     train_loss = []
     valid_loss = []
@@ -98,28 +100,31 @@ def main():
         net.train()
         output = net(img)
         optimizer.zero_grad()
-        total_loss, img_loss, mu_loss, label_loss, area_loss = net.loss(output, img, f_map)
+        total_loss = net.loss(output, f_map)
+        # total_loss, img_loss, mu_loss, label_loss, area_loss = net.loss(output, img, f_map)
         total_loss.backward()
         optimizer.step()
 
+        # scheduler.step()
+
         loss = {
             "total_loss": total_loss.item(),
-            "img_loss": img_loss.item(),
-            "mu_loss": mu_loss.item(),
-            "label_loss": label_loss.item(),
-            "area_loss": area_loss.item(),
+            # "img_loss": img_loss.item(),
+            # "mu_loss": mu_loss.item(),
+            # "label_loss": label_loss.item(),
+            # "area_loss": area_loss.item(),
         }
         train_loss.append(loss)
 
         summary_loss(log_writer, epoch, loss)
         if not epoch % IMAGE_INTERVAL:
-            summary_output(log_writer, epoch, output)
+            summary_output(log_writer, epoch, f_map, output, k=np.random.randint(0, 5))
             
         # if not epoch % 50:
         #     print(output)
 
         print(
-            f"epoch={epoch}/{total_epochs}, total_loss={loss['total_loss']}, img_loss={loss['img_loss']}, mu_loss={loss['mu_loss']}, label_loss={loss['label_loss']}, area_loss={loss['area_loss']}"
+            f"epoch={epoch}/{total_epochs}, total_loss={loss['total_loss']}"
         )
 
 

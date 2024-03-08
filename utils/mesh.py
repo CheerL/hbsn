@@ -1,40 +1,8 @@
 
-from scipy.interpolate import griddata
 import numpy as np
 import cv2
 import torch
 from scipy.spatial import Delaunay
-
-def move_pixels_numpy(I: np.ndarray, f: np.ndarray, vertex: np.ndarray):
-    '''
-    INPUT:
-        I: C x H x W numpy array
-            I is the input image
-        f: H x W x 2 numpy array
-            f is the map, f(J) = I
-        vertex: H x W x 2 numpy array
-            original cordination of each pixel
-    OUTPUT:
-        J: C x H x W numpy array
-            J is the output image
-    '''
-    if I.ndim == 2:
-        C = 1
-        H, W = I.shape
-    elif I.ndim == 3:
-        C, H, W = I.shape
-    else:
-        raise ValueError('I should be 2 or 3 dimension')
-
-    f = f.reshape(H*W,2)
-    vertex = vertex.reshape(H*W,2)
-    I = I.reshape(H*W)
-    J = griddata(f, I, vertex, fill_value=0)
-    
-    if C == 1:
-        return J.reshape(H,W)
-    else:
-        return J.reshape(C,H,W)
     
 def create_rect_mesh(h:int, w:int):
     '''

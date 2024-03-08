@@ -2,3 +2,5 @@
 *.pyc
 runs
 .vscode
+__pycache__
+img
