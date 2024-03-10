@@ -20,15 +20,18 @@ def main():
             cw_gen.save_image(img, f'{path}/cw_{k}_{scale}.png')
             
             for d in range(random.randint(0, 5)):
-                cw_distort_rate = 0.03
+                cw_distort_rate = random.choice([0.02, 0.025, 0.03])
                 dimg = cw_gen.distort_image(img, cw_distort_rate)
                 cw_gen.save_image(dimg, f'{path}/cw_{k}_{scale}_{d}.png')
 
-    for n in range(3, 20):
-        img = polygon_gen.generate_image(n)
-        polygon_gen.save_image(img, f'{path}/polygon_{n}.png')
-        for d in range(random.randint(0, 5)):
-            polygon_distort_rate = random.choice([0.0025, 0.005, 0.0075, 0.01])
-            dimg = polygon_gen.distort_image(img, polygon_distort_rate)
-            polygon_gen.save_image(dimg, f'{path}/polygon_{n}_{d}.png')
+    for n in range(3, 15):
+        for k in range(20):
+            img = polygon_gen.generate_image(n)
+            polygon_gen.save_image(img, f'{path}/polygon_{n}_{k}.png')
+            for d in range(random.randint(0, 5)):
+                polygon_distort_rate = random.choice([0.005, 0.01, 0.015])
+                dimg = polygon_gen.distort_image(img, polygon_distort_rate)
+                polygon_gen.save_image(dimg, f'{path}/polygon_{n}_{k}_{d}.png')
 
+if __name__ == '__main__':
+    main()

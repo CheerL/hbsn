@@ -5,7 +5,6 @@ from scipy import interpolate
 from utils.geodesicwelding import geodesicwelding
 from utils.move_image import move_image
 
-
 class ImageGenerator:
     def __init__(self, h: int=256, w: int=256):
         self.h = h
@@ -26,6 +25,7 @@ class ImageGenerator:
         return img.copy()
     
     def save_image(self, img: np.ndarray, path: str):
+        print(f'Saving image to {path}')
         plt.imsave(path, img)
 
     def distort_grid(self, distortion_scale=0.03, n=20, m=20):
@@ -75,11 +75,6 @@ class ImageGenerator:
             J: H x W x C tensor
                 J is the output image
         """
-        if I.ndim == 2:
-            C = 1
-        else:
-            C = I.shape[2]
-            
         if isinstance(grid, np.ndarray):
             assert grid.shape == (self.h, self.w, 2)
         elif isinstance(grid, float):
@@ -88,12 +83,6 @@ class ImageGenerator:
             grid = self.distort_grid(**grid)
         
         J = move_image(I, grid, version='scipy').astype(np.uint8)
-        # I = torch.DoubleTensor(I).reshape(1, self.h, self.w, C).permute(0, 3, 1, 2)
-        # grid = torch.tensor(grid).reshape(1, self.h, self.w, 2)
-        # J = F.grid_sample(
-        #     I, grid, mode="bilinear", padding_mode="zeros", align_corners=False
-        # )
-        # J = J.permute(0, 2, 3, 1).reshape(self.h, self.w, C).numpy().astype(np.uint8)
         return J
     
     def generate_image(self):
