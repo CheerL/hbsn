@@ -5,6 +5,7 @@ from scipy import interpolate
 from utils.geodesicwelding import geodesicwelding
 from utils.move_image import move_image
 
+
 class ImageGenerator:
     def __init__(self, h: int=256, w: int=256):
         self.h = h

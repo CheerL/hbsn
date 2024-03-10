@@ -4,8 +4,9 @@ import scipy.io
 import torch
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.tensorboard import SummaryWriter
-from utils import read_image
+
 from net import HBSNet
+from utils import read_image
 
 DEVICE = "cuda:0"
 DTYPE = torch.float32

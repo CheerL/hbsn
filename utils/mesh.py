@@ -1,9 +1,10 @@
 
-import numpy as np
 import cv2
+import numpy as np
 import torch
 from scipy.spatial import Delaunay
-    
+
+
 def create_rect_mesh(h:int, w:int):
     '''
     Create a rectangle delaunay mesh grid with size h x w
