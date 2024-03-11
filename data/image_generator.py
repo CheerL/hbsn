@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import interpolate
-
+from loguru import logger
 from utils.geodesicwelding import geodesicwelding
 from utils.move_image import move_image
 
@@ -26,7 +26,7 @@ class ImageGenerator:
         return img.copy()
     
     def save_image(self, img: np.ndarray, path: str):
-        print(f'Saving image to {path}')
+        logger.info(f'Saving image to {path}')
         plt.imsave(path, img)
 
     def distort_grid(self, distortion_scale=0.03, n=20, m=20):

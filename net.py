@@ -1,43 +1,11 @@
+from unittest.mock import DEFAULT
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 DTYPE = torch.float32
+DEFAULT_CHANNELS = [16, 32, 64, 128]
 
-# def qc_loss(predict_map, img, Dx, Dy, face, vertex, k=1.0, alpha=1.0, beta=1.0, gamma=1e-8, label=None):
-#     """
-#     predict_map: N x H x W x 2 tensor
-#     img: N x 1 x H x W tensor
-#     """
-#     mu = bc_metric(predict_map, Dx, Dy)
-#     N,C,H,W = img.shape
-#     face_is_inside = img.reshape(N, -1)[:, face].all(2)
-#     # vertex_is_inside = img > 0.5
-#     # mu loss
-#     mu = mu.masked_select(face_is_inside)
-#     nan_mask = mu.isnan()
-#     if nan_mask.sum() > 0:
-#         mu_loss = torch.norm(mu.masked_select(~nan_mask))
-#     else:
-#         mu_loss = torch.norm(mu)
-
-#     # img loss
-#     img_loss = torch.norm(check_inside_unit_disk(predict_map) - img)
-    
-#     # area_loss
-    
-#     area = get_area(predict_map, Dx, Dy).abs()
-#     eps = 1e-9
-#     area_loss = torch.tanh(gamma / (area.masked_select(face_is_inside) + eps)).norm()
-
-#     # label loss
-#     if label is not None:
-#         label_loss = torch.norm((predict_map - label) * (img.reshape(N,H,W,1)))
-#     else:
-#         label_loss = 0
-
-#     total_loss = k * img_loss + alpha * mu_loss + beta * label_loss + area_loss
-#     return total_loss, img_loss, mu_loss, label_loss, area_loss
 
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
@@ -104,40 +72,62 @@ class Up(nn.Module):
         return self.conv(out)
 
 class BCENet(nn.Module):
-    def __init__(self, n_channels, n_classes, bilinear=True, dtype=DTYPE):
+    def __init__(self, n_channels, n_classes, channels=DEFAULT_CHANNELS, bilinear=True, dtype=DTYPE):
         super(BCENet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.bilinear = bilinear
+        
+        self.channels = channels
+        self.layers = len(self.channels)
 
-        ch1 = 8
-        ch2 = 16
-        ch3 = 32
-        ch4 = 64
-        # ch5 = 32
-        self.inc = DoubleConv(n_channels, ch1, dtype=dtype)
-        self.down1 = Down(ch1, ch2, dtype=dtype)
-        self.down2 = Down(ch2, ch3, dtype=dtype)
-        self.down3 = Down(ch3, ch4, dtype=dtype)
-        # self.down4 = Down(ch4, ch5, dtype=dtype)
-        # self.up4 = Up(ch5, ch4, ch4, bilinear, dtype=dtype)
-        self.up3 = Up(ch4, ch3, ch3, bilinear, dtype=dtype)
-        self.up2 = Up(ch3, ch2, ch2, bilinear, dtype=dtype)
-        self.up1 = Up(ch2, ch1, ch1, bilinear, dtype=dtype)
-        self.outc = nn.Conv2d(ch1, n_classes, kernel_size=1, dtype=dtype)
+        self.inc = DoubleConv(n_channels, self.channels[0], dtype=dtype)
+        # ch1 = 16
+        # ch2 = 32
+        # ch3 = 64
+        # ch4 = 128
+        # self.down1 = Down(ch1, ch2, dtype=dtype)
+        # self.down2 = Down(ch2, ch3, dtype=dtype)
+        # self.down3 = Down(ch3, ch4, dtype=dtype)
+        # self.up3 = Up(ch4, ch3, ch3, bilinear, dtype=dtype)
+        # self.up2 = Up(ch3, ch2, ch2, bilinear, dtype=dtype)
+        # self.up1 = Up(ch2, ch1, ch1, bilinear, dtype=dtype)
+        self.downs = nn.ModuleList([
+            Down(self.channels[i], self.channels[i+1], dtype=dtype) 
+            for i in range(self.layers - 1)
+        ])
+
+        self.ups = nn.ModuleList([
+            Up(self.channels[i+1], self.channels[i], self.channels[i], bilinear, dtype=dtype) 
+            for i in range(self.layers - 1)
+        ])
+        self.outc = nn.Conv2d(self.channels[0], n_classes, kernel_size=1, dtype=dtype)
+
+    def forward_down(self, x):
+        output = [x]
+        for i in range(self.layers - 1):
+            x = self.downs[i](x)
+            output.append(x)
+        return output
+    
+    def forward_up(self, output):
+        x = output[-1]
+        for i in range(self.layers - 1, 0, -1):
+            x = self.ups[i-1](x, output[i-1])
+        return x
 
     def forward(self, x):
-        x_0 = self.inc(x)
-        x_1 = self.down1(x_0)
-        x_2 = self.down2(x_1)
-        x_3 = self.down3(x_2)
-        # x_4 = self.down3(x_3)
-        # x_3 = self.up4(x_4, x_3)
-        x_2 = self.up3(x_3, x_2)
-        x_1 = self.up2(x_2, x_1)
-        x_0 = self.up1(x_1, x_0)
-        x_out = self.outc(x_0)
-        return x_out
+        x = self.inc(x)
+        # x_1 = self.down1(x)
+        # x_2 = self.down2(x_1)
+        # x_3 = self.down3(x_2)
+        # x_2 = self.up3(x_3, x_2)
+        # x_1 = self.up2(x_2, x_1)
+        # x = self.up1(x_1, x)
+        x = self.forward_down(x)
+        x = self.forward_up(x)
+        x = self.outc(x)
+        return x
 
     # def use_checkpointing(self):
     #     self.inc = torch.utils.checkpoint(self.inc)
@@ -151,21 +141,24 @@ class BCENet(nn.Module):
 
 
 class HBSNet(nn.Module):
-    def __init__(self, height, width, device="cpu", dtype=DTYPE):
+    def __init__(self, height, width,  input_channels=1, output_channels=2, channels=DEFAULT_CHANNELS, device="cpu", dtype=DTYPE):
         super(HBSNet, self).__init__()
+        self.dtype = dtype
+        self.device = device
         self.height = height
         self.width = width
-        self.bce = BCENet(1, 2, True, dtype=dtype)
+        self.input_channels = input_channels
+        self.output_channels = output_channels
+        self.bce = BCENet(input_channels, output_channels, channels, bilinear=True, dtype=dtype)
         self.to(device)
 
     def forward(self, x):
-        x.reshape(-1, 1, self.height, self.width)
+        # x = x.reshape(-1, self.input_channels, self.height, self.width)
         x = self.bce(x)
-        x = x.transpose(1, 3)
         return x
 
     def loss(self, predict, label):
-        return F.mse_loss(predict, label, reduction="sum")
+        return F.mse_loss(predict, label, reduction="mean")
 
     def initialize(self):
         for m in self.bce.modules():

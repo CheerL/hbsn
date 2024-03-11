@@ -5,3 +5,4 @@ runs
 __pycache__
 img
 *.ipynb
+logs

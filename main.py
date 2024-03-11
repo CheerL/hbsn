@@ -1,133 +1,90 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import scipy.io
+#! /home/extradisk/linchenran/.pyenv/versions/hbs_seg/bin/python
 import torch
-from torch.optim.lr_scheduler import StepLR
-from torch.utils.tensorboard import SummaryWriter
+# from torch.optim.lr_scheduler import StepLR
 
 from net import HBSNet
-from utils import read_image
+from summary_logger import HBSNLogger
+from data.dataset import HBSNDataset
+from loguru import logger
+import click
+
+DTYPE = torch.float32
+IMAGE_INTERVAL = 5
+LOG_PATH = 'logs/summary.log'
 
 DEVICE = "cuda:0"
-DTYPE = torch.float32
-IMAGE_INTERVAL = 100
-
-k = 1.0
-alpha = 1.0
-beta = 0.01
-total_epochs = 50000
-
-lr = 1e-3
-lr_decay_step = 5000
-lr_decay_rate = 0.75
-weight_norm = 1e-5
-moments = 0.9
+# lr_decay_step = 5000
+# lr_decay_rate = 0.75
+TOTAL_EPOCHES = 1000
+LR = 1e-4
+WEIGHT_NORM = 1e-5
+MOMENTS = 0.8
+BATCH_SIZE = 64
+CHANNELS = [32, 64, 128, 256]
 
 
+@logger.catch()
+@click.command()
+@click.option("--device", default=DEVICE, help="Device to run the training")
+@click.option("--total_epoches", default=TOTAL_EPOCHES, help="Total epoches to train")
+@click.option("--lr", default=LR, help="Learning rate")
+@click.option("--weight_norm", default=WEIGHT_NORM, help="Weight decay")
+@click.option("--moments", default=MOMENTS, help="Momentum")
+@click.option("--batch_size", default=BATCH_SIZE, help="Batch size")
+@click.option("--channels", default=CHANNELS, help="Channels in each layer")
+def main(device, total_epoches, lr, weight_norm, moments, batch_size, channels):
+    logger.add(LOG_PATH, rotation="10 MB", level="INFO")
+    logger.info(f'''
+    Start training in {device} with config:
+        Total epoches: {total_epoches},
+        Net Channels: {channels}
+        Learning rate: {lr},
+        Batch size: {batch_size},
+        Weight decay: {weight_norm},
+        Momentum: {moments}''')
+    
+    dataset = HBSNDataset()
+    train_dataloader, test_dataloader = dataset.get_dataloader(batch_size=batch_size)
 
+    H, W, C_input, C_output = dataset.get_size()
 
-def get_data():
-    mat = scipy.io.loadmat("hbs.mat")
-    imgs = []
-    f_maps = []
-    for i in range(5):
-        img = read_image(
-            f"img/tp{i+1}.png",
-            gray=True,
-            binary_threshold=127,
-            noramlize=True,
-            CHW=True,
-        )
-        C, H, W = img.shape
-        img = torch.from_numpy(img).reshape(C, H, W)
-        imgs.append(img)
-        f_map = torch.from_numpy(mat[f"nmap{i+1}"])
-        f_map = f_map.reshape(W, H, 2).transpose(0, 1)
-        f_maps.append(f_map)
-
-    img = torch.stack(imgs, dim=0).type(DTYPE)
-    f_map = torch.stack(f_maps, dim=0).type(DTYPE)
-    return img, f_map
-
-
-def plot_mu(x):
-    mu = np.linalg.norm(x, axis=2)
-    plt.imshow(mu, cmap="jet")
-    return plt.gcf()
-
-
-def init_summary(log_writer: SummaryWriter, img, net, k=0):
-    log_writer.add_image("train_img/original", img[k])
-    log_writer.add_graph(net, img[k : k + 1])
-    log_writer.flush()
-
-
-def summary_loss(log_writer: SummaryWriter, epoch, loss):
-    # log_writer.add_scalars("train_loss/loss", loss, epoch)
-    log_writer.add_scalar("train_loss/total", loss['total_loss'], epoch)
-    # log_writer.add_scalar("train_loss/img", loss['img_loss'], epoch)
-    # log_writer.add_scalar("train_loss/mu", loss['mu_loss'], epoch)
-    # log_writer.add_scalar("train_loss/label", loss['label_loss'], epoch)
-    # log_writer.add_scalar("train_loss/area", loss['area_loss'], epoch)
-    log_writer.flush()
-
-
-def summary_output(log_writer: SummaryWriter, epoch, f_map, output, k=0):
-    output_map_k = output[k].detach().cpu().numpy()
-    label_k = f_map[k].detach().cpu().numpy()
-    log_writer.add_figure("train_map/label", plot_mu(label_k), epoch)
-    log_writer.add_figure("train_map/output", plot_mu(output_map_k), epoch)
-    log_writer.flush()
-
-
-def main():
-    img, f_map = get_data()
-    N, C, H, W = img.shape
-    img = img.to(DEVICE)
-    f_map = f_map.to(DEVICE)
-    net = HBSNet(H, W, device=DEVICE, dtype=DTYPE)
+    net = HBSNet(H, W, C_input, C_output, channels, device=device, dtype=DTYPE)
     net.initialize()
     optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=weight_norm, betas=(moments, 0.999))
     # scheduler = StepLR(optimizer, step_size=lr_decay_step, gamma=lr_decay_rate)  # Learning rate decay
     
-    log_writer = SummaryWriter()
-    init_summary(log_writer, img, net)
-
-    train_loss = []
-    valid_loss = []
+    log_writer = HBSNLogger(total_epoches, len(train_dataloader), len(test_dataloader), batch_size)
+    log_writer.init_summary(net)
 
     ## Training
-    for epoch in range(total_epochs):
+    for epoch in range(total_epoches):
         net.train()
-        output = net(img)
-        optimizer.zero_grad()
-        total_loss = net.loss(output, f_map)
-        # total_loss, img_loss, mu_loss, label_loss, area_loss = net.loss(output, img, f_map)
-        total_loss.backward()
-        optimizer.step()
+        for iteration, (img, hbs) in enumerate(train_dataloader):
+            img = img.to(device, dtype=DTYPE)
+            hbs = hbs.to(device, dtype=DTYPE)
+            output = net(img)
+            optimizer.zero_grad()
+            loss = net.loss(output, hbs)
+            loss.backward()
+            optimizer.step()
+            # scheduler.step()
 
-        # scheduler.step()
-
-        loss = {
-            "total_loss": total_loss.item(),
-            # "img_loss": img_loss.item(),
-            # "mu_loss": mu_loss.item(),
-            # "label_loss": label_loss.item(),
-            # "area_loss": area_loss.item(),
-        }
-        train_loss.append(loss)
-
-        summary_loss(log_writer, epoch, loss)
-        if not epoch % IMAGE_INTERVAL:
-            summary_output(log_writer, epoch, f_map, output, k=np.random.randint(0, 5))
-            
-        # if not epoch % 50:
-        #     print(output)
-
-        print(
-            f"epoch={epoch}/{total_epochs}, total_loss={loss['total_loss']}"
-        )
-
+            log_writer.add_loss(epoch, iteration, loss)
+            if iteration % IMAGE_INTERVAL == 0:
+                log_writer.add_output(img, hbs, output)
+        
+        # Testing
+        net.eval()
+        with torch.no_grad():
+            for iteration, (img, hbs) in enumerate(test_dataloader):
+                img = img.to(device, dtype=DTYPE)
+                hbs = hbs.to(device, dtype=DTYPE)
+                output = net(img)
+                loss = net.loss(output, hbs)
+                
+                log_writer.add_loss(epoch, iteration, loss, is_train=False)
+                if iteration % IMAGE_INTERVAL == 0:
+                    log_writer.add_output(img, hbs, output, is_train=False)
 
 if __name__ == "__main__":
     main()

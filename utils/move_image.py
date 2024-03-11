@@ -34,7 +34,6 @@ def move_image(I, f, vertex=None, version='torch'):
             f = torch.tensor(f).reshape(N, H, W, 2)
             J = move_image_torch(I, f)
             J = J.permute(0, 2, 3, 1)
-            print(N, H, W, C, f.shape, I.shape, J.shape)
             if C == 1:
                 J = J.reshape(H, W)
             else:
