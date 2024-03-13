@@ -1,16 +1,26 @@
-#! /home/extradisk/linchenran/.pyenv/versions/matlab/bin/python
+#! ~/.pyenv/versions/matlab/bin/python
+
 import os
+
 import click
-from loguru import logger
 import matlab.engine
 from genericpath import exists
+from loguru import logger
 
-from utils.timeout import timeout
-
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TIMEOUT = 60
 
+try:
+    from utils.timeout import timeout
+except ModuleNotFoundError:
+    import sys
+    sys.path.append(ROOT_DIR)
+    from utils.timeout import timeout
+
+
+
 def init_setting(eng):
-    matlab_dir = '/home/extradisk/linchenran/hbs_seg'
+    matlab_dir = f'{ROOT_DIR}/../hbs_seg'
     init_script = f'''
     addpath('{matlab_dir}');
     addpath('{matlab_dir}/dependencies');
@@ -45,12 +55,12 @@ def restart_eng(eng, shared_name='hbs_engine'):
 
 
 @click.command()
-@click.option("--image_dir", default='/home/extradisk/linchenran/hbs_torch/img/generated', help="Directory of images to generate HBS")
+@click.option("--image_dir", default=f'{ROOT_DIR}/img/generated', help="Directory of images to generate HBS")
 @click.option("--eng_name", default='hbs_engine', help="Shared name of the matlab engine")
 def main(image_dir, eng_name):
     eng = start_eng(eng_name)
 
-    for file in os.listdir(image_dir):
+    for file in sorted(os.listdir(image_dir)):
         try:
             if file.endswith('.png'):
                 image_path = os.path.join(image_dir, file)

@@ -1,7 +1,8 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy import interpolate
 from loguru import logger
+from scipy import interpolate
+
 from utils.geodesicwelding import geodesicwelding
 from utils.move_image import move_image
 

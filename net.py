@@ -1,11 +1,8 @@
-from unittest.mock import DEFAULT
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
 DTYPE = torch.float32
-DEFAULT_CHANNELS = [16, 32, 64, 128]
-
 
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
@@ -72,7 +69,7 @@ class Up(nn.Module):
         return self.conv(out)
 
 class BCENet(nn.Module):
-    def __init__(self, n_channels, n_classes, channels=DEFAULT_CHANNELS, bilinear=True, dtype=DTYPE):
+    def __init__(self, n_channels, n_classes, channels, bilinear=True, dtype=DTYPE):
         super(BCENet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
@@ -139,9 +136,13 @@ class BCENet(nn.Module):
     #     self.up1 = torch.utils.checkpoint(self.up1)
     #     self.outc = torch.utils.checkpoint(self.outc)
 
-
 class HBSNet(nn.Module):
-    def __init__(self, height, width,  input_channels=1, output_channels=2, channels=DEFAULT_CHANNELS, device="cpu", dtype=DTYPE):
+    def __init__(
+        self, height, width, 
+        input_channels=1, output_channels=2, 
+        channels=[16, 32, 64, 128], 
+        device="cpu", dtype=DTYPE
+        ):
         super(HBSNet, self).__init__()
         self.dtype = dtype
         self.device = device

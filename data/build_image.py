@@ -1,11 +1,21 @@
-#! /home/extradisk/linchenran/.pyenv/versions/hbs_seg/bin/python
+#! ~/.pyenv/versions/hbs_seg/bin/python
 import os
 import random
-import click
 
+import click
 from genericpath import exists
-from data.image_generator import (ConformalWeldingImageGenerator,
-                                  PolygonImageGenerator)
+
+ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+try:
+    from data.image_generator import (ConformalWeldingImageGenerator,
+                                      PolygonImageGenerator)
+except ModuleNotFoundError:
+    import sys
+    sys.path.append(ROOT_DIR)
+    from data.image_generator import (ConformalWeldingImageGenerator,
+                                      PolygonImageGenerator)
+
 
 @click.command()
 @click.option("--prefix", default='No', help="Prefix of the generated images")

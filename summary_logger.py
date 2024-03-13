@@ -1,3 +1,6 @@
+import os
+from datetime import datetime
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -5,24 +8,63 @@ from loguru import logger
 from torch.utils.tensorboard import SummaryWriter
 
 
-class HBSNLogger(SummaryWriter):
+class HBSNSummary(SummaryWriter):
     def __init__(
-        self, total_epoches, train_size, test_size, batch_size,
-        log_dir=None, comment="", purge_step=None, max_queue=10, flush_secs=120, filename_suffix=""
+        self, config, train_size, test_size,
+        log_dir=None, comment="", purge_step=None, 
+        max_queue=10, flush_secs=120, filename_suffix=""
     ):
+        
+        assert 'total_epoches' in config, 'total_epoches is required'
+        assert 'batch_size' in config, 'batch_size is required'
+
+        self.config = config
+
+        if not log_dir:
+            # config_str = "+".join([
+            #     f"{k}={v.replace('/', '.')}" 
+            #     if isinstance(v, str) and k == 'data_dir'
+            #     else f"{k}={v}"
+            #     for k, v 
+            #     in self.config.items()
+            #     ])
+            current_time = datetime.now().strftime("%b%d_%H-%M-%S")
+            log_dir = os.path.join(
+                "runs", current_time
+            )
+            if comment:
+                log_dir += f"_{comment}"
+
         super().__init__(log_dir, comment, purge_step, max_queue, flush_secs, filename_suffix)
-        self.total_epoches = total_epoches
+        
+        self.total_epoches = config['total_epoches']
+        self.batch_size = config['batch_size']
         self.train_size = train_size
         self.test_size = test_size
-        self.batch_size = batch_size
-        
+
         self.train_loss = []
         self.test_loss = []
-        
+
+    def init_logger(self):
+        logger.add(os.path.join(self.log_dir, 'log.log'), level="INFO")
+        config_info = '\n\t\t'.join([f'{k}: {v}' for k, v in self.config.items()])
+        logger.info(f'''
+        Start training with config:
+        {config_info}
+        ''')
         
     def init_summary(self, net):
         empty_input = torch.zeros((1, net.input_channels, net.height, net.width), requires_grad=False).to(net.device, dtype=net.dtype)
         self.add_graph(net, empty_input)
+        fig = plt.figure()
+        plt.text(
+            0.5, 0.5,
+            '\n'.join([f'{k}: {v}' for k, v in self.config.items()]),
+            ha='center', va='center', multialignment='left'
+            )
+        plt.title('Config')
+        plt.axis('off')
+        self.add_figure('config', fig)
         self.flush()
     
     def add_loss(self, epoch, iteration, loss, is_train=True):
@@ -56,13 +98,13 @@ class HBSNLogger(SummaryWriter):
             prefix = "Test"
             total_iteration = len(self.test_loss)
         
-        k = np.random.randint(0, self.batch_size)
+        k = np.random.randint(0, img.shape[0])
         
         img_k = img[k].detach().cpu().numpy()
         output_k = output[k].detach().cpu().numpy()
         hbs_k = hbs[k].detach().cpu().numpy()
         
-        fig = plt.figure()
+        fig = plt.figure(figsize=(15, 5))
         plt.subplot(131)
         plt.imshow(img_k[0], cmap='gray')
         plt.title("Input")
