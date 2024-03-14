@@ -6,12 +6,14 @@ import torch.nn.functional as F
 DTYPE = torch.float32
 
 class STN(nn.Module):
-    def __init__(self, input_channels=1, height=256, width=256, dtype=DTYPE):
+    def __init__(self, input_channels=1, height=256, width=256, dtype=DTYPE, is_rotation_only=False, is_control=True):
         super(STN, self).__init__()
         self.input_channels = input_channels
         self.height = height
         self.width = width
         self.dtype = dtype
+        self.is_rotation_only = is_rotation_only
+        self.is_control = is_control
         
         # self.conv1 = nn.Conv2d(input_channels, 10, kernel_size=5)
         # self.conv2 = nn.Conv2d(10, 20, kernel_size=5)
@@ -48,25 +50,50 @@ class STN(nn.Module):
         output_width = get_loc_output_size(width)
         self.fc_loc_input_size = loc_conv2_out_channels * output_height * output_width
 
+        if self.is_control:
+            if self.is_rotation_only:
+                fc_loc_output_size = 1
+                fc_bias = torch.tensor([0], dtype=dtype)
+            else:
+                fc_loc_output_size = 4
+                fc_bias = torch.tensor([0, 1, 0, 0], dtype=dtype)
+        else:
+            fc_loc_output_size = 6
+            fc_bias = torch.tensor([1, 0, 0, 0, 1, 0], dtype=dtype)
+            
+
         # Regressor for the 3 * 2 affine matrix
         self.fc_loc = nn.Sequential(
             nn.Linear(self.fc_loc_input_size, 32, dtype=dtype),
             nn.ReLU(True),
-            nn.Linear(32, 3 * 2, dtype=dtype)
+            nn.Linear(32, fc_loc_output_size, dtype=dtype)
         )
-
-        # Initialize the weights/bias with identity transformation
         self.fc_loc[2].weight.data.zero_()
-        self.fc_loc[2].bias.data.copy_(torch.tensor([1, 0, 0, 0, 1, 0], dtype=torch.float))
+        self.fc_loc[2].bias.data.copy_(fc_bias)
 
     # Spatial transformer network forward function
     def stn(self, x):
         xs = self.localization(x)
         xs = xs.view(-1, self.fc_loc_input_size)
-        theta = self.fc_loc(xs)
-        theta = theta.view(-1, 2, 3)
+        loc = self.fc_loc(xs)
+        if self.is_control:
+            if self.is_rotation_only:
+                theta = loc.view(-1)
+                scale = 1
+                dx = dy = torch.zeros_like(theta)
+            else:
+                theta, scale, dx, dy = loc.split(1, dim=1)
+                dx = F.sigmoid(dx) - 0.5
+                dy = F.sigmoid(dy) - 0.5
 
-        grid = F.affine_grid(theta, x.size(),  align_corners=False)
+            p = torch.stack([
+                torch.stack([torch.cos(theta)/scale, torch.sin(theta)/scale, dx], dim=1),
+                torch.stack([-torch.sin(theta)/scale, torch.cos(theta)/scale, dy], dim=1)
+            ], dim=1).reshape(-1, 2, 3)
+        else:
+            p = loc.view(-1, 2, 3)
+
+        grid = F.affine_grid(p, x.size(), align_corners=False)
         x = F.grid_sample(x, grid, align_corners=False)
         return x
 

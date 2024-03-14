@@ -23,17 +23,20 @@ class HBSNet(nn.Module):
         self.output_channels = output_channels
         self.is_stn = is_stn
         
-        self.bce = BCENet(input_channels, output_channels, channels, bilinear=True, dtype=dtype)
         if is_stn:
-            self.stn = STN(output_channels, height, width, dtype=dtype)
+            self.stn = STN(input_channels, height, width, dtype=dtype, is_rotation_only=False)
+        self.bce = BCENet(input_channels, output_channels, channels, bilinear=True, dtype=dtype)
+        
 
         self.to(device)
 
     def forward(self, x):
         # x = x.reshape(-1, self.input_channels, self.height, self.width)
-        x = self.bce(x)
         if self.is_stn:
             x = self.stn(x)
+        x = self.bce(x)
+        # if self.is_stn:
+        #     x = self.stn(x)
         return x
 
     def loss(self, predict, label):

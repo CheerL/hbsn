@@ -16,15 +16,15 @@ DTYPE = torch.float32
 IMAGE_INTERVAL = 20
 
 DEVICE = "cuda:0"
-LR_DECAY_STEPS = []
-LR_DECAY_RATE = 1.0
+LR_DECAY_STEPS = [50,100]
+LR_DECAY_RATE = 0.1
 TOTAL_EPOCHES = 1000
 LR = 1e-3
 WEIGHT_NORM = 1e-5
 MOMENTS = 0.9
 BATCH_SIZE = 64
-CHANNELS = [16, 32, 64, 128]
-VERSION = "0.3"
+CHANNELS = [8, 16, 32, 64, 128, 256]
+VERSION = "0.4"
 
 # VERSION 0.1
 # initial version
@@ -34,6 +34,12 @@ VERSION = "0.3"
 
 # VERSION 0.3
 # add STN
+
+# VERSION 0.3.1
+# add STN control and rotation only mode
+
+# VERSION 0.4
+# add data augmentation
 
 
 
@@ -50,9 +56,10 @@ VERSION = "0.3"
 @click.option("--lr_decay_rate", default=LR_DECAY_RATE, help="Learning rate decay rate")
 @click.option("--lr_decay_steps", default=str(LR_DECAY_STEPS), help="Learning rate decay steps", type=str)
 @click.option("--is_stn", is_flag=True, help="Use STN or not")
+@click.option("--is_augment", is_flag=True, help="Use data augmentation or not")
 def main(data_dir, device, total_epoches, version,
          lr, weight_norm, moments, batch_size, channels, 
-         lr_decay_rate, lr_decay_steps, is_stn):
+         lr_decay_rate, lr_decay_steps, is_stn, is_augment):
     if isinstance(channels, str):
         if channels == '[]':
             channels = []
@@ -60,17 +67,16 @@ def main(data_dir, device, total_epoches, version,
             channels = list(map(int, channels.replace('[', '').replace(']', '').split(",")))
     elif isinstance(channels, int):
         channels = [channels]
-    # elif isinstance(channels, list):
-    #     pass
     else:
         raise ValueError("Channels should be a list of integers")
         
     if isinstance(lr_decay_steps, str):
-        lr_decay_steps = list(map(int, lr_decay_steps.replace('[', '').replace(']', '').split(",")))
+        if lr_decay_steps == '[]':
+            lr_decay_steps = []
+        else:
+            lr_decay_steps = list(map(int, lr_decay_steps.replace('[', '').replace(']', '').split(",")))
     elif isinstance(lr_decay_steps, int):
         lr_decay_steps = [lr_decay_steps]
-    # elif isinstance(lr_decay_steps, list):
-    #     pass
     else:
         raise ValueError("Learning rate decay steps should be a list of integers")
     
@@ -86,10 +92,11 @@ def main(data_dir, device, total_epoches, version,
         "version": version,
         "lr_decay_rate": lr_decay_rate,
         "lr_decay_steps": lr_decay_steps,
-        "is_stn": is_stn
+        "is_stn": is_stn,
+        "is_augment": is_augment,
     }
 
-    dataset = HBSNDataset(data_dir)
+    dataset = HBSNDataset(data_dir, is_augment=is_augment)
     H, W, C_input, C_output = dataset.get_size()
     train_dataloader, test_dataloader = dataset.get_dataloader(batch_size=batch_size)
 

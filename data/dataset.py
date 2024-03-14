@@ -3,7 +3,7 @@ import os
 import scipy.io as sio
 from genericpath import exists
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset, random_split
+from torch.utils.data import DataLoader, Dataset, random_split, Subset
 from torchvision import transforms
 
 DEFAULT_DATA_DIR = 'img/generated'
@@ -11,35 +11,51 @@ DEFAULT_DATA_DIR = 'img/generated'
 def load_data(file_path):
     image_path = file_path
     hbs_path = file_path.replace('.png', '.mat')
+    
+    if not exists(hbs_path) or not exists(image_path):
+        raise FileNotFoundError("Image or HBS file not found")
+    
     image = Image.open(image_path)
-    hbs = load_hbs(hbs_path)
+    hbs = sio.loadmat(hbs_path)['hbs']
     return image, hbs
 
-def load_hbs(hbs_path):
-    if not exists(hbs_path):
-        return None
-
-    hbs = sio.loadmat(hbs_path)['hbs']
-    # Process the label data as needed
-    return hbs
+class TrainSubset(Subset):
+    def __init__(self, dataset, indices, transforms) -> None:
+        super().__init__(dataset, indices)
+        self.transforms = transforms
+        
+    def __getitem__(self, idx):
+        return self.transforms(self.dataset[idx])
 
 class HBSNDataset(Dataset):
-    def __init__(self, root=DEFAULT_DATA_DIR):
+    def __init__(self, root=DEFAULT_DATA_DIR, is_augment=False):
         self.root = root
+        self.is_augment = is_augment
         
-        self.image_transform = transforms.Compose([
-            # transforms.ToPILImage(),
+        # self.augment_transform = transforms.Compose([
+        #     transforms.RandomAffine(180, scale=(0.5, 1.2), translate=(0.2, 0.2))
+        # ])
+        
+        augment_image_transform = transforms.Compose([
+            transforms.RandomAffine(180, scale=(0.5, 1.2), translate=(0.2, 0.2)),
+        ])
+        image_transform = transforms.Compose([
             transforms.Grayscale(),
-            # transforms.Resize((256,256)),
             transforms.ToTensor()
         ])
-        self.hbs_transform = transforms.Compose([
+        hbs_transform = transforms.Compose([
             transforms.ToTensor()
         ])
+        self.augment_transform = transforms.Lambda(
+            lambda x: (
+                augment_image_transform(x[0]), 
+                x[1]
+            )
+        )
         self.transform = transforms.Lambda(
             lambda x: (
-                self.image_transform(x[0]), 
-                self.hbs_transform(x[1])
+                image_transform(x[0]), 
+                hbs_transform(x[1])
             )
         )
         
@@ -82,9 +98,12 @@ class HBSNDataset(Dataset):
     
     def get_dataloader(self, batch_size=32, split_rate=0.8):
         # Split dataset into train and test sets
-        train_size = int(split_rate * len(self))
-        test_size = len(self) - train_size
-        train_dataset, test_dataset = random_split(self, [train_size, test_size])
+        # train_size = int(split_rate * len(self))
+        # test_size = len(self) - train_size
+        train_dataset, test_dataset = random_split(self, [split_rate, 1-split_rate])
+        train_dataset = TrainSubset(train_dataset.dataset, train_dataset.indices, self.augment_transform)
+        # train_dataset.transform = self.augment_transform if self.is_augment else self.transform
+        # test_dataset.transform = self.transform
 
         # Create dataloaders
         train_dataloader = DataLoader(
