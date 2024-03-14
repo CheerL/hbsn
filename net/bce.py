@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
+# import torch.nn.functional as F
 
 DTYPE = torch.float32
 
@@ -57,11 +57,11 @@ class Up(nn.Module):
     def forward(self, x, x2):
         x1 = self.up(x)
         # input is CHW
-        diffY = x2.size()[2] - x1.size()[2]
-        diffX = x2.size()[3] - x1.size()[3]
+        # diffY = x2.size()[2] - x1.size()[2]
+        # diffX = x2.size()[3] - x1.size()[3]
 
-        x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
-                        diffY // 2, diffY - diffY // 2])
+        # x1 = F.pad(x1, [diffX // 2, diffX - diffX // 2,
+        #                 diffY // 2, diffY - diffY // 2])
         # if you have padding issues, see
         # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
         # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
@@ -71,6 +71,7 @@ class Up(nn.Module):
 class BCENet(nn.Module):
     def __init__(self, n_channels, n_classes, channels, bilinear=True, dtype=DTYPE):
         super(BCENet, self).__init__()
+        self.dtype=dtype
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.bilinear = bilinear
@@ -135,34 +136,3 @@ class BCENet(nn.Module):
     #     self.up2 = torch.utils.checkpoint(self.up2)
     #     self.up1 = torch.utils.checkpoint(self.up1)
     #     self.outc = torch.utils.checkpoint(self.outc)
-
-class HBSNet(nn.Module):
-    def __init__(
-        self, height, width, 
-        input_channels=1, output_channels=2, 
-        channels=[16, 32, 64, 128], 
-        device="cpu", dtype=DTYPE
-        ):
-        super(HBSNet, self).__init__()
-        self.dtype = dtype
-        self.device = device
-        self.height = height
-        self.width = width
-        self.input_channels = input_channels
-        self.output_channels = output_channels
-        self.bce = BCENet(input_channels, output_channels, channels, bilinear=True, dtype=dtype)
-        self.to(device)
-
-    def forward(self, x):
-        # x = x.reshape(-1, self.input_channels, self.height, self.width)
-        x = self.bce(x)
-        return x
-
-    def loss(self, predict, label):
-        return F.mse_loss(predict, label, reduction="mean")
-
-    def initialize(self):
-        for m in self.bce.modules():
-            if isinstance(m, (nn.Linear, nn.Conv1d, nn.Conv2d)):
-                nn.init.xavier_uniform_(m.weight)
-

@@ -1,4 +1,4 @@
-#! ~/.pyenv/versions/hbs_seg/bin/python
+#! /home/extradisk/linchenran/.pyenv/versions/hbs_seg/bin/python
 import os
 import random
 

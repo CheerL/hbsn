@@ -6,7 +6,7 @@ import torch
 from torch.optim.lr_scheduler import MultiStepLR
 
 from data.dataset import HBSNDataset
-from net import HBSNet
+from net.hbsn import HBSNet
 from summary_logger import HBSNSummary
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -24,13 +24,16 @@ WEIGHT_NORM = 1e-5
 MOMENTS = 0.9
 BATCH_SIZE = 64
 CHANNELS = [16, 32, 64, 128]
-VERSION = "0.2"
+VERSION = "0.3"
 
 # VERSION 0.1
 # initial version
 
 # VERSION 0.2
 # add learning rate decay
+
+# VERSION 0.3
+# add STN
 
 
 
@@ -46,11 +49,15 @@ VERSION = "0.2"
 @click.option("--version", default=VERSION, help="Version of the model")
 @click.option("--lr_decay_rate", default=LR_DECAY_RATE, help="Learning rate decay rate")
 @click.option("--lr_decay_steps", default=str(LR_DECAY_STEPS), help="Learning rate decay steps", type=str)
+@click.option("--is_stn", is_flag=True, help="Use STN or not")
 def main(data_dir, device, total_epoches, version,
          lr, weight_norm, moments, batch_size, channels, 
-         lr_decay_rate, lr_decay_steps):
+         lr_decay_rate, lr_decay_steps, is_stn):
     if isinstance(channels, str):
-        channels = list(map(int, channels.replace('[', '').replace(']', '').split(",")))
+        if channels == '[]':
+            channels = []
+        else:
+            channels = list(map(int, channels.replace('[', '').replace(']', '').split(",")))
     elif isinstance(channels, int):
         channels = [channels]
     # elif isinstance(channels, list):
@@ -78,7 +85,8 @@ def main(data_dir, device, total_epoches, version,
         "channels": channels,
         "version": version,
         "lr_decay_rate": lr_decay_rate,
-        "lr_decay_steps": lr_decay_steps
+        "lr_decay_steps": lr_decay_steps,
+        "is_stn": is_stn
     }
 
     dataset = HBSNDataset(data_dir)
@@ -87,7 +95,7 @@ def main(data_dir, device, total_epoches, version,
 
     net = HBSNet(
         height=H, width=W, input_channels=C_input, output_channels=C_output, 
-        channels=channels, device=device, dtype=DTYPE
+        channels=channels, device=device, dtype=DTYPE, is_stn=is_stn
         )
     net.initialize()
     
@@ -114,7 +122,6 @@ def main(data_dir, device, total_epoches, version,
             loss = net.loss(output, hbs)
             loss.backward()
             optimizer.step()
-            # scheduler.step()
 
             summary_writer.add_loss(epoch, iteration, loss)
             if iteration % IMAGE_INTERVAL == 0:
