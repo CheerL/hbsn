@@ -101,7 +101,8 @@ class HBSNDataset(Dataset):
         # train_size = int(split_rate * len(self))
         # test_size = len(self) - train_size
         train_dataset, test_dataset = random_split(self, [split_rate, 1-split_rate])
-        train_dataset = TrainSubset(train_dataset.dataset, train_dataset.indices, self.augment_transform)
+        if self.is_augment:
+            train_dataset = TrainSubset(train_dataset.dataset, train_dataset.indices, self.augment_transform)
         # train_dataset.transform = self.augment_transform if self.is_augment else self.transform
         # test_dataset.transform = self.transform
 

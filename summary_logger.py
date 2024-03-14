@@ -90,7 +90,7 @@ class HBSNSummary(SummaryWriter):
             f"{prefix}: epoch={epoch}/{self.total_epoches}, iteration={iteration}/{size}, loss={loss}"
         )
         
-    def add_output(self, img, hbs, output, is_train=True):
+    def add_output(self, img, hbs, output, is_train=True, m=10):
         if is_train:
             prefix = "Train"
             total_iteration = len(self.train_loss)
@@ -98,24 +98,45 @@ class HBSNSummary(SummaryWriter):
             prefix = "Test"
             total_iteration = len(self.test_loss)
         
-        k = np.random.randint(0, img.shape[0])
+        # k = np.random.randint(0, img.shape[0])
         
+        # img_k = img[k].detach().cpu().numpy()
+        # output_k = output[k].detach().cpu().numpy()
+        # hbs_k = hbs[k].detach().cpu().numpy()
+        
+        # fig = plt.figure(figsize=(15, 5))
+        # plt.subplot(131)
+        # plt.imshow(img_k[0], cmap='gray')
+        # plt.title("Input")
+        # plt.subplot(132)
+        # plt.imshow(np.linalg.norm(hbs_k, axis=0), cmap='jet')
+        # plt.title("HBS")
+        # plt.subplot(133)
+        # plt.imshow(np.linalg.norm(output_k, axis=0), cmap='jet')
+        # plt.title("Output")
+
+        k = np.random.choice(self.batch_size, m, replace=False)
+
         img_k = img[k].detach().cpu().numpy()
         output_k = output[k].detach().cpu().numpy()
         hbs_k = hbs[k].detach().cpu().numpy()
-        
-        fig = plt.figure(figsize=(15, 5))
-        plt.subplot(131)
-        plt.imshow(img_k[0], cmap='gray')
-        plt.title("Input")
-        plt.subplot(132)
-        plt.imshow(np.linalg.norm(hbs_k, axis=0), cmap='jet')
-        plt.title("HBS")
-        plt.subplot(133)
-        plt.imshow(np.linalg.norm(output_k, axis=0), cmap='jet')
-        plt.title("Output")
 
-        
+        subfigure_size = 2
+        fig = plt.figure(figsize=(m*subfigure_size, 3*subfigure_size))
+        fig.subplots_adjust(hspace=0.05, wspace=0.05)
+        for i in range(m):
+            plt.subplot(3, m, i+1)
+            plt.imshow(img_k[i,0], cmap='gray')
+            plt.axis('off')
+
+            plt.subplot(3, m, m+i+1)
+            plt.imshow(np.linalg.norm(hbs_k[i], axis=0), cmap='jet')
+            plt.axis('off')
+
+            plt.subplot(3, m, 2*m+i+1)
+            plt.imshow(np.linalg.norm(output_k[i], axis=0), cmap='jet')
+            plt.axis('off')
+
         # self.add_image(f"{prefix}/input", img_k, total_iteration)
         # self.add_figure(f"{prefix}/hbs", plot_mu(hbs_k), total_iteration)
         self.add_figure(f"result/{prefix}", fig, total_iteration)

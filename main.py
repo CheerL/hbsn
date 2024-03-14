@@ -13,7 +13,7 @@ ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT_DIR, "img", "generated")
 
 DTYPE = torch.float32
-IMAGE_INTERVAL = 20
+IMAGE_INTERVAL = 40
 
 DEVICE = "cuda:0"
 LR_DECAY_STEPS = [50,100]
@@ -55,7 +55,7 @@ VERSION = "0.4"
 @click.option("--version", default=VERSION, help="Version of the model")
 @click.option("--lr_decay_rate", default=LR_DECAY_RATE, help="Learning rate decay rate")
 @click.option("--lr_decay_steps", default=str(LR_DECAY_STEPS), help="Learning rate decay steps", type=str)
-@click.option("--is_stn", is_flag=True, help="Use STN or not")
+@click.option("--is_stn", default=0, help="Use STN or not")
 @click.option("--is_augment", is_flag=True, help="Use data augmentation or not")
 def main(data_dir, device, total_epoches, version,
          lr, weight_norm, moments, batch_size, channels, 

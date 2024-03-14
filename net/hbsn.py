@@ -12,8 +12,11 @@ class HBSNet(nn.Module):
         self, height, width,
         input_channels=1, output_channels=2,
         channels=[16, 32, 64, 128],
-        device="cpu", dtype=DTYPE, is_stn=False
+        device="cpu", dtype=DTYPE, is_stn=0
         ):
+        # is_stn: 0 - no stn, 
+        #         1 - stn control, 
+        #         2 - stn rotation only
         super(HBSNet, self).__init__()
         self.dtype = dtype
         self.device = device
@@ -23,8 +26,10 @@ class HBSNet(nn.Module):
         self.output_channels = output_channels
         self.is_stn = is_stn
         
-        if is_stn:
+        if is_stn == 1:
             self.stn = STN(input_channels, height, width, dtype=dtype, is_rotation_only=False)
+        elif is_stn == 2:
+            self.stn = STN(output_channels, height, width, dtype=dtype, is_rotation_only=True)
         self.bce = BCENet(input_channels, output_channels, channels, bilinear=True, dtype=dtype)
         
 
@@ -32,11 +37,11 @@ class HBSNet(nn.Module):
 
     def forward(self, x):
         # x = x.reshape(-1, self.input_channels, self.height, self.width)
-        if self.is_stn:
+        if self.is_stn == 1:
             x = self.stn(x)
         x = self.bce(x)
-        # if self.is_stn:
-        #     x = self.stn(x)
+        if self.is_stn == 2:
+            x = self.stn(x)
         return x
 
     def loss(self, predict, label):
