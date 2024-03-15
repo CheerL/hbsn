@@ -42,8 +42,9 @@ class HBSNSummary(SummaryWriter):
         self.train_size = train_size
         self.test_size = test_size
 
-        self.train_loss = []
-        self.test_loss = []
+        self.train_loss = torch.zeros(self.train_size)
+        self.test_loss = torch.zeros(self.test_size)
+        
 
     def init_logger(self):
         logger.add(os.path.join(self.log_dir, 'log.log'), level="INFO")
@@ -73,16 +74,15 @@ class HBSNSummary(SummaryWriter):
         if is_train:
             prefix = "Train"
             size = self.train_size
-            self.train_loss.append(loss)
-            total_iteration = len(self.train_loss)
+            self.train_loss[iteration] = loss
             logger_func = logger.info
         else:
             prefix = "Test"
             size = self.test_size
-            self.test_loss.append(loss)
-            total_iteration = len(self.test_loss)
+            self.test_loss[iteration] = loss
             logger_func = logger.warning
-
+            
+        total_iteration = epoch * size + iteration
         self.add_scalar(f"loss/{prefix}", loss, total_iteration)
         self.flush()
         
@@ -90,14 +90,32 @@ class HBSNSummary(SummaryWriter):
             f"{prefix}: epoch={epoch}/{self.total_epoches}, iteration={iteration}/{size}, loss={loss}"
         )
         
-    def add_output(self, img, hbs, output, is_train=True, m=10):
+    def add_epoch_loss(self, epoch, is_train=True):
         if is_train:
             prefix = "Train"
-            total_iteration = len(self.train_loss)
+            loss = self.train_loss.mean().item()
+            logger_func = logger.info
         else:
             prefix = "Test"
-            total_iteration = len(self.test_loss)
+            loss = self.test_loss.mean().item()
+            logger_func = logger.warning
+
+        self.add_scalar(f"loss/{prefix}_epoch", loss, epoch)
+        self.flush()
+
+        logger_func(
+            f"{prefix} epoch total: epoch={epoch}/{self.total_epoches}, total loss={loss}"
+        )
+        return loss
         
+    def add_output(self, epoch, iteration, img, hbs, output, is_train=True, m=10):
+        if is_train:
+            prefix = "Train"
+            size = self.train_size
+        else:
+            prefix = "Test"
+            size = self.test_size
+        total_iteration = epoch * size + iteration
         # k = np.random.randint(0, img.shape[0])
         
         # img_k = img[k].detach().cpu().numpy()

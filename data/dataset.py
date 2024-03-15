@@ -32,13 +32,7 @@ class HBSNDataset(Dataset):
         self.root = root
         self.is_augment = is_augment
         
-        # self.augment_transform = transforms.Compose([
-        #     transforms.RandomAffine(180, scale=(0.5, 1.2), translate=(0.2, 0.2))
-        # ])
         
-        augment_image_transform = transforms.Compose([
-            transforms.RandomAffine(180, scale=(0.5, 1.2), translate=(0.2, 0.2)),
-        ])
         image_transform = transforms.Compose([
             transforms.Grayscale(),
             transforms.ToTensor()
@@ -46,12 +40,7 @@ class HBSNDataset(Dataset):
         hbs_transform = transforms.Compose([
             transforms.ToTensor()
         ])
-        self.augment_transform = transforms.Lambda(
-            lambda x: (
-                augment_image_transform(x[0]), 
-                x[1]
-            )
-        )
+        
         self.transform = transforms.Lambda(
             lambda x: (
                 image_transform(x[0]), 
@@ -59,6 +48,15 @@ class HBSNDataset(Dataset):
             )
         )
         
+        augment_image_transform = transforms.Compose([
+            transforms.RandomAffine(180, scale=(0.8, 1.2), translate=(0.1, 0.1)),
+        ])
+        self.augment_transform = transforms.Lambda(
+            lambda x: (
+                augment_image_transform(x[0]), 
+                x[1]
+            )
+        )
 
         self.data_list = sorted([
             f"{root}/{file}" for file in os.listdir(root) 
