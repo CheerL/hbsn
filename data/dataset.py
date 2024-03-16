@@ -28,9 +28,14 @@ class TrainSubset(Subset):
         return self.transforms(self.dataset[idx])
 
 class HBSNDataset(Dataset):
-    def __init__(self, root=DEFAULT_DATA_DIR, is_augment=False):
+    def __init__(self, root=DEFAULT_DATA_DIR, is_augment=False, 
+                 augment_rotation=180, augment_scale=[0.8,1.2], augment_translate=[0.1,0.1]
+                 ):
         self.root = root
         self.is_augment = is_augment
+        self.augment_rotation = augment_rotation
+        self.augment_scale = augment_scale
+        self.augment_translate = augment_translate
         
         
         image_transform = transforms.Compose([
@@ -49,7 +54,7 @@ class HBSNDataset(Dataset):
         )
         
         augment_image_transform = transforms.Compose([
-            transforms.RandomAffine(180, scale=(0.8, 1.2), translate=(0.1, 0.1)),
+            transforms.RandomAffine(augment_rotation, scale=augment_scale, translate=augment_translate),
         ])
         self.augment_transform = transforms.Lambda(
             lambda x: (
@@ -94,11 +99,19 @@ class HBSNDataset(Dataset):
     def get_size(self):
         return self.H, self.W, self.C_image, self.C_hbs
     
-    def get_dataloader(self, batch_size=32, split_rate=0.8):
+    def get_dataloader(self, batch_size=32, split_rate=0.8, drop_last=True):
         # Split dataset into train and test sets
         # train_size = int(split_rate * len(self))
         # test_size = len(self) - train_size
-        train_dataset, test_dataset = random_split(self, [split_rate, 1-split_rate])
+        if split_rate == 1:
+            train_dataset = self
+            test_dataset = None
+        elif split_rate == 0:
+            train_dataset = None
+            test_dataset = self
+        else:
+            train_dataset, test_dataset = random_split(self, [split_rate, 1-split_rate])
+
         if self.is_augment:
             train_dataset = TrainSubset(train_dataset.dataset, train_dataset.indices, self.augment_transform)
         # train_dataset.transform = self.augment_transform if self.is_augment else self.transform
@@ -107,10 +120,10 @@ class HBSNDataset(Dataset):
         # Create dataloaders
         train_dataloader = DataLoader(
             train_dataset, batch_size=batch_size, shuffle=True, 
-            pin_memory=True, num_workers=4, drop_last=True
-            )
+            pin_memory=True, num_workers=4, drop_last=drop_last
+            ) if train_dataset else None
         test_dataloader = DataLoader(
             test_dataset, batch_size=batch_size, shuffle=False, 
-            pin_memory=True, num_workers=4, drop_last=True
-            )
+            pin_memory=True, num_workers=4, drop_last=drop_last
+            ) if test_dataset else None
         return train_dataloader, test_dataloader

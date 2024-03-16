@@ -19,14 +19,18 @@ CHECKPOINT_INTERVAL = 5
 
 DEVICE = "cuda:0"
 LR_DECAY_STEPS = [50,100]
-LR_DECAY_RATE = 0.1
+LR_DECAY_RATE = 0.5
 TOTAL_EPOCHES = 1000
 LR = 1e-3
 WEIGHT_NORM = 1e-5
 MOMENTS = 0.9
 BATCH_SIZE = 64
 CHANNELS = [8, 16, 32, 64, 128, 256]
-VERSION = "0.5"
+VERSION = "0.7"
+AUGMENT_ROTATION = 180.0
+AUGMENT_SCALE = [0.8, 1.2]
+AUGMENT_TRANSLATE = [0.1, 0.1]
+RADUIS = 50
 
 # VERSION 0.1
 # initial version
@@ -46,6 +50,25 @@ VERSION = "0.5"
 # VERSION 0.5
 # save and load checkpoint, report epoch loss
 
+# VERSION 0.6
+# add aug params
+
+# VERSION 0.7
+# focus on unit disk
+
+
+def list_para_handle(p, map_func=int):
+    if isinstance(p, str):
+        if p == '[]' or p == '':
+            return []
+        else:
+            return list(map(map_func, p.replace('[', '').replace(']', '').split(",")))
+    elif isinstance(p, float):
+        return [p]
+    elif isinstance(p, list):
+        return p
+    else:
+        raise ValueError(f"Invalid parameter")
 
 
 @click.command()
@@ -65,28 +88,19 @@ VERSION = "0.5"
 @click.option("--load", default="", help="Load model from checkpoint")
 @click.option("--comment", default='')
 @click.option("--log_dir", default='', help="Log directory")
+@click.option("--augment_rotation", default=AUGMENT_ROTATION, help="Rotation range for data augmentation")
+@click.option("--augment_scale", default=str(AUGMENT_SCALE), help="Scale range for data augmentation")
+@click.option("--augment_translate", default=str(AUGMENT_TRANSLATE), help="Translate range for data augmentation")
+@click.option("--radius", default=RADUIS, help="Radius for mask")
+@click.option("--is_use_new_best", is_flag=True, help="Use best model or not")
 def main(data_dir, device, total_epoches, version, load, log_dir,
          lr, weight_norm, moments, batch_size, channels, 
-         lr_decay_rate, lr_decay_steps, stn_mode, is_augment, comment):
-    if isinstance(channels, str):
-        if channels == '[]':
-            channels = []
-        else:
-            channels = list(map(int, channels.replace('[', '').replace(']', '').split(",")))
-    elif isinstance(channels, int):
-        channels = [channels]
-    else:
-        raise ValueError("Channels should be a list of integers")
-        
-    if isinstance(lr_decay_steps, str):
-        if lr_decay_steps == '[]':
-            lr_decay_steps = []
-        else:
-            lr_decay_steps = list(map(int, lr_decay_steps.replace('[', '').replace(']', '').split(",")))
-    elif isinstance(lr_decay_steps, int):
-        lr_decay_steps = [lr_decay_steps]
-    else:
-        raise ValueError("Learning rate decay steps should be a list of integers")
+         lr_decay_rate, lr_decay_steps, stn_mode, is_augment, comment,
+         augment_rotation, augment_scale, augment_translate, radius, is_use_new_best):
+    channels = list_para_handle(channels)
+    lr_decay_steps = list_para_handle(lr_decay_steps)
+    augment_scale = list_para_handle(augment_scale, float)
+    augment_translate = list_para_handle(augment_translate, float)
     
     config = {
         "data_dir": data_dir,
@@ -101,45 +115,57 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
         "lr_decay_rate": lr_decay_rate,
         "lr_decay_steps": lr_decay_steps,
         "stn_mode": stn_mode,
-        "is_augment": is_augment,
+        "is_augment": (augment_rotation, augment_scale, augment_translate) if is_augment else False,
     }
 
-    dataset = HBSNDataset(data_dir, is_augment=is_augment)
+    dataset = HBSNDataset(
+        data_dir, is_augment=is_augment, 
+        augment_rotation=augment_rotation, 
+        augment_scale=augment_scale, 
+        augment_translate=augment_translate
+        )
     H, W, C_input, C_output = dataset.get_size()
     train_dataloader, test_dataloader = dataset.get_dataloader(batch_size=batch_size)
-
+    
+    summary_writer = HBSNSummary(
+        config, len(train_dataloader), len(test_dataloader), 
+        log_dir=log_dir, comment=comment
+        )
+    summary_writer.init_logger()
+    
     net = HBSNet(
         height=H, width=W, input_channels=C_input, output_channels=C_output, 
-        channels=channels, device=device, dtype=DTYPE, stn_mode=stn_mode
+        channels=channels, device=device, dtype=DTYPE, stn_mode=stn_mode, radius=radius
         )
     net.initialize()
-    
-    summary_writer = HBSNSummary(config, len(train_dataloader), len(test_dataloader), log_dir=log_dir, comment=comment)
-    summary_writer.init_logger()
     summary_writer.init_summary(net)
+    
+    if load and os.path.exists(load):
+        init_epoch, best_epoch, best_loss = net.load(load)
+        logger.info(f"Model loaded from {load}")
+        if is_use_new_best:
+            best_epoch = -1
+            best_loss = 1e10
+    else:
+        init_epoch = -1
+        best_loss = 1e10
+        best_epoch = -1
+    
+    
     
     checkpoint_dir = os.path.join(summary_writer.log_dir, "checkpoints")
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
 
-    optimizer = torch.optim.Adam(net.parameters(), lr=lr, weight_decay=weight_norm, betas=(moments, 0.999))
+    optimizer = torch.optim.Adam([{'params': net.parameters(), 'initial_lr': lr}], lr=lr, weight_decay=weight_norm, betas=(moments, 0.999))
     
     if lr_decay_steps and lr_decay_rate != 1:
-        scheduler = MultiStepLR(optimizer, milestones=lr_decay_steps, gamma=lr_decay_rate)
+        scheduler = MultiStepLR(optimizer, milestones=lr_decay_steps, gamma=lr_decay_rate, last_epoch=init_epoch)
     else:
         scheduler = None
-        
-    if load and os.path.exists(load):
-        init_epoch, best_epoch, best_loss = net.load(load, optimizer, scheduler)
-        init_epoch += 1
-        logger.info(f"Model loaded from {load}")
-    else:
-        init_epoch = 0
-        best_loss = 1e10
-        best_epoch = -1
 
     ## Training
-    for epoch in range(init_epoch, total_epoches):
+    for epoch in range(init_epoch+1, total_epoches):
         net.train()
         for iteration, (img, hbs) in enumerate(train_dataloader):
             img = img.to(device, dtype=DTYPE)
@@ -168,29 +194,28 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
                 summary_writer.add_loss(epoch, iteration, loss, is_train=False)
                 if iteration % IMAGE_INTERVAL == 0:
                     summary_writer.add_output(epoch, iteration, img, hbs, output, is_train=False)
-            
-            test_epoch_loss = summary_writer.add_epoch_loss(epoch, is_train=False)
-            
-            if test_epoch_loss < best_loss:
-                old_best_para_path = os.path.join(checkpoint_dir, f"best_{best_epoch}.pth")
-                best_loss = test_epoch_loss
-                best_epoch = epoch
-                best_para_path = os.path.join(checkpoint_dir, f"best_{best_epoch}.pth")
-                
-                if os.path.exists(old_best_para_path):
-                    os.remove(old_best_para_path)
-                net.save(best_para_path, epoch, best_epoch, best_loss, optimizer, scheduler)
-                
-                
-                logger.warning(f"Best model saved at epoch {epoch} to {best_para_path}")
-            
-            if epoch % CHECKPOINT_INTERVAL == 0:
-                para_path = os.path.join(checkpoint_dir, f"epoch_{epoch}.pth")
-                net.save(para_path, epoch, best_epoch, best_loss, optimizer, scheduler)
-                logger.info(f"Model saved at epoch {epoch} to {para_path}")
-            
+        
         if scheduler:
             scheduler.step()
+
+        test_epoch_loss = summary_writer.add_epoch_loss(epoch, is_train=False)
+
+        if test_epoch_loss < best_loss:
+            old_best_para_path = os.path.join(checkpoint_dir, f"best_{best_epoch}.pth")
+            best_loss = test_epoch_loss
+            best_epoch = epoch
+            best_para_path = os.path.join(checkpoint_dir, f"best_{best_epoch}.pth")
+
+            if os.path.exists(old_best_para_path):
+                os.remove(old_best_para_path)
+            net.save(best_para_path, epoch, best_epoch, best_loss)
+
+            logger.warning(f"Best model saved at epoch {epoch} to {best_para_path}")
+            
+        if epoch % CHECKPOINT_INTERVAL == 0:
+            para_path = os.path.join(checkpoint_dir, f"epoch_{epoch}.pth")
+            net.save(para_path, epoch, best_epoch, best_loss)
+            logger.info(f"Model saved at epoch {epoch} to {para_path}")
 
 if __name__ == "__main__":
     main()
