@@ -3,7 +3,7 @@ import os
 import scipy.io as sio
 from genericpath import exists
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset, random_split, Subset
+from torch.utils.data import DataLoader, Dataset, Subset, random_split
 from torchvision import transforms
 
 DEFAULT_DATA_DIR = 'img/generated'
@@ -88,13 +88,18 @@ class HBSNDataset(Dataset):
         return self.num_sample
     
     def __getitem__(self, index):
-        file_name = self.data_list[index]
-        if file_name not in self.data:
-            image, hbs = self.transform(load_data(file_name))
-            self.data[file_name] = (image, hbs)
-        else:
-            image, hbs = self.data[file_name]
-        return image, hbs
+        if isinstance(index, list):
+            return [self[i] for i in index]
+        elif isinstance(index, slice):
+            return [self[i] for i in range(*index.indices(len(self)))]
+        elif isinstance(index, int):
+            file_name = self.data_list[index]
+            if file_name not in self.data:
+                image, hbs = self.transform(load_data(file_name))
+                self.data[file_name] = (image, hbs)
+            else:
+                image, hbs = self.data[file_name]
+            return image, hbs
     
     def get_size(self):
         return self.H, self.W, self.C_image, self.C_hbs
@@ -120,10 +125,10 @@ class HBSNDataset(Dataset):
         # Create dataloaders
         train_dataloader = DataLoader(
             train_dataset, batch_size=batch_size, shuffle=True, 
-            pin_memory=True, num_workers=4, drop_last=drop_last
+            pin_memory=True, num_workers=4, drop_last=drop_last, persistent_workers=True
             ) if train_dataset else None
         test_dataloader = DataLoader(
             test_dataset, batch_size=batch_size, shuffle=False, 
-            pin_memory=True, num_workers=4, drop_last=drop_last
+            pin_memory=True, num_workers=4, drop_last=drop_last, persistent_workers=True
             ) if test_dataset else None
         return train_dataloader, test_dataloader
