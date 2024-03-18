@@ -56,6 +56,9 @@ RADUIS = 50
 # VERSION 0.7
 # focus on unit disk
 
+# VERSION 0.8
+# add both stn
+
 
 def list_para_handle(p, map_func=int):
     if isinstance(p, str):
@@ -116,6 +119,7 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
         "lr_decay_steps": lr_decay_steps,
         "stn_mode": stn_mode,
         "is_augment": (augment_rotation, augment_scale, augment_translate) if is_augment else False,
+        "radius": radius
     }
 
     dataset = HBSNDataset(

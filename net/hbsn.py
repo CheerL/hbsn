@@ -15,8 +15,9 @@ class HBSNet(nn.Module):
         device="cpu", dtype=DTYPE, stn_mode=0, radius=50
         ):
         # stn_mode: 0 - no stn, 
-        #         1 - stn control, 
-        #         2 - stn rotation only
+        #           1 - pre stn
+        #           2 - post stn
+        #           3 - both stn
         super(HBSNet, self).__init__()
         self.dtype = dtype
         self.device = device
@@ -26,10 +27,12 @@ class HBSNet(nn.Module):
         self.output_channels = output_channels
         self.stn_mode = stn_mode
         
-        if stn_mode == 1:
-            self.stn = STN(input_channels, height, width, dtype=dtype, is_rotation_only=False)
-        elif stn_mode == 2:
-            self.stn = STN(output_channels, height, width, dtype=dtype, is_rotation_only=True)
+        if stn_mode == 1 or stn_mode == 3:
+            self.pre_stn = STN(input_channels, height, width, dtype=dtype, is_rotation_only=False)
+        
+        if stn_mode == 2 or stn_mode == 3:
+            self.post_stn = STN(output_channels, height, width, dtype=dtype, is_rotation_only=True)
+        
         self.bce = BCENet(input_channels, output_channels, channels, bilinear=True, dtype=dtype)
         self.mask = self.create_mask(radius)
         self.to(device)
@@ -44,17 +47,21 @@ class HBSNet(nn.Module):
         return mask
 
     def forward(self, x):
-        if self.stn_mode == 1:
-            x = self.stn(x)
+        if self.stn_mode == 1 or self.stn_mode == 3:
+            x = self.pre_stn(x)
+            
         x = self.bce(x)
-        if self.stn_mode == 2:
-            x = self.stn(x)
+        
+        if self.stn_mode == 2 or self.stn_mode == 3:
+            x = self.post_stn(x)
+
         x = torch.masked_fill(x, ~self.mask, 0.0)
         return x
 
     def loss(self, predict, label, is_mask=True):
-        if self.stn_mode == 2:
-            label = self.stn(label)
+        if self.stn_mode == 2 or self.stn_mode == 3:
+            label = self.post_stn(label)
+
         if is_mask:
             loss= F.mse_loss(
                 torch.masked_select(predict, self.mask), 
