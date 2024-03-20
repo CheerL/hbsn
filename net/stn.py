@@ -78,7 +78,8 @@ class STN(nn.Module):
         loc = self.fc_loc(xs)
         if self.is_control:
             if self.is_rotation_only:
-                theta = loc.view(-1)
+                theta = torch.tanh(loc.view(-1))
+                # theta = torch.ones_like(theta) * 3
                 scale = 1
                 dx = dy = torch.zeros_like(theta)
             else:
