@@ -96,7 +96,7 @@ class STN(nn.Module):
 
         grid = F.affine_grid(p, x.size(), align_corners=False)
         x = F.grid_sample(x, grid, align_corners=False)
-        return x
+        return x, theta
 
     def forward(self, x):
         # transform the input

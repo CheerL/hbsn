@@ -26,7 +26,7 @@ WEIGHT_NORM = 1e-5
 MOMENTS = 0.9
 BATCH_SIZE = 64
 CHANNELS = [8, 16, 32, 64, 128, 256]
-VERSION = "0.7"
+VERSION = "0.9"
 AUGMENT_ROTATION = 180.0
 AUGMENT_SCALE = [0.8, 1.2]
 AUGMENT_TRANSLATE = [0.1, 0.1]
@@ -58,6 +58,10 @@ RADUIS = 50
 
 # VERSION 0.8
 # add both stn
+
+# VERSION 0.9
+# add stn loss to increase the stn effect
+# save config in checkpoint and allow to autoload net
 
 
 def list_para_handle(p, map_func=int):
@@ -96,8 +100,9 @@ def list_para_handle(p, map_func=int):
 @click.option("--augment_translate", default=str(AUGMENT_TRANSLATE), help="Translate range for data augmentation")
 @click.option("--radius", default=RADUIS, help="Radius for mask")
 @click.option("--is_use_new_best", is_flag=True, help="Use best model or not")
+@click.option("--stn_rate", default=0.0, help="STN loss rate")
 def main(data_dir, device, total_epoches, version, load, log_dir,
-         lr, weight_norm, moments, batch_size, channels, 
+         lr, weight_norm, moments, batch_size, channels, stn_rate,
          lr_decay_rate, lr_decay_steps, stn_mode, is_augment, comment,
          augment_rotation, augment_scale, augment_translate, radius, is_use_new_best):
     channels = list_para_handle(channels)
@@ -119,7 +124,8 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
         "lr_decay_steps": lr_decay_steps,
         "stn_mode": stn_mode,
         "is_augment": (augment_rotation, augment_scale, augment_translate) if is_augment else False,
-        "radius": radius
+        "radius": radius,
+        'stn_rate': stn_rate
     }
 
     dataset = HBSNDataset(
@@ -138,7 +144,7 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
     summary_writer.init_logger()
     
     net = HBSNet(
-        height=H, width=W, input_channels=C_input, output_channels=C_output, 
+        height=H, width=W, input_channels=C_input, output_channels=C_output, stn_rate=stn_rate,
         channels=channels, device=device, dtype=DTYPE, stn_mode=stn_mode, radius=radius
         )
     net.initialize()
@@ -174,13 +180,13 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
         for iteration, (img, hbs) in enumerate(train_dataloader):
             img = img.to(device, dtype=DTYPE)
             hbs = hbs.to(device, dtype=DTYPE)
-            output = net(img)
+            output, _ = net(img)
             optimizer.zero_grad()
-            loss = net.loss(output, hbs)
+            loss, hbs_loss, stn_loss = net.loss(output, hbs)
             loss.backward()
             optimizer.step()
 
-            summary_writer.add_loss(epoch, iteration, loss)
+            summary_writer.add_loss(epoch, iteration, (loss, hbs_loss, stn_loss))
             if iteration % IMAGE_INTERVAL == 0:
                 summary_writer.add_output(epoch, iteration, img, hbs, output)
 
@@ -192,10 +198,10 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
             for iteration, (img, hbs) in enumerate(test_dataloader):
                 img = img.to(device, dtype=DTYPE)
                 hbs = hbs.to(device, dtype=DTYPE)
-                output = net(img)
-                loss = net.loss(output, hbs)
+                output, _ = net(img)
+                loss, hbs_loss, stn_loss = net.loss(output, hbs)
                 
-                summary_writer.add_loss(epoch, iteration, loss, is_train=False)
+                summary_writer.add_loss(epoch, iteration, (loss, hbs_loss, stn_loss), is_train=False)
                 if iteration % IMAGE_INTERVAL == 0:
                     summary_writer.add_output(epoch, iteration, img, hbs, output, is_train=False)
         
@@ -212,13 +218,13 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
 
             if os.path.exists(old_best_para_path):
                 os.remove(old_best_para_path)
-            net.save(best_para_path, epoch, best_epoch, best_loss)
+            net.save(best_para_path, epoch, best_epoch, best_loss, config)
 
             logger.warning(f"Best model saved at epoch {epoch} to {best_para_path}")
             
         if epoch % CHECKPOINT_INTERVAL == 0:
             para_path = os.path.join(checkpoint_dir, f"epoch_{epoch}.pth")
-            net.save(para_path, epoch, best_epoch, best_loss)
+            net.save(para_path, epoch, best_epoch, best_loss, config)
             logger.info(f"Model saved at epoch {epoch} to {para_path}")
 
 if __name__ == "__main__":

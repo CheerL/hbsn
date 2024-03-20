@@ -57,7 +57,7 @@ class HBSNSummary(SummaryWriter):
     def init_summary(self, net):
         empty_input = torch.zeros((1, net.input_channels, net.height, net.width), requires_grad=False).to(net.device, dtype=net.dtype)
         self.add_graph(net, empty_input)
-        fig = plt.figure(figsize=(6, 2.7), dpi=100)
+        fig = plt.figure(figsize=(6, 2.9), dpi=100)
         plt.text(
             0.5, 0.5,
             '\n'.join([f'{k}: {v}' for k, v in self.config.items()]),
@@ -68,8 +68,8 @@ class HBSNSummary(SummaryWriter):
         self.add_figure('config', fig)
         self.flush()
     
-    def add_loss(self, epoch, iteration, loss, is_train=True):
-        loss = loss.item()
+    def add_loss(self, epoch, iteration, loss_tuple, is_train=True):
+        loss, hbs_loss, stn_loss = loss_tuple
 
         if is_train:
             prefix = "Train"
@@ -84,10 +84,12 @@ class HBSNSummary(SummaryWriter):
             
         total_iteration = epoch * size + iteration
         self.add_scalar(f"loss/{prefix}", loss, total_iteration)
+        self.add_scalar(f"hbs_loss/{prefix}", hbs_loss, total_iteration)
+        self.add_scalar(f"stn_loss/{prefix}", stn_loss, total_iteration)
         self.flush()
         
         logger_func(
-            f"{prefix}: epoch={epoch}/{self.total_epoches}, iteration={iteration}/{size}, loss={loss}"
+            f"{prefix}: epoch={epoch}/{self.total_epoches}, iteration={iteration}/{size}, loss={loss}, hbs_loss={hbs_loss}, stn_loss={stn_loss}"
         )
         
     def add_epoch_loss(self, epoch, is_train=True):
