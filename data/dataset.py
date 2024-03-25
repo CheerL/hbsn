@@ -3,6 +3,7 @@ import os
 import scipy.io as sio
 from genericpath import exists
 from PIL import Image
+from torch.utils import data
 from torch.utils.data import DataLoader, Dataset, Subset, random_split
 from torchvision import transforms
 
@@ -109,16 +110,29 @@ class HBSNDataset(Dataset):
         # train_size = int(split_rate * len(self))
         # test_size = len(self) - train_size
         if split_rate == 1:
-            train_dataset = self
+            if self.is_augment:
+                train_dataset = TrainSubset(
+                    self, 
+                    range(len(self)),
+                    self.augment_transform
+                    )
+            else:
+                train_dataset = self
+
             test_dataset = None
         elif split_rate == 0:
             train_dataset = None
             test_dataset = self
         else:
             train_dataset, test_dataset = random_split(self, [split_rate, 1-split_rate])
+            
+            if self.is_augment:
+                train_dataset = TrainSubset(
+                train_dataset.dataset,
+                train_dataset.indices,
+                self.augment_transform
+                )
 
-        if self.is_augment:
-            train_dataset = TrainSubset(train_dataset.dataset, train_dataset.indices, self.augment_transform)
         # train_dataset.transform = self.augment_transform if self.is_augment else self.transform
         # test_dataset.transform = self.transform
 

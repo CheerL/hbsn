@@ -182,7 +182,7 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
             hbs = hbs.to(device, dtype=DTYPE)
             output, _ = net(img)
             optimizer.zero_grad()
-            loss, hbs_loss, stn_loss = net.loss(output, hbs)
+            [loss, hbs_loss, stn_loss], _ = net.loss(output, hbs)
             loss.backward()
             optimizer.step()
 
@@ -199,7 +199,7 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
                 img = img.to(device, dtype=DTYPE)
                 hbs = hbs.to(device, dtype=DTYPE)
                 output, _ = net(img)
-                loss, hbs_loss, stn_loss = net.loss(output, hbs)
+                [loss, hbs_loss, stn_loss], _ = net.loss(output, hbs)
                 
                 summary_writer.add_loss(epoch, iteration, (loss, hbs_loss, stn_loss), is_train=False)
                 if iteration % IMAGE_INTERVAL == 0:
