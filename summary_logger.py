@@ -57,7 +57,7 @@ class HBSNSummary(SummaryWriter):
     def init_summary(self, net):
         empty_input = torch.zeros((1, net.input_channels, net.height, net.width), requires_grad=False).to(net.device, dtype=net.dtype)
         self.add_graph(net, empty_input)
-        fig = plt.figure(figsize=(6, 2.9), dpi=100)
+        fig = plt.figure(figsize=(6, len(self.config) * 0.2), dpi=100)
         plt.text(
             0.5, 0.5,
             '\n'.join([f'{k}: {v}' for k, v in self.config.items()]),

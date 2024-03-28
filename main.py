@@ -12,9 +12,10 @@ from summary_logger import HBSNSummary
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(ROOT_DIR, "img", "generated")
+TEST_DATA_DIR = os.path.join(ROOT_DIR, "img", "gen2")
 
 DTYPE = torch.float32
-IMAGE_INTERVAL = 40
+IMAGE_INTERVAL = 100
 CHECKPOINT_INTERVAL = 5
 
 DEVICE = "cuda:0"
@@ -63,6 +64,10 @@ RADUIS = 50
 # add stn loss to increase the stn effect
 # save config in checkpoint and allow to autoload net
 
+# VERSION 0.10
+# save optimizer into checkpoint
+# allow different dataset in train and test
+
 
 def list_para_handle(p, map_func=int):
     if isinstance(p, str):
@@ -80,6 +85,7 @@ def list_para_handle(p, map_func=int):
 
 @click.command()
 @click.option("--data_dir", default=DATA_DIR, help="Data directory")
+@click.option("--test_data_dir", default=TEST_DATA_DIR, help="Test data directory")
 @click.option("--device", default=DEVICE, help="Device to run the training")
 @click.option("--total_epoches", default=TOTAL_EPOCHES, help="Total epoches to train")
 @click.option("--lr", default=LR, help="Learning rate")
@@ -101,7 +107,7 @@ def list_para_handle(p, map_func=int):
 @click.option("--radius", default=RADUIS, help="Radius for mask")
 @click.option("--is_use_new_best", is_flag=True, help="Use best model or not")
 @click.option("--stn_rate", default=0.0, help="STN loss rate")
-def main(data_dir, device, total_epoches, version, load, log_dir,
+def main(data_dir, test_data_dir, device, total_epoches, version, load, log_dir,
          lr, weight_norm, moments, batch_size, channels, stn_rate,
          lr_decay_rate, lr_decay_steps, stn_mode, is_augment, comment,
          augment_rotation, augment_scale, augment_translate, radius, is_use_new_best):
@@ -112,6 +118,7 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
     
     config = {
         "data_dir": data_dir,
+        "test_dir": test_data_dir,
         "device": device,
         "total_epoches": total_epoches,
         "lr": lr,
@@ -135,7 +142,14 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
         augment_translate=augment_translate
         )
     H, W, C_input, C_output = dataset.get_size()
-    train_dataloader, test_dataloader = dataset.get_dataloader(batch_size=batch_size)
+    if not test_data_dir:
+        train_dataloader, test_dataloader = dataset.get_dataloader(batch_size=batch_size)
+    else:
+        train_dataloader, _ = dataset.get_dataloader(batch_size=batch_size, split_rate=1)
+        test_dataset = HBSNDataset(
+            test_data_dir, is_augment=False
+            )
+        _, test_dataloader = test_dataset.get_dataloader(batch_size=batch_size, split_rate=0)
     
     summary_writer = HBSNSummary(
         config, len(train_dataloader), len(test_dataloader), 
@@ -151,7 +165,7 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
     summary_writer.init_summary(net)
     
     if load and os.path.exists(load):
-        init_epoch, best_epoch, best_loss = net.load(load)
+        init_epoch, best_epoch, best_loss, optimizer_data = net.load(load)
         logger.info(f"Model loaded from {load}")
         if is_use_new_best:
             best_epoch = -1
@@ -160,14 +174,15 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
         init_epoch = -1
         best_loss = 1e10
         best_epoch = -1
-    
-    
+        optimizer_data = None
     
     checkpoint_dir = os.path.join(summary_writer.log_dir, "checkpoints")
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
 
     optimizer = torch.optim.Adam([{'params': net.parameters(), 'initial_lr': lr}], lr=lr, weight_decay=weight_norm, betas=(moments, 0.999))
+    if optimizer_data:
+        optimizer.load_state_dict(optimizer_data)
     
     if lr_decay_steps and lr_decay_rate != 1:
         scheduler = MultiStepLR(optimizer, milestones=lr_decay_steps, gamma=lr_decay_rate, last_epoch=init_epoch)
@@ -218,13 +233,13 @@ def main(data_dir, device, total_epoches, version, load, log_dir,
 
             if os.path.exists(old_best_para_path):
                 os.remove(old_best_para_path)
-            net.save(best_para_path, epoch, best_epoch, best_loss, config)
+            net.save(best_para_path, epoch, best_epoch, best_loss, config, optimizer)
 
             logger.warning(f"Best model saved at epoch {epoch} to {best_para_path}")
             
         if epoch % CHECKPOINT_INTERVAL == 0:
             para_path = os.path.join(checkpoint_dir, f"epoch_{epoch}.pth")
-            net.save(para_path, epoch, best_epoch, best_loss, config)
+            net.save(para_path, epoch, best_epoch, best_loss, config, optimizer)
             logger.info(f"Model saved at epoch {epoch} to {para_path}")
 
 if __name__ == "__main__":

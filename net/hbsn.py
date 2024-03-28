@@ -79,13 +79,14 @@ class HBSNet(nn.Module):
             if isinstance(m, (nn.Linear, nn.Conv1d, nn.Conv2d)):
                 nn.init.xavier_uniform_(m.weight)
 
-    def save(self, path, epoch, best_epoch, best_loss, config={}):
+    def save(self, path, epoch, best_epoch, best_loss, config={}, optimizer=None):
         torch.save({
             "state_dict": self.state_dict(),
             "epoch": epoch,
             "best_epoch": best_epoch,
             "best_loss": best_loss,
-            'config': config
+            'config': config,
+            'optimizer': optimizer.state_dict() if optimizer else None
         }, path)
         
     def load(self, path):
@@ -94,8 +95,9 @@ class HBSNet(nn.Module):
         epoch = checkpoint["epoch"]
         best_epoch = checkpoint["best_epoch"]
         best_loss = checkpoint["best_loss"]
+        optimizer_data = checkpoint["optimizer"] if "optimizer" in checkpoint else {}
 
-        return epoch, best_epoch, best_loss
+        return epoch, best_epoch, best_loss, optimizer_data
     
     @staticmethod
     def load_model(path, device=None):
