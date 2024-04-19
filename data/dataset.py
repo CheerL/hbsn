@@ -1,11 +1,13 @@
 import os
 
 import scipy.io as sio
+import torch
 from genericpath import exists
 from PIL import Image
-from torch.utils import data
+from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, Subset, random_split
 from torchvision import transforms
+from torchvision.transforms import functional as F
 
 DEFAULT_DATA_DIR = 'img/generated'
 
@@ -19,6 +21,53 @@ def load_data(file_path):
     image = Image.open(image_path)
     hbs = sio.loadmat(hbs_path)['hbs']
     return image, hbs
+
+class CustomRandomAffine(transforms.RandomAffine):
+    def forward(self, img):
+        fill = self.fill
+        channels, height, width = F.get_dimensions(img)
+        if isinstance(img, Tensor):
+            if isinstance(fill, (int, float)):
+                fill = [float(fill)] * channels
+            else:
+                fill = [float(f) for f in fill]
+
+        x, y = torch.where(img[0]>0.5)
+        dis = ((x-width/2).pow(2) + (y-height/2).pow(2)).sqrt()
+        max_dis = dis.max()
+        
+        
+        angle = float(torch.empty(1).uniform_(float(self.degrees[0]), float(self.degrees[1])).item())
+        
+        if self.scale is not None:
+            max_scale = min(self.scale[1], min(width,height) / (max_dis * 2))
+            min_scale = min(self.scale[0], max_scale)
+            scale_ranges = [min_scale, max_scale]
+            scale = float(torch.empty(1).uniform_(scale_ranges[0], scale_ranges[1]).item())
+        else:
+            scale = 1.0
+
+        if self.translate is not None:
+            scaled_max_dis = scale * max_dis
+            translate = self.translate
+            max_dx = min(float(translate[0] * width), width/2 - scaled_max_dis)
+            max_dy = min(float(translate[1] * height), height/2 - scaled_max_dis)
+            tx = int(round(torch.empty(1).uniform_(-max_dx, max_dx).item()))
+            ty = int(round(torch.empty(1).uniform_(-max_dy, max_dy).item()))
+            translations = (tx, ty)
+        else:
+            translations = (0, 0)
+
+        shear_x = shear_y = 0.0
+        if self.shear is not None:
+            shears = self.shear
+            shear_x = float(torch.empty(1).uniform_(shears[0], shears[1]).item())
+            if len(shears) == 4:
+                shear_y = float(torch.empty(1).uniform_(shears[2], shears[3]).item())
+        shear = (shear_x, shear_y)
+        
+        ret = [angle, translations, scale, shear]
+        return F.affine(img, *ret, interpolation=self.interpolation, fill=fill, center=self.center)
 
 class TrainSubset(Subset):
     def __init__(self, dataset, indices, transforms) -> None:
@@ -55,7 +104,7 @@ class HBSNDataset(Dataset):
         )
         
         augment_image_transform = transforms.Compose([
-            transforms.RandomAffine(augment_rotation, scale=augment_scale, translate=augment_translate),
+            CustomRandomAffine(augment_rotation, scale=augment_scale, translate=augment_translate),
         ])
         self.augment_transform = transforms.Lambda(
             lambda x: (
