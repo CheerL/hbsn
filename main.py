@@ -6,7 +6,7 @@ import torch
 from torch.optim.lr_scheduler import MultiStepLR
 from loguru import logger
 
-from data.dataset import HBSNDataset
+from data.hbsn_dataset import HBSNDataset
 from net.hbsn import HBSNet
 from summary_logger import HBSNSummary
 

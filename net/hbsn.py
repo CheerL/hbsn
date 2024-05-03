@@ -101,7 +101,7 @@ class HBSNet(nn.Module):
     
     @staticmethod
     def load_model(path, device=None):
-        from data.dataset import HBSNDataset 
+        from data.hbsn_dataset import HBSNDataset 
         checkpoint = torch.load(path, map_location=device)
         config = checkpoint['config']
         
