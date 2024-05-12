@@ -16,6 +16,7 @@ from torchvision.models.detection.transform import (paste_masks_in_image,
 from net.base_net import BaseNet
 from net.hbsn import HBSNet
 from net.seg_hbsn_net import SegHBSNNet
+from config import SegNetConfig
 
 DTYPE = torch.float32
 
@@ -28,12 +29,12 @@ class MaskRCNN(SegHBSNNet):
         hbsn_checkpoint='',
         hbsn_channels=[64, 128, 256, 512], hbsn_radius=50,
         hbsn_stn_mode=0, hbsn_stn_rate=0.0,
-        dtype=DTYPE, device="cpu"):
+        dtype=DTYPE, device="cpu", config=Optional[SegNetConfig]):
         super().__init__(
             height, width, input_channels, output_channels,
             dice_rate, iou_rate, hbs_loss_rate, mask_scale,
             hbsn_checkpoint, hbsn_channels, hbsn_radius, hbsn_stn_mode, hbsn_stn_rate,
-            dtype, device
+            dtype, device, config
         )
         self.select_num = select_num
         self.weight_hidden_size = weight_hidden_size
@@ -51,7 +52,7 @@ class MaskRCNN(SegHBSNNet):
             nn.Sigmoid()
         )
         
-        self.to(device)
+        self.to(self.device)
         
     
     def model_forward(self, images):

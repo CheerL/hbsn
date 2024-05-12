@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from torchvision.models.segmentation import (DeepLabV3_ResNet50_Weights,
                                              deeplabv3_resnet50)
 
 from net.seg_hbsn_net import SegHBSNNet
+
 
 
 class DeepLab(SegHBSNNet):
@@ -14,13 +16,13 @@ class DeepLab(SegHBSNNet):
         hbsn_checkpoint='',
         hbsn_channels=[64, 128, 256, 512], hbsn_radius=50,
         hbsn_stn_mode=0, hbsn_stn_rate=0.0, 
-        dtype=torch.float32, device="cpu"
+        dtype=torch.float32, device="cpu", config=None
     ):
         super().__init__(
             height, width, input_channels, output_channels,
             dice_rate, iou_rate, hbs_loss_rate, mask_scale,
             hbsn_checkpoint, hbsn_channels, hbsn_radius, hbsn_stn_mode, hbsn_stn_rate,
-            dtype, device
+            dtype, device, config
         )
         self.model = deeplabv3_resnet50(weights=DeepLabV3_ResNet50_Weights.DEFAULT)
         
@@ -28,7 +30,7 @@ class DeepLab(SegHBSNNet):
             nn.Conv2d(21, 1, kernel_size=1),
             nn.Sigmoid()
         )
-        self.to(device)
+        self.to(self.device)
 
     def model_forward(self, x):
         x = self.model(x)['out']

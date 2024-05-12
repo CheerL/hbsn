@@ -5,6 +5,8 @@ import torch.nn.functional as F
 from net.base_net import BaseNet
 from net.stn import STN
 from net.unet import UNet
+from typing import Optional
+from config import HBSNetConfig
 
 DTYPE = torch.float32
 
@@ -14,32 +16,39 @@ class HBSNet(BaseNet):
         input_channels=1, output_channels=2,
         channels=[16, 32, 64, 128], radius=50,
         stn_mode=0, stn_rate=0.0,
-        device="cpu", dtype=DTYPE
+        device="cpu", dtype=DTYPE, config: Optional[HBSNetConfig]=None
         ):
         # stn_mode: 0 - no stn, 
         #           1 - pre stn
         #           2 - post stn
         #           3 - both stn
-        super().__init__(height, width, input_channels, output_channels, device, dtype)
-        self.stn_mode = stn_mode
-        self.stn_rate = stn_rate
+        super().__init__(height, width, input_channels, output_channels, device, dtype, config)
+        if config:
+            self.stn_mode = config.stn_mode
+            self.stn_rate = config.stn_rate
+            self.channels = config.channels
+            self.radius = config.radius
+        else:
+            self.stn_mode = stn_mode
+            self.stn_rate = stn_rate
+            self.channels = channels
+            self.radius = radius
         
         self.pre_stn = (
-            STN(input_channels, height, width, dtype=dtype)
-            if stn_mode in [1, 3] else
+            STN(self.input_channels, self.height, self.width, dtype=self.dtype)
+            if self.stn_mode in [1, 3] else
             lambda x: (x, None)
         )
         
         self.post_stn = (
-            STN(output_channels, height, width, dtype=dtype, stn_mode=2)
-            if stn_mode in [2, 3] else
+            STN(self.output_channels, self.height, self.width, dtype=self.dtype, stn_mode=2)
+            if self.stn_mode in [2, 3] else
             lambda x: (x, None)
         )
         
-        self.bce = UNet(input_channels, output_channels, channels, bilinear=True, dtype=dtype)
-        self.mask = self.create_mask(radius)
-
-        self.to(device)
+        self.bce = UNet(self.input_channels, self.output_channels, self.channels, bilinear=True, dtype=self.dtype)
+        self.mask = self.create_mask(self.radius)
+        self.to(self.device)
 
     def create_mask(self, r):
         x, y = torch.meshgrid(torch.arange(self.width),torch.arange(self.height), indexing='ij')

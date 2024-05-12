@@ -7,6 +7,8 @@ from torchvision.transforms import transforms
 
 from data.base_dataset import BaseDataset
 from data.custom_transform import BoundedRandomAffine
+from typing import Optional
+from config import HBSNetConfig
 
 DEFAULT_DATA_DIR = 'img/generated'
 
@@ -25,9 +27,22 @@ def load_data(file_path):
 class HBSNDataset(BaseDataset):
     def __init__(
         self, root=DEFAULT_DATA_DIR, is_augment=False, 
-        augment_rotation=180, augment_scale=[0.8,1.2], augment_translate=[0.1,0.1]
+        augment_rotation=180, augment_scale=[0.8,1.2], augment_translate=[0.1,0.1],
+        config: Optional[HBSNetConfig]=None
     ):
-        self.root = root
+        if config:
+            self.root = config.data_dir
+            self.is_augment = config.is_augment
+            self.augment_rotation = config.augment_rotation
+            self.augment_scale = config.augment_scale
+            self.augment_translate = config.augment_translate
+        else:
+            self.root = root
+            self.is_augment = is_augment
+            self.augment_rotation = augment_rotation
+            self.augment_scale = augment_scale
+            self.augment_translate = augment_translate
+        
         self.data_list = sorted([
             f"{root}/{file}" for file in os.listdir(root) 
             if file.endswith('.png')
@@ -53,13 +68,9 @@ class HBSNDataset(BaseDataset):
         )
         
         # Augmentation
-        if is_augment:
-            self.augment_rotation = augment_rotation
-            self.augment_scale = augment_scale
-            self.augment_translate = augment_translate
-            
+        if self.is_augment:
             augment_image_transform = transforms.Compose([
-                BoundedRandomAffine(augment_rotation, scale=augment_scale, translate=augment_translate),
+                BoundedRandomAffine(self.augment_rotation, scale=self.augment_scale, translate=self.augment_translate),
             ])
             self.augment_transform = transforms.Compose([
                 self.transform,
@@ -80,10 +91,10 @@ class HBSNDataset(BaseDataset):
             assert C_image == 1, "Image channel should be 1"
             assert C_hbs == 2, "HBS channel should be 2"
             
-            self.H = H_image
-            self.W = W_image
-            self.C_image = C_image
-            self.C_hbs = C_hbs
+            self.height = H_image
+            self.width = W_image
+            self.input_channels = C_image
+            self.output_channels = C_hbs
     
     def __len__(self):
         return self.num_sample
@@ -103,4 +114,5 @@ class HBSNDataset(BaseDataset):
             return image, hbs
     
     def get_size(self):
-        return self.H, self.W, self.C_image, self.C_hbs
+        return self.height, self.width, self.input_channels, self.output_channels
+

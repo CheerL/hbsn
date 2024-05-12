@@ -6,7 +6,8 @@ from torchvision.models.segmentation import (DeepLabV3_ResNet50_Weights,
 
 from net.seg_hbsn_net import SegHBSNNet
 import segmentation_models_pytorch as smp
-
+from typing import Optional
+from config import SegNetConfig
 
 class UnetPP(SegHBSNNet):
     def __init__(
@@ -15,16 +16,16 @@ class UnetPP(SegHBSNNet):
         hbsn_checkpoint='',
         hbsn_channels=[64, 128, 256, 512], hbsn_radius=50,
         hbsn_stn_mode=0, hbsn_stn_rate=0.0, 
-        dtype=torch.float32, device="cpu"
+        dtype=torch.float32, device="cpu", config: Optional[SegNetConfig]=None
     ):
         super().__init__(
             height, width, input_channels, output_channels,
             dice_rate, iou_rate, hbs_loss_rate, mask_scale,
             hbsn_checkpoint, hbsn_channels, hbsn_radius, hbsn_stn_mode, hbsn_stn_rate,
-            dtype, device
+            dtype, device, config
         )
         self.model = smp.UnetPlusPlus(encoder_name='resnet50', encoder_weights='imagenet', classes=1, activation='sigmoid')
-        self.to(device)
+        self.to(self.device)
 
     def model_forward(self, x):
         x = self.model(x)
@@ -34,7 +35,7 @@ class UnetPP(SegHBSNNet):
     def fixable_layers(self):
         return nn.ModuleList([
             super().fixable_layers,
-            self.model.encoder
+            # self.model.encoder
         ])
         
     @property

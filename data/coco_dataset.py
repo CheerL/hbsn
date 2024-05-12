@@ -11,6 +11,7 @@ from torchvision.transforms import v2 as transforms
 
 from data.base_dataset import BaseDataset
 from data.custom_transform import BoundedRandomCrop, ResizeMax
+from config import SegNetConfig
 
 
 class CocoDataset(BaseDataset):
@@ -29,19 +30,33 @@ class CocoDataset(BaseDataset):
         is_augment: bool=False,
         augment_rotation: float=30,
         augment_scale: List[float]=[0.8, 1.2],
-        augment_translate: List[float]=[0.1, 0.1]
+        augment_translate: List[float]=[0.1, 0.1],
+        config: Optional[SegNetConfig]=None
     ) -> None:
-        super().__init__()
-        self.root_path = root_path
-        self.annotation_path = annotation_path
-        self.coco: COCO = COCO(annotation_path)
+        if config:
+            self.root_path = config.coco_root
+            self.annotation_path = config.coco_annotation
+            self.resize_rate = config.resize_rate
+            self.is_augment = config.is_augment
+            self.augment_rotation = config.augment_rotation
+            self.augment_scale = config.augment_scale
+            self.augment_translate = config.augment_translate
+        else:
+            self.root_path = root_path
+            self.annotation_path = annotation_path
+            self.resize_rate = resize_rate
+            self.is_augment = is_augment
+            self.augment_rotation = augment_rotation
+            self.augment_scale = augment_scale
+            self.augment_translate = augment_translate
+        
         self.connected = connected
         self.single_instance = single_instance
         self.height = height
         self.width = width
-        self.resize_rate = resize_rate
         self.min_area = min_area
-
+        
+        self.coco: COCO = COCO(self.annotation_path)
         # cat ids
         if not cat_ids:
             self.cat_ids = self.coco.getCatIds()
@@ -121,15 +136,11 @@ class CocoDataset(BaseDataset):
         ])
         
         # augment
-        if is_augment:
-            self.augment_rotation = augment_rotation
-            self.augment_scale = augment_scale
-            self.augment_translate = augment_translate
-            
+        if self.is_augment:
             self.augment_transform = transforms.Compose([
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomVerticalFlip(),
-                transforms.RandomRotation(augment_rotation, expand=True),
+                transforms.RandomRotation(self.augment_rotation, expand=True),
                 self.transform,
             ])
 

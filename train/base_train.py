@@ -5,23 +5,11 @@ from loguru import logger
 
 from net.base_net import BaseNet
 from recoder import BaseRecoder
+from config import BaseConfig
 
 DTYPE = torch.float32
 IMAGE_INTERVAL = 20
 CHECKPOINT_INTERVAL = 5
-
-def list_para_handle(p, map_func=int):
-    if isinstance(p, str):
-        if p == '[]' or p == '':
-            return []
-        else:
-            return list(map(map_func, p.replace('[', '').replace(']', '').split(",")))
-    elif isinstance(p, float):
-        return [p]
-    elif isinstance(p, list):
-        return p
-    else:
-        raise ValueError(f"Invalid parameter")
 
 def single_run(net, input_data):
     img, gt = input_data
@@ -56,14 +44,17 @@ def save_checkpoint(net, recoder, optimizer, epoch, is_best=False):
         logger.warning(f"{'Best model' if is_best else 'Model'} saved at epoch {epoch} to {para_path}")
 
 def training(
-    net: BaseNet, recoder: BaseRecoder, 
-    optimizer: torch.optim.Optimizer,
-    scheduler: torch.optim.lr_scheduler.LRScheduler,
-    train_dataloader, test_dataloader, load_path
+    net: BaseNet, recoder: BaseRecoder, config: BaseConfig,
+    train_dataloader, test_dataloader
     ):
     net.initialize()
     recoder.init_recoder(net)
     
+    param_dict = net.get_param_dict(config.lr, config.is_freeze, config.finetune_rate)
+    optimizer = torch.optim.Adam(param_dict, lr=config.lr, weight_decay=config.weight_norm, betas=(config.moments, 0.999))
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=config.lr_decay_steps, gamma=config.lr_decay_rate)
+    
+    load_path = config.load
     if load_path and os.path.exists(load_path):
         init_epoch, best_epoch, best_loss, optimizer_data = net.load(load_path)
         if optimizer_data:
@@ -77,7 +68,7 @@ def training(
     else:
         init_epoch = -1
     
-    for epoch in range(init_epoch+1, recoder.total_epoches):
+    for epoch in range(init_epoch+1, config.total_epoches):
         # Training
         epoch_run(net, train_dataloader, optimizer, recoder, epoch, is_train=True)
         # Testing

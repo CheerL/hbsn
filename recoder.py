@@ -1,11 +1,11 @@
 import os
-from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from loguru import logger
 from torch.utils.tensorboard import SummaryWriter
+from config import BaseConfig, SegNetConfig
 
 
 def get_random_index(num, size):
@@ -16,26 +16,12 @@ def get_random_index(num, size):
 
 class BaseRecoder(SummaryWriter):
     def __init__(
-        self, config, train_size, test_size,
-        log_dir=None, log_base_dir='runs', comment='',
+        self, config: BaseConfig, train_size, test_size
     ):
-        
-        assert 'total_epoches' in config, 'total_epoches is required'
-        assert 'batch_size' in config, 'batch_size is required'
-
-        if not log_dir:
-            current_time = datetime.now().strftime("%b%d_%H-%M-%S")
-            log_dir = os.path.join(
-                log_base_dir, current_time
-            )
-            if comment:
-                log_dir += f"_{comment}"
-
-        super().__init__(log_dir=log_dir, comment=comment)
-        
+        super().__init__(log_dir=config.log_dir, comment=config.comment)
         self.config = config
-        self.total_epoches = config['total_epoches']
-        self.batch_size = config['batch_size']
+        self.total_epoches = config.total_epoches
+        self.batch_size = config.batch_size
         self.train_size = train_size
         self.test_size = test_size
 
@@ -45,14 +31,13 @@ class BaseRecoder(SummaryWriter):
         self.best_epoch = -1
         self.best_loss = 1e10
         
-        self.checkpoint_dir = os.path.join(self.log_dir, "checkpoints")
-        if not os.path.exists(self.checkpoint_dir):
-            os.makedirs(self.checkpoint_dir)
+        if not os.path.exists(config.checkpoint_dir):
+            os.makedirs(config.checkpoint_dir)
         
         logger.add(os.path.join(self.log_dir, 'log.log'), level="INFO")
 
     def init_recoder(self, net=None):
-        config_str_list = [f'{k}: {v}' for k, v in self.config.items()]
+        config_str_list = self.config.get_config_str_list()
         
         config_info = '\n\t'.join(config_str_list)
         logger.info(f'''
@@ -62,14 +47,13 @@ class BaseRecoder(SummaryWriter):
         
         
         max_width = max([len(s) for s in config_str_list]) * 0.1
-        max_height = len(self.config) * 0.25
+        max_height = len(config_str_list) * 0.25
         fig = plt.figure(figsize=(max_width, max_height), dpi=100)
         plt.text(
             0.5, 0.5,
             '\n'.join(config_str_list),
             ha='center', va='center', multialignment='left', fontsize=12
             )
-
         plt.axis('off')
         self.add_figure('config', fig)
         
@@ -200,10 +184,9 @@ class CocoRecoder(BaseRecoder):
 
 class CocoHBSNRecoder(BaseRecoder):
     def __init__(
-        self, config, train_size, test_size,
-        log_dir=None, log_base_dir='runs', comment='',
+        self, config: SegNetConfig, train_size, test_size
     ):
-        super().__init__(config, train_size, test_size, log_dir, log_base_dir, comment)
+        super().__init__(config, train_size, test_size)
         
         self.train_iou = torch.zeros(self.train_size)
         self.test_iou = torch.zeros(self.test_size)
@@ -252,7 +235,6 @@ class CocoHBSNRecoder(BaseRecoder):
         
     def add_loss(self, epoch, iteration, loss_dict, is_train=True):
         super().add_loss(epoch, iteration, loss_dict, is_train)
-        # prefix, size, total_iteration, logger_func = self._get_info(epoch, iteration, is_train=is_train)
         
         if is_train:
             self.train_iou[iteration] = loss_dict['iou']

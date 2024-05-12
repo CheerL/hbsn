@@ -5,14 +5,18 @@ import torch.nn.functional as F
 DTYPE = torch.float32
 
 class BaseNet(nn.Module):
-    def __init__(self, height, width, input_channels, output_channels, device="cpu", dtype=DTYPE):
+    def __init__(self, height, width, input_channels, output_channels, device="cpu", dtype=DTYPE, config=None):
         super().__init__()
         self.height = height
         self.width = width
         self.input_channels = input_channels
         self.output_channels = output_channels
         self.dtype = dtype
-        self.device = device
+        if config:
+            self.device = config.device
+        else:
+            self.device = device
+            
 
     @property
     def uninitializable_layers(self):
