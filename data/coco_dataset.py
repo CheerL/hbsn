@@ -1,6 +1,6 @@
 import itertools
 import os
-from typing import Callable, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
@@ -9,20 +9,23 @@ from torchvision import io
 from torchvision.datapoints import Mask
 from torchvision.transforms import v2 as transforms
 
-from data.augment_dataset import AugmentDataset
-from data.custom_transform import BoundedRandomCrop, PadSquare, ResizeMax
+from data.base_dataset import BaseDataset
+from data.custom_transform import BoundedRandomCrop, ResizeMax
 
 
-class CocoDataset(AugmentDataset):
+class CocoDataset(BaseDataset):
     def __init__(
         self, 
         root_path: str, 
         annotation_path: str,
+        height: int=256, 
+        width: int=256,
         img_ids: Optional[List[int]]=[],
         cat_ids: Optional[List[int]]=[],
-        # transform: Optional[Callable]=None,
         connected: bool=False,
         single_instance: bool=False,
+        resize_rate: float=1.5,
+        min_area: float=800,
         is_augment: bool=False,
         augment_rotation: float=30,
         augment_scale: List[float]=[0.8, 1.2],
@@ -34,6 +37,10 @@ class CocoDataset(AugmentDataset):
         self.coco: COCO = COCO(annotation_path)
         self.connected = connected
         self.single_instance = single_instance
+        self.height = height
+        self.width = width
+        self.resize_rate = resize_rate
+        self.min_area = min_area
 
         # cat ids
         if not cat_ids:
@@ -93,6 +100,7 @@ class CocoDataset(AugmentDataset):
             ]
             filter_list = [
                 len(anns) > 0
+                and anns[0]['area'] > self.min_area
                 for anns in self.anns
             ]
             # for i, is_filter in enumerate(filter_list):
@@ -105,8 +113,11 @@ class CocoDataset(AugmentDataset):
 
         
         self.transform = transforms.Compose([
-            ResizeMax(512),
-            BoundedRandomCrop(256, pad_if_needed=True),
+            ResizeMax(int(self.resize_rate * max(self.height, self.width))),
+            BoundedRandomCrop((self.height, self.width), pad_if_needed=True),
+            transforms.ToImagePIL(),
+            transforms.ToImageTensor(), 
+            transforms.ConvertImageDtype()
         ])
         
         # augment
@@ -119,10 +130,7 @@ class CocoDataset(AugmentDataset):
                 transforms.RandomHorizontalFlip(),
                 transforms.RandomVerticalFlip(),
                 transforms.RandomRotation(augment_rotation, expand=True),
-                # transforms.RandomAffine(augment_rotation, scale=augment_scale, translate=augment_translate),
                 self.transform,
-                # transforms.RandomRotation(augment_rotation),
-                # transforms.RandomAffine(augment_rotation, scale=augment_scale, translate=augment_translate),
             ])
 
         
@@ -133,7 +141,7 @@ class CocoDataset(AugmentDataset):
         anns = self.anns[idx]
 
         mask = torch.LongTensor(np.max(np.stack([
-            self.coco.annToMask(ann) * ann["category_id"]
+            self.coco.annToMask(ann)
             for ann in anns
         ]), axis=0)).unsqueeze(0)
         mask = Mask(mask)

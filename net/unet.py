@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+
 # import torch.nn.functional as F
 
 DTYPE = torch.float32
@@ -23,7 +24,7 @@ class DoubleConv(nn.Module):
     def forward(self, x):
         return self.double_conv(x)
 
-class Down(nn.Module):
+class DownBlock(nn.Module):
     """Downscaling with maxpool then double conv"""
 
     def __init__(self, in_channels, out_channels, dtype=DTYPE):
@@ -36,7 +37,7 @@ class Down(nn.Module):
     def forward(self, x):
         return self.maxpool_conv(x)
 
-class Up(nn.Module):
+class UpBlock(nn.Module):
     """Upscaling then double conv"""
 
     def __init__(self, in_channels, skip_channels, out_channels, bilinear=True, dtype=DTYPE):
@@ -68,9 +69,9 @@ class Up(nn.Module):
         out = torch.cat([x2, x1], dim=1)
         return self.conv(out)
 
-class BCENet(nn.Module):
+class UNet(nn.Module):
     def __init__(self, n_channels, n_classes, channels, bilinear=True, dtype=DTYPE):
-        super(BCENet, self).__init__()
+        super().__init__()
         self.dtype=dtype
         self.n_channels = n_channels
         self.n_classes = n_classes
@@ -80,59 +81,35 @@ class BCENet(nn.Module):
         self.layers = len(self.channels)
 
         self.inc = DoubleConv(n_channels, self.channels[0], dtype=dtype)
-        # ch1 = 16
-        # ch2 = 32
-        # ch3 = 64
-        # ch4 = 128
-        # self.down1 = Down(ch1, ch2, dtype=dtype)
-        # self.down2 = Down(ch2, ch3, dtype=dtype)
-        # self.down3 = Down(ch3, ch4, dtype=dtype)
-        # self.up3 = Up(ch4, ch3, ch3, bilinear, dtype=dtype)
-        # self.up2 = Up(ch3, ch2, ch2, bilinear, dtype=dtype)
-        # self.up1 = Up(ch2, ch1, ch1, bilinear, dtype=dtype)
         self.downs = nn.ModuleList([
-            Down(self.channels[i], self.channels[i+1], dtype=dtype) 
+            DownBlock(self.channels[i], self.channels[i+1], dtype=dtype) 
             for i in range(self.layers - 1)
         ])
 
         self.ups = nn.ModuleList([
-            Up(self.channels[i+1], self.channels[i], self.channels[i], bilinear, dtype=dtype) 
+            UpBlock(self.channels[i+1], self.channels[i], self.channels[i], bilinear, dtype=dtype) 
             for i in range(self.layers - 1)
         ])
         self.outc = nn.Conv2d(self.channels[0], n_classes, kernel_size=1, dtype=dtype)
 
-    def forward_down(self, x):
-        output = [x]
+    def encode(self, x):
+        features = [x]
         for i in range(self.layers - 1):
             x = self.downs[i](x)
-            output.append(x)
-        return output
+            features.append(x)
+        return features
     
-    def forward_up(self, output):
-        x = output[-1]
+    def decode(self, features):
+        x = features[-1]
         for i in range(self.layers - 1, 0, -1):
-            x = self.ups[i-1](x, output[i-1])
+            x = self.ups[i-1](x, features[i-1])
         return x
 
     def forward(self, x):
         x = self.inc(x)
-        # x_1 = self.down1(x)
-        # x_2 = self.down2(x_1)
-        # x_3 = self.down3(x_2)
-        # x_2 = self.up3(x_3, x_2)
-        # x_1 = self.up2(x_2, x_1)
-        # x = self.up1(x_1, x)
-        x = self.forward_down(x)
-        x = self.forward_up(x)
+        x = self.encode(x)
+        x = self.decode(x)
         x = self.outc(x)
         return x
 
-    # def use_checkpointing(self):
-    #     self.inc = torch.utils.checkpoint(self.inc)
-    #     self.down1 = torch.utils.checkpoint(self.down1)
-    #     self.down2 = torch.utils.checkpoint(self.down2)
-    #     self.down3 = torch.utils.checkpoint(self.down3)
-    #     self.up3 = torch.utils.checkpoint(self.up3)
-    #     self.up2 = torch.utils.checkpoint(self.up2)
-    #     self.up1 = torch.utils.checkpoint(self.up1)
-    #     self.outc = torch.utils.checkpoint(self.outc)
+

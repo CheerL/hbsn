@@ -1,6 +1,6 @@
 
 import random
-from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List
 
 import torch
 from torch import Tensor
@@ -8,8 +8,7 @@ from torchvision.datapoints import Mask
 # from torchvision.transforms import functional as F
 from torchvision.transforms import v2 as transforms
 from torchvision.transforms.v2 import functional as F
-from torchvision.transforms.v2.utils import (get_spatial_size,
-                                             query_spatial_size)
+from torchvision.transforms.v2.utils import query_spatial_size
 
 
 class BoundedRandomAffine(transforms.RandomAffine):
@@ -73,6 +72,7 @@ class BoundedRandomCrop(transforms.RandomCrop):
         mask_width_max = mask_x.max()
         mask_height_min = mask_y.min()
         mask_height_max = mask_y.max()
+
         
         mask_width = mask_width_max - mask_width_min
         mask_height = mask_height_max - mask_height_min
@@ -88,7 +88,7 @@ class BoundedRandomCrop(transforms.RandomCrop):
             resize_size = (resized_height, resized_width)
             
             flat_inputs = [
-                F.resize(x, size=(resized_height, resized_width)) 
+                F.resize(x, size=(resized_height, resized_width), antialias=True) 
                 for x in flat_inputs
             ]
             image, mask = flat_inputs
@@ -166,7 +166,7 @@ class BoundedRandomCrop(transforms.RandomCrop):
         
     def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
         if params["needs_resize"]:
-            inpt = F.resize(inpt, size=params["resize_size"])
+            inpt = F.resize(inpt, size=params["resize_size"], antialias=True)
 
         if params["needs_pad"]:
             fill = self._fill[type(inpt)]

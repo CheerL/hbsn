@@ -5,7 +5,7 @@ from genericpath import exists
 from PIL import Image
 from torchvision.transforms import transforms
 
-from data.augment_dataset import AugmentDataset
+from data.base_dataset import BaseDataset
 from data.custom_transform import BoundedRandomAffine
 
 DEFAULT_DATA_DIR = 'img/generated'
@@ -22,7 +22,7 @@ def load_data(file_path):
     return image, hbs
 
 
-class HBSNDataset(AugmentDataset):
+class HBSNDataset(BaseDataset):
     def __init__(
         self, root=DEFAULT_DATA_DIR, is_augment=False, 
         augment_rotation=180, augment_scale=[0.8,1.2], augment_translate=[0.1,0.1]

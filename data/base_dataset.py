@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader, Dataset, random_split
 from data.transform_subset import TransformSubset
 
 
-class AugmentDataset(Dataset):
+class BaseDataset(Dataset):
     augment_transform = None
     transform = None
     
