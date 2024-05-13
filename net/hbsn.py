@@ -1,12 +1,12 @@
+from typing import Optional
+
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
+from config import HBSNetConfig
 from net.base_net import BaseNet
 from net.stn import STN
 from net.unet import UNet
-from typing import Optional
-from config import HBSNetConfig
 
 DTYPE = torch.float32
 

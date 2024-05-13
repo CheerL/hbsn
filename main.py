@@ -1,11 +1,12 @@
-import fire
-import torch
-import numpy
 import random
 
+import fire
+import numpy
+import torch
+
+from train.deeplab import main as deeplab_train
 from train.hbsn import main as hbsn_train
 from train.maskrcnn import main as maskrcnn_train
-from train.deeplab import main as deeplab_train
 from train.unetpp import main as unetpp_train
 
 RANDOM_SEED = 960717

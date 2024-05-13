@@ -1,12 +1,11 @@
-from typing import Dict, List, Optional, OrderedDict, Tuple
+from typing import Optional
 
 import torch
-from torch import nn
 from torch.nn import functional as F
 
+from config import SegNetConfig
 from net.base_net import BaseNet
 from net.hbsn import HBSNet
-from config import SegNetConfig
 
 DTYPE = torch.float32
 

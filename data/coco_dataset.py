@@ -41,6 +41,7 @@ class CocoDataset(BaseDataset):
             self.augment_rotation = config.augment_rotation
             self.augment_scale = config.augment_scale
             self.augment_translate = config.augment_translate
+            self.cat_ids = config.cat_ids
         else:
             self.root_path = root_path
             self.annotation_path = annotation_path
@@ -49,6 +50,7 @@ class CocoDataset(BaseDataset):
             self.augment_rotation = augment_rotation
             self.augment_scale = augment_scale
             self.augment_translate = augment_translate
+            self.cat_ids = cat_ids
         
         self.connected = connected
         self.single_instance = single_instance
@@ -58,11 +60,9 @@ class CocoDataset(BaseDataset):
         
         self.coco: COCO = COCO(self.annotation_path)
         # cat ids
-        if not cat_ids:
+        if not self.cat_ids:
             self.cat_ids = self.coco.getCatIds()
-        else:
-            self.cat_ids = cat_ids
-        
+
         # img ids
         if not img_ids:
             self.img_ids = list(itertools.chain(*[
@@ -126,7 +126,6 @@ class CocoDataset(BaseDataset):
             self.img_ids = filter_func(self.img_ids, filter_list)
             self.files = filter_func(self.files, filter_list)
 
-        
         self.transform = transforms.Compose([
             ResizeMax(int(self.resize_rate * max(self.height, self.width))),
             BoundedRandomCrop((self.height, self.width), pad_if_needed=True),
@@ -144,6 +143,7 @@ class CocoDataset(BaseDataset):
                 self.transform,
             ])
 
+        print(f'Dataset contains {len(self)} images')
         
     def __len__(self) -> int:
         return len(self.files)

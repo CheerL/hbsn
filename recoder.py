@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from loguru import logger
 from torch.utils.tensorboard import SummaryWriter
+
 from config import BaseConfig, SegNetConfig
 
 
@@ -22,6 +23,7 @@ class BaseRecoder(SummaryWriter):
         self.config = config
         self.total_epoches = config.total_epoches
         self.batch_size = config.batch_size
+        self.checkpoint_dir = config.checkpoint_dir
         self.train_size = train_size
         self.test_size = test_size
 
@@ -31,8 +33,8 @@ class BaseRecoder(SummaryWriter):
         self.best_epoch = -1
         self.best_loss = 1e10
         
-        if not os.path.exists(config.checkpoint_dir):
-            os.makedirs(config.checkpoint_dir)
+        if not os.path.exists(self.checkpoint_dir):
+            os.makedirs(self.checkpoint_dir)
         
         logger.add(os.path.join(self.log_dir, 'log.log'), level="INFO")
 

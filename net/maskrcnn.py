@@ -1,6 +1,5 @@
 from typing import Dict, List, Optional, OrderedDict, Tuple
 
-import segmentation_models_pytorch as smp
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -13,10 +12,8 @@ from torchvision.models.detection.transform import (paste_masks_in_image,
                                                     resize_boxes,
                                                     resize_keypoints)
 
-from net.base_net import BaseNet
-from net.hbsn import HBSNet
-from net.seg_hbsn_net import SegHBSNNet
 from config import SegNetConfig
+from net.seg_hbsn_net import SegHBSNNet
 
 DTYPE = torch.float32
 

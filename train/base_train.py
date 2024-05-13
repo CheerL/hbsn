@@ -3,9 +3,9 @@ import os
 import torch
 from loguru import logger
 
+from config import BaseConfig
 from net.base_net import BaseNet
 from recoder import BaseRecoder
-from config import BaseConfig
 
 DTYPE = torch.float32
 IMAGE_INTERVAL = 20
@@ -53,14 +53,13 @@ def training(
     param_dict = net.get_param_dict(config.lr, config.is_freeze, config.finetune_rate)
     optimizer = torch.optim.Adam(param_dict, lr=config.lr, weight_decay=config.weight_norm, betas=(config.moments, 0.999))
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=config.lr_decay_steps, gamma=config.lr_decay_rate)
-    
-    load_path = config.load
-    if load_path and os.path.exists(load_path):
-        init_epoch, best_epoch, best_loss, optimizer_data = net.load(load_path)
+
+    if config.load and os.path.exists(config.load):
+        init_epoch, best_epoch, best_loss, optimizer_data = net.load(config.load)
         if optimizer_data:
             optimizer.load_state_dict(optimizer_data)
         
-        logger.info(f"Model loaded from {load_path}")
+        logger.info(f"Model loaded from {config.load}")
 
         recoder.best_epoch = best_epoch
         recoder.best_loss = best_loss

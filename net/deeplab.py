@@ -1,12 +1,9 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-
 from torchvision.models.segmentation import (DeepLabV3_ResNet50_Weights,
                                              deeplabv3_resnet50)
 
 from net.seg_hbsn_net import SegHBSNNet
-
 
 
 class DeepLab(SegHBSNNet):

@@ -1,13 +1,12 @@
+from typing import Optional
+
+import segmentation_models_pytorch as smp
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torchvision.models.segmentation import (DeepLabV3_ResNet50_Weights,
-                                             deeplabv3_resnet50)
 
-from net.seg_hbsn_net import SegHBSNNet
-import segmentation_models_pytorch as smp
-from typing import Optional
 from config import SegNetConfig
+from net.seg_hbsn_net import SegHBSNNet
+
 
 class UnetPP(SegHBSNNet):
     def __init__(
@@ -35,7 +34,7 @@ class UnetPP(SegHBSNNet):
     def fixable_layers(self):
         return nn.ModuleList([
             super().fixable_layers,
-            # self.model.encoder
+            self.model.encoder
         ])
         
     @property

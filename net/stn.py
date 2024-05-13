@@ -3,8 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-
-
 class STN(nn.Module):
     def __init__(self, input_channels=1, height=256, width=256, stn_mode=1, dtype=torch.float32):
         super().__init__()

@@ -1,7 +1,3 @@
-import os
-
-import torch
-
 from config import SegNetConfig
 from data.coco_dataset import CocoDataset
 from net.deeplab import DeepLab
@@ -41,7 +37,7 @@ def main(
     ):
     args = locals()
     config = SegNetConfig(args)
-    dataset = CocoDataset(coco_root, coco_annotation, config=config, connected=True, single_instance=True)
+    dataset = CocoDataset(config=config, connected=True, single_instance=True)
     train_dataloader, test_dataloader = dataset.get_dataloader(batch_size=config.batch_size)
     recoder = CocoHBSNRecoder(
         config, len(train_dataloader), len(test_dataloader), 
