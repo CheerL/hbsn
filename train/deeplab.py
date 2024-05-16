@@ -21,7 +21,7 @@ def main(
     mask_scale=100,
     weight_norm=1e-5, 
     moments=0.9, 
-    lr=1e-3, 
+    lr=5e-5, 
     lr_decay_rate=1, 
     lr_decay_steps=[],
     is_freeze=False, 
@@ -31,7 +31,7 @@ def main(
     comment='',
     device='cuda:0', 
     total_epoches=1000, 
-    batch_size=32, 
+    batch_size=16, 
     load='',
     version=0.1
     ):

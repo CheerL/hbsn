@@ -17,8 +17,8 @@ from config import SegNetConfig
 class CocoDataset(BaseDataset):
     def __init__(
         self, 
-        root_path: str, 
-        annotation_path: str,
+        root_path: str='', 
+        annotation_path: str='',
         height: int=256, 
         width: int=256,
         img_ids: Optional[List[int]]=[],
@@ -26,7 +26,7 @@ class CocoDataset(BaseDataset):
         connected: bool=False,
         single_instance: bool=False,
         resize_rate: float=1.5,
-        min_area: float=800,
+        min_area: float=500,
         is_augment: bool=False,
         augment_rotation: float=30,
         augment_scale: List[float]=[0.8, 1.2],

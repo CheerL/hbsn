@@ -24,6 +24,9 @@ class BaseConfig:
     augment_rotation=180.0
     augment_scale=[0.8,1.2]
     augment_translate=[0.1,0.1]
+
+    is_freeze=False
+    finetune_rate=1
     
     def __init__(self, config_dict):
         for attr in dir(self):
@@ -45,8 +48,15 @@ class BaseConfig:
         return (self.augment_rotation, self.augment_scale, self.augment_translate) if self.is_augment else False
     
     @property
+    def finetune(self):
+        return 'freeze' if self.is_freeze else self.finetune_rate
+    
+    @property
     def _except_keys(self):
-        return ['log_base_dir', 'comment', 'is_augment', 'augment_rotation', 'augment_scale', 'augment_translate', 'checkpoint_dir']
+        return [
+            'log_base_dir', 'comment', 'is_augment', 'is_freeze', 'finetune_rate',
+            'augment_rotation', 'augment_scale', 'augment_translate', 'checkpoint_dir',
+        ]
     
     @property
     def _show_keys(self):
@@ -98,19 +108,12 @@ class SegNetConfig(BaseConfig):
     hbsn_stn_mode=0
     hbsn_stn_rate=0.0
     
-    is_freeze=False
-    finetune_rate=1
 
     log_base_dir='runs/maskrcnn'
 
-    @property
-    def finetune(self):
-        return 'freeze' if self.is_freeze else self.finetune_rate
     
     @property
     def _except_keys(self):
         return super()._except_keys + [
-            'is_freeze', 'finetune_rate'
-        ] + [
             'hbsn_channels', 'hbsn_radius', 'hbsn_stn_mode', 'hbsn_stn_rate'
         ] if self.hbsn_checkpoint else ['hbsn_checkpoint']

@@ -57,6 +57,33 @@ class BoundedRandomAffine(transforms.RandomAffine):
         
         ret = [angle, translations, scale, shear]
         return F.affine(img, *ret, interpolation=self.interpolation, fill=fill, center=self.center)
+    
+class SoftLabel(transforms.Transform):
+    def __init__(self, kernel_size=3, sigma=1, noise_rate=0.05):
+        super().__init__()
+        self.sigma = sigma
+        self.kernel_size = kernel_size
+        self.noise_rate = noise_rate
+
+    def rescale(self, x, new_min, new_max):
+        x = x - x.min()
+        x = x / x.max()
+        x = x * (new_max - new_min) + new_min
+        return x
+    
+    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+        new_min = torch.randn(1) * 0.1
+        if new_min < 0:
+            return inpt
+        new_max = 1+torch.randn(1) * 0.1
+        mask = inpt > 0.5
+        noise = torch.randn_like(inpt)
+ 
+        x = inpt + noise * self.noise_rate
+        x = F.gaussian_blur(x, kernel_size=self.kernel_size, sigma=self.sigma)
+        x[mask] = self.rescale(x[mask], 0.5, new_max)
+        x[~mask] = self.rescale(x[~mask], new_min, 0.5)
+        return x
 
 class BoundedRandomCrop(transforms.RandomCrop):
     def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:

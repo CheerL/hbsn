@@ -12,7 +12,7 @@ DTYPE = torch.float32
 class SegHBSNNet(BaseNet):
     def __init__(
         self, height=256, width=256, input_channels=3, output_channels=1, 
-        dice_rate=0.1, iou_rate=0, hbs_loss_rate=1, mask_scale=100,
+        dice_rate=0.1, iou_rate=0, hbs_loss_rate=1, mask_scale=10,
         hbsn_checkpoint='',
         hbsn_channels=[64, 128, 256, 512], hbsn_radius=50,
         hbsn_stn_mode=0, hbsn_stn_rate=0.0, 
@@ -65,7 +65,7 @@ class SegHBSNNet(BaseNet):
     def forward(self, images):
         mask = self.model_forward(images)
         mask = self.get_mask(mask)
-        hbs = self.hbsn(mask)
+        hbs = self.hbsn(self.get_mask(mask))
         return mask, hbs
 
     def get_mask(self, x):
@@ -74,10 +74,12 @@ class SegHBSNNet(BaseNet):
         # y = (torch.sin(y*torch.pi/2/eps)+1)/2
         y = F.sigmoid(self.mask_scale * (x - 0.5))
         return y
+    
+    def get_hard_mask(self, x):
+        return torch.relu(torch.sign(x - 0.5))
 
     def get_metrics(self, predict, ground_truth):
         tp = (predict * ground_truth).sum()
-        # tn = ((1 - predict) * (1 - ground_truth)).sum()
         fp = (predict * (1 - ground_truth)).sum()
         fn = ((1 - predict) * ground_truth).sum()
         
@@ -88,23 +90,23 @@ class SegHBSNNet(BaseNet):
     def loss(self, predict, ground_truth):
         predict_mask, predict_hbs = predict
         mse_loss = F.mse_loss(predict_mask, ground_truth)
-        f1, iou = self.get_metrics(predict_mask, ground_truth)
+        f1, iou = self.get_metrics(self.get_mask(predict_mask), ground_truth)
         dice_loss = 1 - f1
         iou_loss = 1 - iou
         loss = mse_loss + self.dice_rate * dice_loss +self.iou_rate * iou_loss
+        
+        ground_truth_hbs = self.hbsn(ground_truth)
+        hbs_loss_dict, (_, ground_truth_hbs) = self.hbsn.loss(predict_hbs, ground_truth_hbs)
+        
+        loss = loss + self.hbs_loss_rate * hbs_loss_dict["loss"]
         
         loss_dict = {
             "loss": loss,
             "mse_loss": mse_loss,
             "dice": f1,
             "iou": iou,
+            "hbs_loss": hbs_loss_dict["hbs_loss"],
         }
-        
-        ground_truth_hbs = self.hbsn(ground_truth)
-        hbs_loss_dict, (_, ground_truth_hbs) = self.hbsn.loss(predict_hbs, ground_truth_hbs)
-        loss_dict['loss'] += self.hbs_loss_rate * hbs_loss_dict["loss"]
-        loss_dict['hbs_loss'] = hbs_loss_dict['hbs_loss']
-        
         return loss_dict, (predict_mask, predict_hbs, ground_truth_hbs)
 
     @property

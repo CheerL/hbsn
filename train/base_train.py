@@ -8,7 +8,7 @@ from net.base_net import BaseNet
 from recoder import BaseRecoder
 
 DTYPE = torch.float32
-IMAGE_INTERVAL = 20
+IMAGE_INTERVAL = 100
 CHECKPOINT_INTERVAL = 5
 
 def single_run(net, input_data):
@@ -57,6 +57,9 @@ def training(
     if config.load and os.path.exists(config.load):
         init_epoch, best_epoch, best_loss, optimizer_data = net.load(config.load)
         if optimizer_data:
+            optimizer_data['param_groups'] = param_dict
+            # if 'param_groups' in optimizer_data:
+            #     del optimizer_data['param_groups']
             optimizer.load_state_dict(optimizer_data)
         
         logger.info(f"Model loaded from {config.load}")

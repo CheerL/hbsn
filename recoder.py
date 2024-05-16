@@ -128,11 +128,14 @@ class HBSNRecoder(BaseRecoder):
     def add_output(self, epoch, iteration, input_data, output_data, is_train=True, num=10):
         prefix, _, total_iteration, _ = self._get_info(epoch, iteration, is_train)
         k, num = get_random_index(num, self.batch_size)
+        # print(k, num, output_data)
+        
 
-        img, hbs = input_data
+        img, _ = input_data
+        predict_hbs, ground_truth_hbs = output_data
         img_k = img[k].detach().cpu().numpy()
-        output_k = output_data[k].detach().cpu().numpy()
-        hbs_k = hbs[k].detach().cpu().numpy()
+        predict_hbs_k = predict_hbs[k].detach().cpu().numpy()
+        ground_truth_hbs_k = ground_truth_hbs[k].detach().cpu().numpy()
 
         subfigure_size = 2
         fig = plt.figure(figsize=(num*subfigure_size, 3*subfigure_size))
@@ -143,11 +146,11 @@ class HBSNRecoder(BaseRecoder):
             plt.axis('off')
 
             plt.subplot(3, num, num+i+1)
-            plt.imshow(np.linalg.norm(hbs_k[i], axis=0), cmap='jet')
+            plt.imshow(np.linalg.norm(ground_truth_hbs_k[i], axis=0), cmap='jet')
             plt.axis('off')
 
             plt.subplot(3, num, 2*num+i+1)
-            plt.imshow(np.linalg.norm(output_k[i], axis=0), cmap='jet')
+            plt.imshow(np.linalg.norm(predict_hbs_k[i], axis=0), cmap='jet')
             plt.axis('off')
 
         self.add_figure(f"result/{prefix}", fig, total_iteration)

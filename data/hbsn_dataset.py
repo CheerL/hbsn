@@ -6,7 +6,7 @@ from PIL import Image
 from torchvision.transforms import transforms
 
 from data.base_dataset import BaseDataset
-from data.custom_transform import BoundedRandomAffine
+from data.custom_transform import BoundedRandomAffine, SoftLabel
 from typing import Optional
 from config import HBSNetConfig
 
@@ -55,7 +55,8 @@ class HBSNDataset(BaseDataset):
         # Base Transforms
         image_transform = transforms.Compose([
             transforms.Grayscale(),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            SoftLabel(kernel_size=5)
         ])
         hbs_transform = transforms.Compose([
             transforms.ToTensor()

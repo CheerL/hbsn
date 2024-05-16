@@ -115,3 +115,29 @@ class HBSNet(BaseNet):
         net.load_state_dict(checkpoint["state_dict"])
 
         return net, epoch, best_epoch, best_loss, dataset, train_dataloader, test_dataloader
+
+
+class HBSNet_FCN(HBSNet):
+    def __init__(
+        self, height=256, width=256,
+        input_channels=1, output_channels=2,
+        channels=[16, 32, 64, 128], radius=50,
+        stn_mode=0, stn_rate=0.0,
+        device="cpu", dtype=DTYPE, config: Optional[HBSNetConfig]=None
+    ):
+        super().__init__(
+            height, width, input_channels, output_channels,
+            channels, radius, stn_mode, stn_rate, device, dtype, config
+        )
+        self.bce = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=False)
+        self.bce.backbone.conv1 = torch.nn.Conv2d(self.input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+        self.bce.classifier._modules['4'] = torch.nn.Conv2d(512, self.output_channels, kernel_size=(1, 1), stride=(1, 1))
+        
+        self.to(self.device)
+        
+    def forward(self, x):
+        x, pre_theta = self.pre_stn(x)
+        x = self.bce(x)['out']
+        x, post_theta = self.post_stn(x)
+        x = torch.masked_fill(x, ~self.mask, 0.0)
+        return x
