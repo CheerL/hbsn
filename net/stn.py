@@ -74,8 +74,8 @@ class STN(nn.Module):
         else:
             if self.stn_mode == 1:
                 theta, scale, dx, dy = loc.split(1, dim=1)
-                dx = F.sigmoid(dx) - 0.5
-                dy = F.sigmoid(dy) - 0.5
+                dx = torch.sigmoid(dx) - 0.5
+                dy = torch.sigmoid(dy) - 0.5
             elif self.stn_mode == 2:
                 theta = torch.tanh(loc.view(-1))
                 scale = 1
