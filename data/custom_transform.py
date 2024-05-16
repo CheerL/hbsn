@@ -1,14 +1,12 @@
 
 import random
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import torch
 from torch import Tensor
-from torchvision.datapoints import Mask
-# from torchvision.transforms import functional as F
-from torchvision.transforms import v2 as transforms
-from torchvision.transforms.v2 import functional as F
-from torchvision.transforms.v2.utils import query_spatial_size
+from torchvision import transforms
+from torchvision.transforms import functional as F
+from torch.nn import Module as Transform
 
 
 class BoundedRandomAffine(transforms.RandomAffine):
@@ -58,7 +56,7 @@ class BoundedRandomAffine(transforms.RandomAffine):
         ret = [angle, translations, scale, shear]
         return F.affine(img, *ret, interpolation=self.interpolation, fill=fill, center=self.center)
     
-class SoftLabel(transforms.Transform):
+class SoftLabel(Transform):
     def __init__(self, kernel_size=3, sigma=1, noise_rate=0.05):
         super().__init__()
         self.sigma = sigma
@@ -86,13 +84,11 @@ class SoftLabel(transforms.Transform):
         return x
 
 class BoundedRandomCrop(transforms.RandomCrop):
-    def _get_params(self, flat_inputs: List[Any]) -> Dict[str, Any]:
+    def get_params(self, mask) -> Dict[str, Any]:
         cropped_height, cropped_width = self.size
-        
-        assert len(flat_inputs) == 2, "Expected input to be a tuple of (image, mask)"
-        image, mask = flat_inputs
-        assert isinstance(image, torch.Tensor), f"Expected image to be a tensor, but got {type(image)}"
-        assert isinstance(mask, Mask), f"Expected mask to be a Mask object, but got {type(mask)}"
+        # _, mask = flat_inputs
+        # assert isinstance(image, torch.Tensor), f"Expected image to be a tensor, but got {type(image)}"
+        # assert isinstance(mask, Mask), f"Expected mask to be a Mask object, but got {type(mask)}"
 
         _, mask_y, mask_x = torch.where(mask > 0.5)
         mask_width_min = mask_x.min()
@@ -108,17 +104,13 @@ class BoundedRandomCrop(transforms.RandomCrop):
                 cropped_width / mask_width * 0.9, 
                 cropped_height / mask_height * 0.9
             )
-            ori_height, ori_width = query_spatial_size(flat_inputs)
+            ori_height, ori_width = mask.shape[-2:]
             resized_height = int(ori_height * rate)
             resized_width = int(ori_width * rate)
             needs_resize = True
             resize_size = (resized_height, resized_width)
             
-            flat_inputs = [
-                F.resize(x, size=(resized_height, resized_width), antialias=True) 
-                for x in flat_inputs
-            ]
-            image, mask = flat_inputs
+            mask = F.resize(mask, size=(resized_height, resized_width), antialias=True) 
             
             _, mask_y, mask_x = torch.where(mask > 0.5)
             mask_width_min = mask_x.min()
@@ -129,7 +121,7 @@ class BoundedRandomCrop(transforms.RandomCrop):
             needs_resize = False
             resize_size = None
             
-        padded_height, padded_width = query_spatial_size(flat_inputs)
+        padded_height, padded_width = mask.shape[-2:]
         if self.padding is not None:
             pad_left, pad_right, pad_top, pad_bottom = self.padding
             padded_height += pad_top + pad_bottom
@@ -191,28 +183,30 @@ class BoundedRandomCrop(transforms.RandomCrop):
             resize_size=resize_size
         )
         
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
+    def forward(self, inpt) -> Any:
+        image, mask = inpt
+        params = self.get_params(mask)
         if params["needs_resize"]:
-            inpt = F.resize(inpt, size=params["resize_size"], antialias=True)
+            image = F.resize(image, size=params["resize_size"], antialias=True)
+            mask = F.resize(mask, size=params["resize_size"], antialias=True)
 
         if params["needs_pad"]:
-            fill = self._fill[type(inpt)]
-            inpt = F.pad(inpt, padding=params["padding"], fill=fill, padding_mode=self.padding_mode)
+            image = F.pad(image, padding=params["padding"], padding_mode=self.padding_mode)
+            mask = F.pad(mask, padding=params["padding"], padding_mode=self.padding_mode)
 
         if params["needs_crop"]:
-            inpt = F.crop(inpt, top=params["top"], left=params["left"], height=params["height"], width=params["width"])
+            image = F.crop(image, top=params["top"], left=params["left"], height=params["height"], width=params["width"])
+            mask = F.crop(mask, top=params["top"], left=params["left"], height=params["height"], width=params["width"])
 
-        return inpt
+        return image, mask
 
-class ResizeMax(transforms.Transform):
+class ResizeMax(Transform):
     """
     A PyTorch Transform class that resizes an image such that the maximum dimension 
     is equal to a specified size while maintaining the aspect ratio.
     """
     
-    def __init__(self, 
-                 max_sz:int=256 # The maximum size for any dimension (height or width) of the image.
-                ):
+    def __init__(self, max_sz:int=256):
         """
         Initialize ResizeMax object with a specified max_sz. 
         """
@@ -221,90 +215,66 @@ class ResizeMax(transforms.Transform):
 
         # Set the maximum size for any dimension of the image
         self.max_sz = max_sz
-        
-    def _transform(self, 
-                   inpt: Any, # The input image tensor to be resized.
-                   params: Dict[str, Any] # A dictionary of parameters. Not used in this method but is present for compatibility with the parent's method signature.
-                  ) -> torch.Tensor: # The resized image tensor.
+    
+    def get_params(self, x: torch.Tensor):
+        height, width = x.shape[-2:]
+        size = int(min(height, width) / (max(height, width) / self.max_sz))
+        return {
+            'size': size
+        }
+    
+    def forward(self, inpt) -> torch.Tensor: # The resized image tensor.
         """
         Apply the ResizeMax transformation on an input image tensor.
         """
-
-        # Copy the input tensor to a new variable
-        x = inpt
-
-        # Get the width and height of the image tensor
-        height, width = x.shape[-2:]
-
-        # Calculate the size for the smaller dimension, such that the aspect ratio 
-        # of the image is maintained when the larger dimension is resized to max_sz
-        size = int(min(height, width) / (max(height, width) / self.max_sz))
-
+        image, mask = inpt
+        params = self.get_params(image)
         # Resize the image tensor with antialiasing for smoother output
-        x = F.resize(x, size=size, antialias=True)
+        image = F.resize(image, size=params['size'], antialias=True)
+        mask = F.resize(mask, size=params['size'], antialias=True)
 
         # Return the transformed (resized) image tensor
-        return x
+        return image, mask
 
-class PadSquare(transforms.Transform):
-    """
-    PadSquare is a PyTorch Transform class used to pad images to make them square. 
-    Depending on the configuration, padding can be applied equally on both sides, 
-    or can be randomly split between the two sides.
-    """
 
-    def __init__(self, 
-                 padding_mode:str='constant', # The method to use for padding. Default is 'constant'.
-                 fill:tuple=(123, 117, 104), # The RGB values to use for padding if padding_mode is 'constant'.
-                 shift:bool=True # If True, padding is randomly split between the two sides. If False, padding is equally applied.
-                ):
-        """
-        The constructor for PadSquare class.
-        """
+class ToTensor(Transform):
+    def forward(self, inpt):
+        img, mask = inpt
+        img = F.to_pil_image(img)
+        img = F.to_tensor(img)
+        return img, mask
+    
+class RandomFlip(Transform):
+    def __init__(self, p=0.5):
         super().__init__()
-        self.padding_mode = padding_mode
-        self.fill = fill
-        self.shift = shift
-        self.pad_split = None
+        self.p = p
 
-    def forward(self, 
-                *inputs: Any # The inputs to the forward method.
-               ) -> Any: # The result of the superclass forward method.
-        """
-        The forward method that sets up the padding split factor if 'shift' is True, 
-        and then calls the superclass forward method.
-        """
-        self.pad_split = random.random() if self.shift else None
-        return super().forward(*inputs)
+    def forward(self, inpt):
+        img, mask = inpt
+        if random.random() < self.p:
+            img = F.hflip(img)
+            mask = F.hflip(mask)
+        
+        if random.random() < self.p:
+            img = F.vflip(img)
+            mask = F.vflip(mask)
+        return img, mask
+    
+class RandomRotation(transforms.RandomRotation):
+    def get_fill(self, x):
+        fill = self.fill
+        channels, _, _ = F.get_dimensions(x)
+        if isinstance(x, Tensor):
+            if isinstance(fill, (int, float)):
+                fill = [float(fill)] * channels
+            else:
+                fill = [float(f) for f in fill]
+        return fill
 
-    def _transform(self, 
-                   inpt: Any, # The input to be transformed.
-                   params: Dict[str, Any] # A dictionary of parameters for the transformation.
-                  ) -> Any: # The transformed input.
-        """
-        The _transform method that applies padding to the input to make it square.
-        """
-        x = inpt
-        
-        # Get the width and height of the image tensor
-        h, w = x.shape[-2:]
-        
-        # If shift is true, padding is randomly split between two sides
-        if self.shift:
-            offset = (max(w, h) - min(w, h))
-            pad_1 = int(offset*self.pad_split)
-            pad_2 = offset - pad_1
-            
-            # The padding is applied to the shorter dimension of the image
-            self.padding = [0, pad_1, 0, pad_2] if h < w else [pad_1, 0, pad_2, 0]
-            padding = self.padding
-        else:
-            # If shift is false, padding is equally split between two sides
-            offset = (max(w, h) - min(w, h)) // 2
-            padding = [0, offset] if h < w else [offset, 0]
-        
-        # Apply the padding to the image
-        x = F.pad(x, padding=padding, padding_mode=self.padding_mode, fill=self.fill)
-        
-        return x
+    def forward(self, inpt):
+        img, mask = inpt
+        angle = self.get_params(self.degrees)
 
+        img = F.rotate(img, angle, self.interpolation, self.expand, self.center, self.get_fill(img))
+        mask = F.rotate(mask, angle, self.interpolation, self.expand, self.center, self.get_fill(mask))
+        return img, mask

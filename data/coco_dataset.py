@@ -4,13 +4,13 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
+
 from pycocotools.coco import COCO
 from torchvision import io
-from torchvision.datapoints import Mask
-from torchvision.transforms import v2 as transforms
+from torchvision.transforms import transforms
 
 from data.base_dataset import BaseDataset
-from data.custom_transform import BoundedRandomCrop, ResizeMax
+from data.custom_transform import BoundedRandomCrop, ResizeMax, ToTensor, RandomFlip, RandomRotation
 from config import SegNetConfig
 
 
@@ -127,20 +127,19 @@ class CocoDataset(BaseDataset):
             self.files = filter_func(self.files, filter_list)
 
         self.transform = transforms.Compose([
+            ToTensor(),
             ResizeMax(int(self.resize_rate * max(self.height, self.width))),
             BoundedRandomCrop((self.height, self.width), pad_if_needed=True),
-            transforms.ToImagePIL(),
-            transforms.ToImageTensor(), 
-            transforms.ConvertImageDtype()
         ])
         
         # augment
         if self.is_augment:
             self.augment_transform = transforms.Compose([
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomVerticalFlip(),
-                transforms.RandomRotation(self.augment_rotation, expand=True),
-                self.transform,
+                ToTensor(),
+                RandomFlip(),
+                RandomRotation(self.augment_rotation, expand=True),
+                ResizeMax(int(self.resize_rate * max(self.height, self.width))),
+                BoundedRandomCrop((self.height, self.width), pad_if_needed=True),
             ])
 
         print(f'Dataset contains {len(self)} images')
@@ -155,10 +154,7 @@ class CocoDataset(BaseDataset):
             self.coco.annToMask(ann)
             for ann in anns
         ]), axis=0)).unsqueeze(0)
-        mask = Mask(mask)
-        
+
         img = io.read_image(self.files[idx])
-        if img.shape[0] == 1:
-            img = torch.cat([img]*3)
 
         return img, mask
