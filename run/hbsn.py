@@ -1,10 +1,10 @@
 import torch
 
 from config import HBSNetConfig
-from data.hbsn_dataset import HBSNDataset
-from net.hbsn import HBSNet, HBSNet_FCN
+from data.hbsn_dataset import HBSNDataset, HBSNDataset_V2
+from net.hbsn import HBSNet, HBSNet_V2
 from recoder import HBSNRecoder
-from train.base_train import training
+from run.base_train import training
 
 DATA_DIR = "img/generated"
 TEST_DATA_DIR = "img/gen2"
@@ -58,13 +58,14 @@ def main(
     lr=1e-3,
     weight_norm=1e-5,
     moments=0.9,
-    batch_size=32,
+    batch_size=64,
     channels=[8,16,32,64,128,256],
     stn_rate=0.0,
     lr_decay_rate=0.5,
     lr_decay_steps=[50,100],
     stn_mode=0,
     is_augment=False,
+    is_soft_label=True,
     comment='',
     augment_rotation=180.0,
     augment_scale=[0.8,1.2],
@@ -92,7 +93,7 @@ def main(
     )
 
 
-def main_fcn(
+def main_v2(
     data_dir=DATA_DIR,
     test_data_dir=TEST_DATA_DIR,
     device='cuda:0',
@@ -100,17 +101,19 @@ def main_fcn(
     version=VERSION, 
     load='',
     log_dir='',
-    log_base_dir='runs/hbsn_fcn',
+    log_base_dir='runs/hbsn2',
     lr=1e-3,
     weight_norm=1e-5,
     moments=0.9,
-    batch_size=32,
-    channels=[1],
-    stn_rate=0.0,
+    batch_size=64,
+    channels_down=[8,8,16,32,64,128],
+    channels_up=[8,16,32,64,128],
+    stn_rate=0.1,
     lr_decay_rate=0.5,
     lr_decay_steps=[50,100],
-    stn_mode=0,
-    is_augment=False,
+    stn_mode=3,
+    is_augment=True,
+    is_soft_label=True,
     comment='',
     augment_rotation=180.0,
     augment_scale=[0.8,1.2],
@@ -120,16 +123,16 @@ def main_fcn(
     args = locals()
     config = HBSNetConfig(args)
     
-    dataset = HBSNDataset(config=config)
+    dataset = HBSNDataset_V2(config=config)
     if not config.test_data_dir:
         train_dataloader, test_dataloader = dataset.get_dataloader(batch_size=config.batch_size)
     else:
         train_dataloader, _ = dataset.get_dataloader(batch_size=config.batch_size, split_rate=1)
-        test_dataset = HBSNDataset(config.test_data_dir, is_augment=False)
+        test_dataset = HBSNDataset_V2(config.test_data_dir, is_augment=False)
         _, test_dataloader = test_dataset.get_dataloader(batch_size=config.batch_size, split_rate=0)
     
     recoder = HBSNRecoder(config, len(train_dataloader), len(test_dataloader))
-    net = HBSNet_FCN(
+    net = HBSNet_V2(
         height=dataset.height, width=dataset.width, input_channels=dataset.input_channels, config=config
         )
     training(

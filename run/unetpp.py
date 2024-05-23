@@ -2,7 +2,7 @@ from config import SegNetConfig
 from data.coco_dataset import CocoDataset
 from net.unetpp import UnetPP
 from recoder import CocoHBSNRecoder
-from train.base_train import training
+from run.base_train import training
 
 
 def main(

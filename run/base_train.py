@@ -39,7 +39,7 @@ def save_checkpoint(net, recoder, optimizer, epoch, is_best=False):
     # Save model after `CHECKPOINT_INTERVAL` epochs
     is_best = recoder.update_best(epoch)
     if is_best or epoch % CHECKPOINT_INTERVAL == 0:
-        para_path = os.path.join(recoder.checkpoint_dir, f"best.pth" if is_best else f"epoch_{epoch}.pth")
+        para_path = os.path.join(recoder.checkpoint_dir, "best.pth" if is_best else f"epoch_{epoch}.pth")
         net.save(para_path, epoch, recoder.best_epoch, recoder.best_loss, recoder.config, optimizer)
         logger.warning(f"{'Best model' if is_best else 'Model'} saved at epoch {epoch} to {para_path}")
 

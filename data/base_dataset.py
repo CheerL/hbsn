@@ -15,7 +15,8 @@ class BaseDataset(Dataset):
             train_dataset = None
             test_dataset = self
         else:
-            train_dataset, test_dataset = random_split(self, [split_rate, 1-split_rate])
+            train_num = int(len(self) * split_rate)
+            train_dataset, test_dataset = random_split(self, [train_num, len(self) - train_num])
 
         if train_dataset:
             train_dataset = TransformSubset.from_dataset(

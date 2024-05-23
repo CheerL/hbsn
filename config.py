@@ -90,6 +90,10 @@ class HBSNetConfig(BaseConfig):
     stn_mode=0
     radius=50
     
+    is_soft_label=True
+    channels_down=[8,8,16,32,64,128]
+    channels_up=[8,16,32,64,128]
+    
 
 class SegNetConfig(BaseConfig):
     coco_root='coco/train2017/'

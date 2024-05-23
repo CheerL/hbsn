@@ -156,5 +156,7 @@ class CocoDataset(BaseDataset):
         ]), axis=0)).unsqueeze(0)
 
         img = io.read_image(self.files[idx])
+        if img.shape[0] == 1:
+            img = img.repeat(3, 1, 1)
 
         return img, mask

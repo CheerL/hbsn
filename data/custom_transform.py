@@ -11,7 +11,7 @@ from torch.nn import Module as Transform
 
 class BoundedRandomAffine(transforms.RandomAffine):
     def forward(self, img):
-        fill = self.fill
+        fill = float(img[img < 0.5].mean())
         channels, height, width = F.get_dimensions(img)
         if isinstance(img, Tensor):
             if isinstance(fill, (int, float)):
@@ -19,10 +19,9 @@ class BoundedRandomAffine(transforms.RandomAffine):
             else:
                 fill = [float(f) for f in fill]
 
-        x, y = torch.where(img[0]>0.5)
+        x, y = torch.where(img[0]>=0.5)
         dis = ((x-width/2).pow(2) + (y-height/2).pow(2)).sqrt()
         max_dis = dis.max()
-        
         
         angle = float(torch.empty(1).uniform_(float(self.degrees[0]), float(self.degrees[1])).item())
         
@@ -69,18 +68,19 @@ class SoftLabel(Transform):
         x = x * (new_max - new_min) + new_min
         return x
     
-    def _transform(self, inpt: Any, params: Dict[str, Any]) -> Any:
-        new_min = torch.randn(1) * 0.1
+    def forward(self, inpt: Any) -> Any:
+        eps = 1e-5
+        new_min = (torch.rand(1) - 0.5) * 0.4
         if new_min < 0:
             return inpt
-        new_max = 1+torch.randn(1) * 0.1
-        mask = inpt > 0.5
+        new_max = 1-torch.rand(1) * 0.2
+        mask = inpt >= 0.5
         noise = torch.randn_like(inpt)
  
         x = inpt + noise * self.noise_rate
         x = F.gaussian_blur(x, kernel_size=self.kernel_size, sigma=self.sigma)
         x[mask] = self.rescale(x[mask], 0.5, new_max)
-        x[~mask] = self.rescale(x[~mask], new_min, 0.5)
+        x[~mask] = self.rescale(x[~mask], new_min, 0.5-eps)
         return x
 
 class BoundedRandomCrop(transforms.RandomCrop):
@@ -91,17 +91,17 @@ class BoundedRandomCrop(transforms.RandomCrop):
         # assert isinstance(mask, Mask), f"Expected mask to be a Mask object, but got {type(mask)}"
 
         _, mask_y, mask_x = torch.where(mask > 0.5)
-        mask_width_min = mask_x.min()
-        mask_width_max = mask_x.max()
-        mask_height_min = mask_y.min()
-        mask_height_max = mask_y.max()
+        mask_width_min = mask_x.min().item()
+        mask_width_max = mask_x.max().item()
+        mask_height_min = mask_y.min().item()
+        mask_height_max = mask_y.max().item()
 
         
         mask_width = mask_width_max - mask_width_min
         mask_height = mask_height_max - mask_height_min
         if mask_height > cropped_height or mask_width > cropped_width:
             rate = min(
-                cropped_width / mask_width * 0.9, 
+                cropped_width / mask_width * 0.9,
                 cropped_height / mask_height * 0.9
             )
             ori_height, ori_width = mask.shape[-2:]
@@ -110,13 +110,13 @@ class BoundedRandomCrop(transforms.RandomCrop):
             needs_resize = True
             resize_size = (resized_height, resized_width)
             
-            mask = F.resize(mask, size=(resized_height, resized_width), antialias=True) 
+            mask = F.resize(mask, size=[resized_height, resized_width], antialias=True) 
             
             _, mask_y, mask_x = torch.where(mask > 0.5)
-            mask_width_min = mask_x.min()
-            mask_width_max = mask_x.max()
-            mask_height_min = mask_y.min()
-            mask_height_max = mask_y.max()
+            mask_width_min = mask_x.min().item()
+            mask_width_max = mask_x.max().item()
+            mask_height_min = mask_y.min().item()
+            mask_height_max = mask_y.max().item()
         else:
             needs_resize = False
             resize_size = None

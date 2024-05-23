@@ -72,7 +72,7 @@ class SegHBSNNet(BaseNet):
         # eps = 1/scale
         # y = -torch.relu(-torch.relu(x+eps)+2*eps)+eps
         # y = (torch.sin(y*torch.pi/2/eps)+1)/2
-        y = F.sigmoid(self.mask_scale * (x - 0.5))
+        y = torch.sigmoid(self.mask_scale * (x - 0.5))
         return y
     
     def get_hard_mask(self, x):

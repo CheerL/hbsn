@@ -4,11 +4,11 @@ import fire
 import numpy
 import torch
 
-from train.deeplab import main as deeplab_train
-from train.hbsn import main as hbsn_train
-from train.hbsn import main_fcn as hbsn_fcn_train
-from train.maskrcnn import main as maskrcnn_train
-from train.unetpp import main as unetpp_train
+from run.deeplab import main as deeplab_train
+from run.hbsn import main as hbsn_train
+from run.hbsn import main_v2 as hbsn_v2_train
+from run.maskrcnn import main as maskrcnn_train
+from run.unetpp import main as unetpp_train
 
 RANDOM_SEED = 960717
 
@@ -22,5 +22,5 @@ if __name__ == '__main__':
         'maskrcnn' : maskrcnn_train,
         'deeplab' : deeplab_train,
         'hbsn' : hbsn_train,
-        'hbsn_fcn': hbsn_fcn_train
+        'hbsn_v2': hbsn_v2_train
     })

@@ -142,7 +142,7 @@ class HBSNRecoder(BaseRecoder):
         fig.subplots_adjust(hspace=0.05, wspace=0.05)
         for i in range(num):
             plt.subplot(3, num, i+1)
-            plt.imshow(img_k[i,0], cmap='gray')
+            plt.imshow(img_k[i,0], cmap='gray', vmin=0, vmax=1)
             plt.axis('off')
 
             plt.subplot(3, num, num+i+1)

@@ -53,7 +53,7 @@ class BaseNet(nn.Module):
         }, path)
         
     def load(self, path):
-        checkpoint = torch.load(path)
+        checkpoint = torch.load(path, map_location=self.device)
         self.load_state_dict(checkpoint["state_dict"])
         epoch = checkpoint["epoch"]
         best_epoch = checkpoint["best_epoch"]

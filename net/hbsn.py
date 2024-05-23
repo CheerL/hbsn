@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from config import HBSNetConfig
 from net.base_net import BaseNet
 from net.stn import STN
-from net.unet import UNet
+from net.unet import UNet, AsymmetricUNet
 
 DTYPE = torch.float32
 
@@ -60,6 +60,7 @@ class HBSNet(BaseNet):
         return mask
 
     def forward(self, x):
+        x = torch.sigmoid(20*(x-0.5))
         x, pre_theta = self.pre_stn(x)
         x = self.bce(x)
         x, post_theta = self.post_stn(x)
@@ -117,27 +118,43 @@ class HBSNet(BaseNet):
         return net, epoch, best_epoch, best_loss, dataset, train_dataloader, test_dataloader
 
 
-class HBSNet_FCN(HBSNet):
+class HBSNet_V2(HBSNet):
     def __init__(
         self, height=256, width=256,
         input_channels=1, output_channels=2,
-        channels=[16, 32, 64, 128], radius=50,
-        stn_mode=0, stn_rate=0.0,
+        channels_down=[8,8,16,32,64,128], channels_up=[8,16,32,64,128], radius=50,
+        stn_mode=3, stn_rate=0.1,
         device="cpu", dtype=DTYPE, config: Optional[HBSNetConfig]=None
     ):
+        if not config:
+            self.channels_up = channels_up
+            self.channels_down = channels_down
+        else:
+            self.channels_up = config.channels_up
+            self.channels_down = config.channels_down
+        
+        
         super().__init__(
             height, width, input_channels, output_channels,
-            channels, radius, stn_mode, stn_rate, device, dtype, config
+            [1], radius, stn_mode, stn_rate, device, dtype, config
         )
-        self.bce = torch.hub.load('pytorch/vision:v0.10.0', 'fcn_resnet50', pretrained=False)
-        self.bce.backbone.conv1 = torch.nn.Conv2d(self.input_channels, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
-        self.bce.classifier._modules['4'] = torch.nn.Conv2d(512, self.output_channels, kernel_size=(1, 1), stride=(1, 1))
         
+        self.bce = AsymmetricUNet(self.input_channels, self.output_channels, self.channels_down, self.channels_up, bilinear=True, dtype=self.dtype)
+        self.post_stn = (
+            STN(self.output_channels, self.output_height, self.output_width, dtype=self.dtype, stn_mode=2)
+            if self.stn_mode in [2, 3] else
+            lambda x: (x, None)
+        )
         self.to(self.device)
-        
-    def forward(self, x):
-        x, pre_theta = self.pre_stn(x)
-        x = self.bce(x)['out']
-        x, post_theta = self.post_stn(x)
-        x = torch.masked_fill(x, ~self.mask, 0.0)
-        return x
+    
+    def create_mask(self, r):
+        rate = 2 ** (len(self.channels_down) - len(self.channels_up))
+        self.output_height = self.height // rate
+        self.output_width = self.width // rate
+        x, y = torch.meshgrid(torch.arange(self.output_width),torch.arange(self.output_height), indexing='ij')
+        x = (x - self.output_width/2) / r
+        y = (y - self.output_height/2) / r
+        mask = (x**2 + y**2) <= 1
+        mask.requires_grad = False
+        mask = mask.to(self.device)
+        return mask
