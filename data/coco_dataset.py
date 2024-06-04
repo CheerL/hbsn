@@ -42,6 +42,9 @@ class CocoDataset(BaseDataset):
             self.augment_scale = config.augment_scale
             self.augment_translate = config.augment_translate
             self.cat_ids = config.cat_ids
+            self.connected = config.connected
+            self.single_instance = config.single_instance
+            self.min_area = config.min_area
         else:
             self.root_path = root_path
             self.annotation_path = annotation_path
@@ -51,12 +54,13 @@ class CocoDataset(BaseDataset):
             self.augment_scale = augment_scale
             self.augment_translate = augment_translate
             self.cat_ids = cat_ids
-        
-        self.connected = connected
-        self.single_instance = single_instance
+            self.connected = connected
+            self.single_instance = single_instance
+            self.min_area = min_area
+
         self.height = height
         self.width = width
-        self.min_area = min_area
+            
         
         self.coco: COCO = COCO(self.annotation_path)
         # cat ids

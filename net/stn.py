@@ -77,7 +77,7 @@ class STN(nn.Module):
                 dx = torch.sigmoid(dx) - 0.5
                 dy = torch.sigmoid(dy) - 0.5
             elif self.stn_mode == 2:
-                theta = torch.tanh(loc.view(-1))
+                theta = loc.view(-1)
                 scale = 1
                 dx = dy = torch.zeros_like(theta)
                 

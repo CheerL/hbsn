@@ -11,6 +11,7 @@ class BaseNet(nn.Module):
         self.input_channels = input_channels
         self.output_channels = output_channels
         self.dtype = dtype
+        self.load_strict = True
         if config:
             self.device = config.device
         else:
@@ -51,10 +52,15 @@ class BaseNet(nn.Module):
             'config': config,
             'optimizer': optimizer.state_dict() if optimizer else None
         }, path)
-        
+    
+    def _handle_checkpoint(self, checkpoint):
+        return checkpoint
+    
     def load(self, path):
         checkpoint = torch.load(path, map_location=self.device)
-        self.load_state_dict(checkpoint["state_dict"])
+        checkpoint = self._handle_checkpoint(checkpoint)
+        # print(self.load_strict)
+        self.load_state_dict(checkpoint["state_dict"], self.load_strict)
         epoch = checkpoint["epoch"]
         best_epoch = checkpoint["best_epoch"]
         best_loss = checkpoint["best_loss"]

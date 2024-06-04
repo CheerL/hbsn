@@ -41,21 +41,25 @@ class UpBlock(nn.Module):
 
     def __init__(self, in_channels, skip_channels, out_channels, bilinear=True, dtype=DTYPE):
         super().__init__()
-
+        self.bilinear = bilinear
+        self.dtype = dtype
+        self.skip = skip_channels > 0
         # if bilinear, use the normal convolutions to reduce the number of channels
-        if bilinear:
+        conv_in_channels = in_channels // 2 + skip_channels
+
+        if self.bilinear:
             self.up = nn.Sequential(
                 nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
                 nn.Conv2d(in_channels, in_channels // 2, kernel_size=1, dtype=dtype),
                 nn.ReLU(inplace=True)
             )
-            self.conv = DoubleConv(in_channels // 2 + skip_channels, out_channels, dtype=dtype)
+            self.conv = DoubleConv(conv_in_channels, out_channels, dtype=dtype)
         else:
             self.up = nn.ConvTranspose2d(in_channels, in_channels // 2, kernel_size=2, stride=2, dtype=dtype)
-            self.conv = DoubleConv(in_channels // 2 + skip_channels, out_channels, dtype=dtype)
+            self.conv = DoubleConv(conv_in_channels, out_channels, dtype=dtype)
 
     def forward(self, x, x2):
-        x1 = self.up(x)
+        
         # input is CHW
         # diffY = x2.size()[2] - x1.size()[2]
         # diffX = x2.size()[3] - x1.size()[3]
@@ -65,8 +69,10 @@ class UpBlock(nn.Module):
         # if you have padding issues, see
         # https://github.com/HaiyongJiang/U-Net-Pytorch-Unstructured-Buggy/commit/0e854509c2cea854e247a9c615f175f76fbb2e3a
         # https://github.com/xiaopeng-liao/Pytorch-UNet/commit/8ebac70e633bac59fc22bb5195e513d5832fb3bd
-        out = torch.cat([x2, x1], dim=1)
-        return self.conv(out)
+        x = self.up(x)
+        if self.skip:
+            x = torch.cat([x2, x], dim=1)
+        return self.conv(x)
 
 class UNet(nn.Module):
     def __init__(self, n_channels, n_classes, channels, bilinear=True, dtype=DTYPE):
@@ -112,12 +118,13 @@ class UNet(nn.Module):
         return x
 
 class AsymmetricUNet(nn.Module):
-    def __init__(self, n_channels, n_classes, channels_down, channels_up, bilinear=True, dtype=DTYPE):
+    def __init__(self, n_channels, n_classes, channels_down, channels_up, bilinear=True, dtype=DTYPE, skip=True):
         super().__init__()
         self.dtype=dtype
         self.n_channels = n_channels
         self.n_classes = n_classes
         self.bilinear = bilinear
+        self.skip = skip
         
         self.channels_down = channels_down
         self.channels_up = channels_up
@@ -131,9 +138,15 @@ class AsymmetricUNet(nn.Module):
         ])
 
         self.ups = nn.ModuleList([
-            UpBlock(self.channels_up[i+1], self.channels_up[i], self.channels_up[i], bilinear, dtype=dtype) 
+            UpBlock(
+                self.channels_up[i+1], 
+                self.channels_down[i+1] if self.skip else 0, 
+                self.channels_up[i], 
+                bilinear=self.bilinear, dtype=dtype
+                ) 
             for i in range(self.layers_up - 1)
         ])
+
         self.outc = nn.Conv2d(self.channels_up[0], n_classes, kernel_size=1, dtype=dtype)
 
     def encode(self, x):

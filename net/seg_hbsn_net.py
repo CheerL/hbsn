@@ -5,7 +5,7 @@ from torch.nn import functional as F
 
 from config import SegNetConfig
 from net.base_net import BaseNet
-from net.hbsn import HBSNet
+from net.hbsn import HBSNet, HBSNet_V2
 
 DTYPE = torch.float32
 
@@ -13,7 +13,7 @@ class SegHBSNNet(BaseNet):
     def __init__(
         self, height=256, width=256, input_channels=3, output_channels=1, 
         dice_rate=0.1, iou_rate=0, hbs_loss_rate=1, mask_scale=10,
-        hbsn_checkpoint='',
+        hbsn_checkpoint='', hbsn_version=1,
         hbsn_channels=[64, 128, 256, 512], hbsn_radius=50,
         hbsn_stn_mode=0, hbsn_stn_rate=0.0, 
         dtype=DTYPE, device="cpu", config: Optional[SegNetConfig]=None
@@ -25,39 +25,71 @@ class SegHBSNNet(BaseNet):
             self.hbs_loss_rate = config.hbs_loss_rate
             self.mask_scale = config.mask_scale
             self.hbsn_checkpoint = config.hbsn_checkpoint
-            self.hbsn_channels = config.hbsn_channels
             self.hbsn_radius = config.hbsn_radius
             self.hbsn_stn_mode = config.hbsn_stn_mode
             self.hbsn_stn_rate = config.hbsn_stn_rate
+            self.hbsn_version = config.hbsn_version
         else:
             self.dice_rate = dice_rate
             self.iou_rate = iou_rate
             self.hbs_loss_rate = hbs_loss_rate
             self.mask_scale = mask_scale
-            self.hbsn_checkpoint = config.hbsn_checkpoint
+            self.hbsn_checkpoint = hbsn_checkpoint
             self.hbsn_channels = hbsn_channels
             self.hbsn_radius = hbsn_radius
             self.hbsn_stn_mode = hbsn_stn_mode
             self.hbsn_stn_rate = hbsn_stn_rate
+            self.hbsn_version = hbsn_version
         
+        # print(self.hbsn_checkpoint)
         if self.hbsn_checkpoint:
             hbsn_checkpoint, hbsn_config, _, _, _ = BaseNet.load_model(self.hbsn_checkpoint, self.device)
 
-            self.hbsn = HBSNet(
-                self.height, self.width, 1, 2, 
-                channels=hbsn_config['channels'], stn_mode=hbsn_config['stn_mode'], 
-                radius=hbsn_config['radius'], stn_rate=hbsn_config['stn_rate'],
-                device=self.device, dtype=self.dtype)
+            if self.hbsn_version == 1:
+                if isinstance(hbsn_config, dict):
+                    self.hbsn = HBSNet(
+                        self.height, self.width, 1, 2, 
+                        channels=hbsn_config['channels'], stn_mode=hbsn_config['stn_mode'], 
+                        radius=hbsn_config['radius'], stn_rate=hbsn_config['stn_rate'],
+                        device=self.device, dtype=self.dtype)
+                else:
+                    self.hbsn = HBSNet(
+                        self.height, self.width, 1, 2, 
+                        channels=hbsn_config.channels, stn_mode=hbsn_config.stn_mode, 
+                        radius=hbsn_config.radius, stn_rate=hbsn_config.stn_rate,
+                        device=self.device, dtype=self.dtype)
+
+            else:
+                self.hbsn = HBSNet_V2(
+                    self.height, self.width, 1, 2,
+                    channels_down=hbsn_config.channels_down, channels_up=hbsn_config.channels_up,
+                    stn_mode=hbsn_config.stn_mode, radius=hbsn_config.radius, stn_rate=hbsn_config.stn_rate,
+                    device=self.device, dtype=self.dtype)
             self.hbsn.load_state_dict(hbsn_checkpoint["state_dict"])
         else:
-            self.hbsn = HBSNet(
-                self.height, self.width, 1, 2, 
-                self.hbsn_channels, self.hbsn_radius,
-                self.hbsn_stn_mode, self.hbsn_stn_rate,
-                device=self.device, dtype=self.dtype
-            )
+            if self.hbsn_version == 1:
+                self.hbsn = HBSNet(
+                    self.height, self.width, 1, 2, 
+                    self.hbsn_channels, self.hbsn_radius,
+                    self.hbsn_stn_mode, self.hbsn_stn_rate,
+                    device=self.device, dtype=self.dtype
+                )
+            else:
+                self.hbsn = HBSNet_V2(
+                    self.height, self.width, 1, 2,
+                    self.hbsn_channels[0], self.hbsn_channels[1], self.hbsn_radius,
+                    self.hbsn_stn_mode, self.hbsn_stn_rate,
+                    device=self.device, dtype=self.dtype
+                )
         
         self.to(self.device)
+
+    def _handle_checkpoint(self, checkpoint):
+        self.load_strict = False
+        for key in list(checkpoint["state_dict"].keys()):
+            if key.startswith("hbsn"):
+                del checkpoint["state_dict"][key]
+        return super()._handle_checkpoint(checkpoint)
 
     def model_forward(self, images):
         raise NotImplementedError("model_forward not implemented")
@@ -79,9 +111,9 @@ class SegHBSNNet(BaseNet):
         return torch.relu(torch.sign(x - 0.5))
 
     def get_metrics(self, predict, ground_truth):
-        tp = (predict * ground_truth).sum()
-        fp = (predict * (1 - ground_truth)).sum()
-        fn = ((1 - predict) * ground_truth).sum()
+        tp = (predict * ground_truth).sum(dim=(1,2,3))
+        fp = (predict * (1 - ground_truth)).sum(dim=(1,2,3))
+        fn = ((1 - predict) * ground_truth).sum(dim=(1,2,3))
         
         f1 = (2 * tp + 1) / (2 * tp + fp + fn + 1)
         iou = tp / (tp + fp + fn)
@@ -91,6 +123,8 @@ class SegHBSNNet(BaseNet):
         predict_mask, predict_hbs = predict
         mse_loss = F.mse_loss(predict_mask, ground_truth)
         f1, iou = self.get_metrics(self.get_mask(predict_mask), ground_truth)
+        f1 = f1.mean()
+        iou = iou.mean()
         dice_loss = 1 - f1
         iou_loss = 1 - iou
         loss = mse_loss + self.dice_rate * dice_loss +self.iou_rate * iou_loss

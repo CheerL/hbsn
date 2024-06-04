@@ -12,7 +12,7 @@ class UnetPP(SegHBSNNet):
     def __init__(
         self, height=256, width=256, input_channels=3, output_channels=1,
         dice_rate=0.1, iou_rate=0, hbs_loss_rate=1, mask_scale=100,
-        hbsn_checkpoint='',
+        hbsn_checkpoint='', hbsn_version=1,
         hbsn_channels=[64, 128, 256, 512], hbsn_radius=50,
         hbsn_stn_mode=0, hbsn_stn_rate=0.0, 
         dtype=torch.float32, device="cpu", config: Optional[SegNetConfig]=None
@@ -20,7 +20,7 @@ class UnetPP(SegHBSNNet):
         super().__init__(
             height, width, input_channels, output_channels,
             dice_rate, iou_rate, hbs_loss_rate, mask_scale,
-            hbsn_checkpoint, hbsn_channels, hbsn_radius, hbsn_stn_mode, hbsn_stn_rate,
+            hbsn_checkpoint, hbsn_version, hbsn_channels, hbsn_radius, hbsn_stn_mode, hbsn_stn_rate,
             dtype, device, config
         )
         self.model = smp.UnetPlusPlus(encoder_name='resnet50', encoder_weights='imagenet', classes=1, activation='sigmoid')

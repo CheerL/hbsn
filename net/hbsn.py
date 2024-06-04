@@ -15,7 +15,7 @@ class HBSNet(BaseNet):
         self, height=256, width=256,
         input_channels=1, output_channels=2,
         channels=[16, 32, 64, 128], radius=50,
-        stn_mode=0, stn_rate=0.0,
+        stn_mode=0, stn_rate=0.0, grad_rate=1.0,
         device="cpu", dtype=DTYPE, config: Optional[HBSNetConfig]=None
         ):
         # stn_mode: 0 - no stn, 
@@ -26,11 +26,13 @@ class HBSNet(BaseNet):
         if config:
             self.stn_mode = config.stn_mode
             self.stn_rate = config.stn_rate
+            self.grad_rate = config.grad_rate
             self.channels = config.channels
             self.radius = config.radius
         else:
             self.stn_mode = stn_mode
             self.stn_rate = stn_rate
+            self.grad_rate = grad_rate
             self.channels = channels
             self.radius = radius
         
@@ -72,19 +74,27 @@ class HBSNet(BaseNet):
         double_stn_predict_hbs, double_theta = self.post_stn(predict_hbs)
         stn_loss = F.mse_loss(double_stn_predict_hbs, predict_hbs, reduction="mean")
 
+        predict_grad = torch.cat(torch.gradient(predict_hbs, dim=(2, 3)), dim=1)
+        ground_truth_grad = torch.cat(torch.gradient(ground_truth_hbs, dim=(2, 3)), dim=1)
         if is_mask:
             hbs_loss = F.mse_loss(
                 torch.masked_select(predict_hbs, self.mask), 
                 torch.masked_select(ground_truth_hbs, self.mask), 
                 reduction="mean")
+            grad_loss = F.mse_loss(
+                torch.masked_select(predict_grad, self.mask), 
+                torch.masked_select(ground_truth_grad, self.mask), 
+                reduction="mean")
         else:
             hbs_loss = F.mse_loss(predict_hbs, ground_truth_hbs, reduction="mean")
+            grad_loss = F.mse_loss(predict_grad, ground_truth_grad, reduction="mean")
 
-        loss = hbs_loss + stn_loss * self.stn_rate
+        loss = hbs_loss + stn_loss * self.stn_rate + grad_loss
         loss_dict = {
             "loss": loss,
             "hbs_loss": hbs_loss,
-            "stn_loss": stn_loss
+            "stn_loss": stn_loss,
+            "grad_loss": grad_loss
         }
         return loss_dict, (predict_hbs, ground_truth_hbs)
 
@@ -123,7 +133,7 @@ class HBSNet_V2(HBSNet):
         self, height=256, width=256,
         input_channels=1, output_channels=2,
         channels_down=[8,8,16,32,64,128], channels_up=[8,16,32,64,128], radius=50,
-        stn_mode=3, stn_rate=0.1,
+        stn_mode=3, stn_rate=0.1, grad_rate=1.0,
         device="cpu", dtype=DTYPE, config: Optional[HBSNetConfig]=None
     ):
         if not config:
@@ -136,10 +146,13 @@ class HBSNet_V2(HBSNet):
         
         super().__init__(
             height, width, input_channels, output_channels,
-            [1], radius, stn_mode, stn_rate, device, dtype, config
+            [1], radius, stn_mode, stn_rate, grad_rate, device, dtype, config
         )
         
-        self.bce = AsymmetricUNet(self.input_channels, self.output_channels, self.channels_down, self.channels_up, bilinear=True, dtype=self.dtype)
+        self.bce = AsymmetricUNet(
+            self.input_channels, self.output_channels, self.channels_down, self.channels_up, 
+            bilinear=True, dtype=self.dtype, skip=False
+            )
         self.post_stn = (
             STN(self.output_channels, self.output_height, self.output_width, dtype=self.dtype, stn_mode=2)
             if self.stn_mode in [2, 3] else

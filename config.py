@@ -84,7 +84,8 @@ class HBSNetConfig(BaseConfig):
     test_data_dir="img/gen2"
     
     channels=[8,16,32,64,128,256]
-    stn_rate=0.0
+    stn_rate=0.1
+    grad_rate=0.0
     log_base_dir='runs/hbsn'
     
     stn_mode=0
@@ -100,11 +101,15 @@ class SegNetConfig(BaseConfig):
     coco_annotation='coco/annotations/instances_train2017.json'
     cat_ids=[16]
     resize_rate=1.5
+    min_area=500
+    connected=True
+    single_instance=True
     
     dice_rate=0.1
     iou_rate=0.0
     hbs_loss_rate=1.0
     hbsn_checkpoint='runs/hbsn/Apr05_09-38-40_stn3_loog3/checkpoints/best_1481.pth'
+    hbsn_version=1
     mask_scale=100
     
     hbsn_channels=[64, 128, 256, 512]
