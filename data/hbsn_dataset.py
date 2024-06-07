@@ -1,16 +1,12 @@
 import os
+from genericpath import exists
 
 import scipy.io as sio
-from genericpath import exists
 from PIL import Image
 from torchvision.transforms import transforms
 
-from data.base_dataset import BaseDataset
+from data.base_dataset import BaseDataset, BaseDatasetConfig
 from data.custom_transform import BoundedRandomAffine, SoftLabel
-from typing import Optional
-from config import HBSNetConfig
-
-DEFAULT_DATA_DIR = "img/generated"
 
 
 def load_data(file_path):
@@ -25,38 +21,32 @@ def load_data(file_path):
     return image, hbs
 
 
+class HBSNDatasetConfig(BaseDatasetConfig):
+    data_dir = "img/generated"
+    test_data_dir = "img/gen2"
+    augment_rotation = 180
+    augment_scale = [0.5, 2]
+    augment_translate = [0.5, 0.5]
+    output_size = 64
+
+
 class HBSNDataset(BaseDataset):
-    def __init__(
-        self,
-        root=DEFAULT_DATA_DIR,
-        is_augment=False,
-        augment_rotation=180,
-        augment_scale=[0.8, 1.2],
-        augment_translate=[0.1, 0.1],
-        is_soft_label=True,
-        config: Optional[HBSNetConfig] = None,
-    ):
-        if config:
-            self.root = config.data_dir
-            self.is_augment = config.is_augment
-            self.augment_rotation = config.augment_rotation
-            self.augment_scale = config.augment_scale
-            self.augment_translate = config.augment_translate
-            self.is_soft_label = config.is_soft_label
+    def __init__(self, config: HBSNDatasetConfig, is_test: bool = False):
+        self.config = config
+        
+        if not is_test:
+            self.data_dir = self.config.data_dir
+        elif self.config.test_data_dir:
+            self.data_dir = self.config.test_data_dir
         else:
-            self.root = root
-            self.is_augment = is_augment
-            self.augment_rotation = augment_rotation
-            self.augment_scale = augment_scale
-            self.augment_translate = augment_translate
-            self.is_soft_label = is_soft_label
+            raise FileNotFoundError("Test data directory not found")
 
         self.data_list = sorted(
             [
-                f"{root}/{file}"
-                for file in os.listdir(root)
+                f"{self.data_dir}/{file}"
+                for file in os.listdir(self.data_dir)
                 if file.endswith(".png")
-                and exists(f"{root}/{file.replace('.png', '.mat')}")
+                and exists(f"{self.data_dir}/{file.replace('.png', '.mat')}")
             ]
         )
         self.data = {}
@@ -71,7 +61,7 @@ class HBSNDataset(BaseDataset):
                     SoftLabel(kernel_size=5),
                 ]
             )
-            if self.is_soft_label
+            if self.config.is_soft_label
             else transforms.Compose([transforms.Grayscale(), transforms.ToTensor()])
         )
         hbs_transform = transforms.Compose([transforms.ToTensor()])
@@ -80,13 +70,13 @@ class HBSNDataset(BaseDataset):
         )
 
         # Augmentation
-        if self.is_augment:
+        if self.config.is_augment and not is_test:
             augment_image_transform = transforms.Compose(
                 [
                     BoundedRandomAffine(
-                        self.augment_rotation,
-                        scale=self.augment_scale,
-                        translate=self.augment_translate,
+                        self.config.augment_rotation,
+                        scale=self.config.augment_scale,
+                        translate=self.config.augment_translate,
                     ),
                 ]
             )
@@ -118,32 +108,20 @@ class HBSNDataset(BaseDataset):
         return self.num_sample
 
     def __getitem__(self, index):
-        if isinstance(index, list):
-            return [self[i] for i in index]
-        elif isinstance(index, slice):
-            return [self[i] for i in range(*index.indices(len(self)))]
-        elif isinstance(index, int):
-            file_name = self.data_list[index]
-            if file_name not in self.data:
-                image, hbs = load_data(file_name)
-                self.data[file_name] = (image, hbs)
-            else:
-                image, hbs = self.data[file_name]
-            return image, hbs
+        file_name = self.data_list[index]
+        if file_name not in self.data:
+            image, hbs = load_data(file_name)
+            self.data[file_name] = (image, hbs)
+        else:
+            image, hbs = self.data[file_name]
+            
+        if self.config.output_size > 0:
+            hbs = hbs[
+                self.config.output_size : -self.config.output_size,
+                self.config.output_size : -self.config.output_size,
+                :,
+            ]
+        return image, hbs
 
     def get_size(self):
         return self.height, self.width, self.input_channels, self.output_channels
-
-
-class HBSNDataset_V2(HBSNDataset):
-    output_size = 64
-
-    def __getitem__(self, index):
-        image, hbs = super().__getitem__(index)
-        # print(hbs.shape)
-        hbs = hbs[
-            self.output_size : -self.output_size,
-            self.output_size : -self.output_size,
-            :,
-        ]
-        return image, hbs

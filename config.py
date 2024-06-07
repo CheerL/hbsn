@@ -1,62 +1,19 @@
-import os
-from datetime import datetime
+from typing import Any, Dict
+from itertools import chain
 
 
 class BaseConfig:
-    load=''
-    version='0.0'
+    def __init__(self, config_dict: Dict[str, Any] = {}):
+        self.load_config(config_dict)
     
-    log_dir=''
-    log_base_dir='runs'
-    comment=''
-    
-    weight_norm=1e-5
-    moments=0.9
-    lr=1e-3
-    lr_decay_rate=0.5
-    lr_decay_steps=[50,100]
-    
-    batch_size=32
-    device='cuda:0'
-    total_epoches=1000
-    
-    is_augment=False
-    augment_rotation=180.0
-    augment_scale=[0.8,1.2]
-    augment_translate=[0.1,0.1]
-
-    is_freeze=False
-    finetune_rate=1
-    
-    def __init__(self, config_dict):
+    def load_config(self, config_dict: Dict[str, Any] = {}):
         for attr in dir(self):
             if attr in config_dict:
                 self.__setattr__(attr, config_dict[attr])
-
-        if not self.log_dir:
-            current_time = datetime.now().strftime("%b%d_%H-%M-%S")
-            self.log_dir = os.path.join(
-                self.log_base_dir, current_time
-            )
-            if self.comment:
-                self.log_dir += f"_{self.comment}"
-                
-        self.checkpoint_dir = os.path.join(self.log_dir, "checkpoints")
-                
-    @property
-    def augment(self):
-        return (self.augment_rotation, self.augment_scale, self.augment_translate) if self.is_augment else False
-    
-    @property
-    def finetune(self):
-        return 'freeze' if self.is_freeze else self.finetune_rate
-    
+ 
     @property
     def _except_keys(self):
-        return [
-            'log_base_dir', 'comment', 'is_augment', 'is_freeze', 'finetune_rate',
-            'augment_rotation', 'augment_scale', 'augment_translate', 'checkpoint_dir',
-        ]
+        return ['load_config']
     
     @property
     def _show_keys(self):
@@ -75,54 +32,47 @@ class BaseConfig:
             for attr in self._show_keys
         }
 
+
+class RunConfig(BaseConfig):
+    load: str = ""
+    version: str = "0.0"
+
+    total_epoches: int = 1000
+    batch_size: int = 64
+
+    weight_norm: float = 1e-5
+    moments: float = 0.9
+    lr: float = 1e-3
+    lr_decay_rate: float = 0.5
+    lr_decay_steps: list = [50, 100]
+
+
+class Config:
+    def __init__(
+        self,
+        net_config,
+        dateset_config,
+        recorder_config,
+        run_config,
+        # config_dict: Dict[str, Any] = {}
+    ):
+        self.net_config = net_config
+        self.dateset_config = dateset_config
+        self.recorder_config = recorder_config
+        self.run_config = run_config
+
     def get_config_str_list(self):
-        return [f'{k}: {v}' for k, v in self.get_config().items()]
-
-
-class HBSNetConfig(BaseConfig):
-    data_dir="img/generated"
-    test_data_dir="img/gen2"
-    
-    channels=[8,16,32,64,128,256]
-    stn_rate=0.1
-    grad_rate=0.0
-    log_base_dir='runs/hbsn'
-    
-    stn_mode=0
-    radius=50
-    
-    is_soft_label=True
-    channels_down=[8,8,16,32,64,128]
-    channels_up=[8,16,32,64,128]
-    
-
-class SegNetConfig(BaseConfig):
-    coco_root='coco/train2017/'
-    coco_annotation='coco/annotations/instances_train2017.json'
-    cat_ids=[16]
-    resize_rate=1.5
-    min_area=500
-    connected=True
-    single_instance=True
-    
-    dice_rate=0.1
-    iou_rate=0.0
-    hbs_loss_rate=1.0
-    hbsn_checkpoint='runs/hbsn/Apr05_09-38-40_stn3_loog3/checkpoints/best_1481.pth'
-    hbsn_version=1
-    mask_scale=100
-    
-    hbsn_channels=[64, 128, 256, 512]
-    hbsn_radius=50
-    hbsn_stn_mode=0
-    hbsn_stn_rate=0.0
-    
-
-    log_base_dir='runs/maskrcnn'
-
-    
-    @property
-    def _except_keys(self):
-        return super()._except_keys + [
-            'hbsn_channels', 'hbsn_radius', 'hbsn_stn_mode', 'hbsn_stn_rate'
-        ] if self.hbsn_checkpoint else ['hbsn_checkpoint']
+        return [
+            f"{k}: {v}"
+            for k, v in chain(
+                [
+                    config.get_config().items()
+                    for config in [
+                        self.net_config,
+                        self.dateset_config,
+                        self.recorder_config,
+                        self.run_config,
+                    ]
+                ]
+            )
+        ]

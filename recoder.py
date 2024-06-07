@@ -1,12 +1,15 @@
 import os
+from datetime import datetime
+from typing import Any, Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from loguru import logger
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 
-from config import BaseConfig, SegNetConfig
+from config import BaseConfig
+from net.base_net import BaseNet
 
 
 def get_random_index(num, size):
@@ -15,15 +18,40 @@ def get_random_index(num, size):
     return index, num
 
 
+class RecoderConfig(BaseConfig):
+    log_dir=''
+    log_base_dir='runs'
+    comment=''
+    
+    def set_log_dir(self):
+        if not self.log_dir:
+            current_time = datetime.now().strftime("%b%d_%H-%M-%S")
+            self.log_dir = os.path.join(
+                self.log_base_dir, current_time
+            )
+            if self.comment:
+                self.log_dir += f"_{self.comment}"
+
+        self.checkpoint_dir = os.path.join(self.log_dir, "checkpoints")
+
+    @property
+    def _except_keys(self):
+        return super()._except_keys + [
+            'log_base_dir', 'comment', 'checkpoint_dir', 'set_log_dir'
+        ]
+    
 class BaseRecoder(SummaryWriter):
     def __init__(
-        self, config: BaseConfig, train_size, test_size
+        self, config: RecoderConfig, 
+        train_size: int, test_size: int, 
+        total_epoches: int, batch_size: int
     ):
-        super().__init__(log_dir=config.log_dir, comment=config.comment)
         self.config = config
-        self.total_epoches = config.total_epoches
-        self.batch_size = config.batch_size
-        self.checkpoint_dir = config.checkpoint_dir
+        self.config.set_log_dir()
+        super().__init__(log_dir=config.log_dir, comment=config.comment)
+
+        self.total_epoches = total_epoches
+        self.batch_size = batch_size
         self.train_size = train_size
         self.test_size = test_size
 
@@ -33,13 +61,14 @@ class BaseRecoder(SummaryWriter):
         self.best_epoch = -1
         self.best_loss = 1e10
         
-        if not os.path.exists(self.checkpoint_dir):
-            os.makedirs(self.checkpoint_dir)
+        
+        if not os.path.exists(self.config.checkpoint_dir):
+            os.makedirs(self.config.checkpoint_dir)
         
         logger.add(os.path.join(self.log_dir, 'log.log'), level="INFO")
 
-    def init_recoder(self, net=None):
-        config_str_list = self.config.get_config_str_list()
+    def init_recoder(self, config, net: BaseNet | None =None):
+        config_str_list = config.get_config_str_list()
         
         config_info = '\n\t'.join(config_str_list)
         logger.info(f'''
@@ -59,11 +88,9 @@ class BaseRecoder(SummaryWriter):
         plt.axis('off')
         self.add_figure('config', fig)
         
-        try:
-            empty_input = torch.rand(net.get_input_shape(), requires_grad=False, device=net.device, dtype=net.dtype)
+        if net:
+            empty_input = torch.rand(net.get_input_shape(), requires_grad=False, device=net.config.device, dtype=net.config.dtype)
             self.add_graph(net, empty_input)
-        except Exception as e:
-            pass
     
     def add_loss(self, epoch, iteration, loss_dict, is_train=True):
         prefix, size, total_iteration, logger_func = self._get_info(epoch, iteration, is_train=is_train)
@@ -123,7 +150,6 @@ class BaseRecoder(SummaryWriter):
         total_iteration = epoch * size + iteration
         return prefix, size, total_iteration, logger_func
 
-
 class HBSNRecoder(BaseRecoder):
     def add_output(self, epoch, iteration, input_data, output_data, is_train=True, num=10):
         prefix, _, total_iteration, _ = self._get_info(epoch, iteration, is_train)
@@ -136,7 +162,6 @@ class HBSNRecoder(BaseRecoder):
         img_k = img[k].detach().cpu().numpy()
         predict_hbs_k = predict_hbs[k].detach().cpu().numpy()
         ground_truth_hbs_k = ground_truth_hbs[k].detach().cpu().numpy()
-
         subfigure_size = 2
         fig = plt.figure(figsize=(num*subfigure_size, 3*subfigure_size))
         fig.subplots_adjust(hspace=0.05, wspace=0.05)
@@ -156,42 +181,9 @@ class HBSNRecoder(BaseRecoder):
         self.add_figure(f"result/{prefix}", fig, total_iteration)
         self.flush()
 
-
-class CocoRecoder(BaseRecoder):
-    def add_output(self, epoch, iteration, input_data, output_data, is_train=True, num=10):
-        prefix, _, total_iteration, _ = self._get_info(epoch, iteration, is_train)
-        k, num = get_random_index(num, self.batch_size)
-
-        img, mask = input_data
-        img_k = img[k].detach().cpu().numpy().transpose(0, 2, 3, 1)
-        output_k = output_data[k].detach().cpu().numpy()
-        mask_k = mask[k].detach().cpu().numpy()
-
-        subfigure_size = 2
-        fig = plt.figure(figsize=(num*subfigure_size, 3*subfigure_size))
-        fig.subplots_adjust(hspace=0.05, wspace=0.05)
-        for i in range(num):
-            plt.subplot(3, num, i+1)
-            plt.imshow(img_k[i])
-            plt.axis('off')
-
-            plt.subplot(3, num, num+i+1)
-            plt.imshow(output_k[i, 0], cmap='gray')
-            plt.axis('off')
-
-            plt.subplot(3, num, 2*num+i+1)
-            plt.imshow(mask_k[i, 0], cmap='gray')
-            plt.axis('off')
-
-        self.add_figure(f"result/{prefix}", fig, total_iteration)
-        self.flush()
-        
-
 class CocoHBSNRecoder(BaseRecoder):
-    def __init__(
-        self, config: SegNetConfig, train_size, test_size
-    ):
-        super().__init__(config, train_size, test_size)
+    def __init__(self, config: RecoderConfig, train_size, test_size, total_epoches, batch_size):
+        super().__init__(config, train_size, test_size, total_epoches, batch_size)
         
         self.train_iou = torch.zeros(self.train_size)
         self.test_iou = torch.zeros(self.test_size)

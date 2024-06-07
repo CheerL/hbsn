@@ -55,13 +55,16 @@ class STN(nn.Module):
             fc_bias = torch.tensor([0], dtype=dtype)
 
         # Regressor for the 3 * 2 affine matrix
+        self.fc_loc1 = nn.Linear(self.fc_loc_input_size, 32, dtype=dtype)
+        self.fc_loc2 = nn.Linear(32, fc_loc_output_size, dtype=dtype)
+        self.fc_loc2.weight.data.zero_()
+        self.fc_loc2.bias.data.copy_(fc_bias)
+        
         self.fc_loc = nn.Sequential(
-            nn.Linear(self.fc_loc_input_size, 32, dtype=dtype),
+            self.fc_loc1,
             nn.ReLU(True),
-            nn.Linear(32, fc_loc_output_size, dtype=dtype)
+            self.fc_loc2
         )
-        self.fc_loc[2].weight.data.zero_()
-        self.fc_loc[2].bias.data.copy_(fc_bias)
 
     # Spatial transformer network forward function
     def forward(self, x):

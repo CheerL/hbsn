@@ -1,22 +1,34 @@
 import torch
 import torch.nn as nn
 
-DTYPE = torch.float32
+from config import BaseConfig
+
+class BaseNetConfig(BaseConfig):
+    device='cpu'
+    dtype = torch.float32
+    height=256
+    width=256
+    input_channels=1
+    output_channels=2
+    load_strict=True
+    
+    is_freeze=False
+    finetune_rate=1
+    
+    @property
+    def finetune(self):
+        return 'freeze' if self.is_freeze else self.finetune_rate
+    
+    @property
+    def _except_keys(self):
+        return super()._except_keys + ['is_freeze', 'finetune_rate']
+
+
 
 class BaseNet(nn.Module):
-    def __init__(self, height, width, input_channels, output_channels, device="cpu", dtype=DTYPE, config=None):
+    def __init__(self, config: BaseNetConfig):
         super().__init__()
-        self.height = height
-        self.width = width
-        self.input_channels = input_channels
-        self.output_channels = output_channels
-        self.dtype = dtype
-        self.load_strict = True
-        if config:
-            self.device = config.device
-        else:
-            self.device = device
-            
+        self.config = config
 
     @property
     def uninitializable_layers(self):
@@ -41,7 +53,7 @@ class BaseNet(nn.Module):
                 nn.init.xavier_uniform_(m.weight)
                 
     def get_input_shape(self, batch_size=1):
-        return (batch_size, self.input_channels, self.height, self.width)
+        return (batch_size, self.config.input_channels, self.config.height, self.config.width)
 
     def save(self, path, epoch, best_epoch, best_loss, config={}, optimizer=None):
         torch.save({
@@ -57,10 +69,10 @@ class BaseNet(nn.Module):
         return checkpoint
     
     def load(self, path):
-        checkpoint = torch.load(path, map_location=self.device)
+        checkpoint = torch.load(path, map_location=self.config.device)
         checkpoint = self._handle_checkpoint(checkpoint)
         # print(self.load_strict)
-        self.load_state_dict(checkpoint["state_dict"], self.load_strict)
+        self.load_state_dict(checkpoint["state_dict"], self.config.load_strict)
         epoch = checkpoint["epoch"]
         best_epoch = checkpoint["best_epoch"]
         best_loss = checkpoint["best_loss"]
@@ -81,7 +93,7 @@ class BaseNet(nn.Module):
         for param in self.fixable_layers.parameters():
             param.requires_grad = False
 
-    def get_param_dict(self, lr, is_freeze=False, finetune_rate=1):
+    def get_param_dict(self, lr):
         fixable_param_ids = [id(param) for param in self.fixable_layers.parameters()]
         params = [
             param for param in self.parameters()
@@ -90,11 +102,11 @@ class BaseNet(nn.Module):
         param_dict = [
             {'params': params, 'initial_lr': lr}
         ]
-        if is_freeze:
+        if self.config.is_freeze:
             self.freeze_fixable_layers()
         else:
             param_dict.append(
-                {'params': list(self.fixable_layers.parameters()), 'initial_lr': lr * finetune_rate}
+                {'params': list(self.fixable_layers.parameters()), 'initial_lr': lr * self.config.finetune_rate}
             )
         # print(len(param_dict))
         return param_dict

@@ -63,7 +63,7 @@ class ImageGenerator:
         grid_dense = np.stack([fx((x, y)), fy((x, y))], axis=-1)
         return grid_dense
     
-    def distort_image(self, I, grid):
+    def distort_image(self, img, grid):
         """
         INPUT:
             I: H x W x C tensor
@@ -84,7 +84,7 @@ class ImageGenerator:
         elif isinstance(grid, tuple) and (len(grid) == 3 or len(grid) == 1):
             grid = self.distort_grid(**grid)
         
-        J = move_image(I, grid, version='scipy').astype(np.uint8)
+        J = move_image(img, grid, version='scipy').astype(np.uint8)
         return J
     
     def generate_image(self):

@@ -4,80 +4,70 @@ from typing import List, Optional, Tuple
 
 import numpy as np
 import torch
-
 from pycocotools.coco import COCO
 from torchvision import io
 from torchvision.transforms import transforms
 
-from data.base_dataset import BaseDataset
-from data.custom_transform import BoundedRandomCrop, ResizeMax, ToTensor, RandomFlip, RandomRotation
-from config import SegNetConfig
+from data.base_dataset import BaseDataset, BaseDatasetConfig
+from data.custom_transform import (
+    BoundedRandomCrop,
+    RandomFlip,
+    RandomRotation,
+    ResizeMax,
+    ToTensor,
+)
+
+
+class CocoDatasetConfig(BaseDatasetConfig):
+    data_dir: str='coco/train2017'
+    test_data_dir: str='coco/val2017'
+    annotation_path: str='coco/annotations/instances_train2017.json'
+    test_annotation_path: str='coco/annotations/instances_val2017.json'
+    height: int=256
+    width: int=256
+    img_ids: Optional[List[int]]=[]
+    cat_ids: Optional[List[int]]=[] # [16]
+    connected: bool=False
+    single_instance: bool=False
+    resize_rate: float=1.5
+    min_area: float=500
+    augment_rotation: float=30
+    augment_scale: List[float]=[0.8, 1.2]
+    augment_translate: List[float]=[0.1, 0.1]
 
 
 class CocoDataset(BaseDataset):
-    def __init__(
-        self, 
-        root_path: str='', 
-        annotation_path: str='',
-        height: int=256, 
-        width: int=256,
-        img_ids: Optional[List[int]]=[],
-        cat_ids: Optional[List[int]]=[],
-        connected: bool=False,
-        single_instance: bool=False,
-        resize_rate: float=1.5,
-        min_area: float=500,
-        is_augment: bool=False,
-        augment_rotation: float=30,
-        augment_scale: List[float]=[0.8, 1.2],
-        augment_translate: List[float]=[0.1, 0.1],
-        config: Optional[SegNetConfig]=None
-    ) -> None:
-        if config:
-            self.root_path = config.coco_root
-            self.annotation_path = config.coco_annotation
-            self.resize_rate = config.resize_rate
-            self.is_augment = config.is_augment
-            self.augment_rotation = config.augment_rotation
-            self.augment_scale = config.augment_scale
-            self.augment_translate = config.augment_translate
-            self.cat_ids = config.cat_ids
-            self.connected = config.connected
-            self.single_instance = config.single_instance
-            self.min_area = config.min_area
+    def __init__(self, config: CocoDatasetConfig, is_test: bool=False):
+        self.config = config
+        
+        if not is_test:
+            self.annotation_path = self.config.annotation_path
+            self.data_dir = self.config.data_dir
+        elif self.config.test_data_dir and self.config.test_annotation_path:
+            self.annotation_path = self.config.test_annotation_path
+            self.data_dir = self.config.test_data_dir
         else:
-            self.root_path = root_path
-            self.annotation_path = annotation_path
-            self.resize_rate = resize_rate
-            self.is_augment = is_augment
-            self.augment_rotation = augment_rotation
-            self.augment_scale = augment_scale
-            self.augment_translate = augment_translate
-            self.cat_ids = cat_ids
-            self.connected = connected
-            self.single_instance = single_instance
-            self.min_area = min_area
-
-        self.height = height
-        self.width = width
-            
+            raise FileNotFoundError("Test data directory or annotation path not found")
         
         self.coco: COCO = COCO(self.annotation_path)
+        
         # cat ids
-        if not self.cat_ids:
+        if not self.config.cat_ids:
             self.cat_ids = self.coco.getCatIds()
+        else:
+            self.cat_ids = self.config.cat_ids
 
         # img ids
-        if not img_ids:
+        if not self.config.img_ids:
             self.img_ids = list(itertools.chain(*[
                 self.coco.getImgIds(catIds=cat_id)
                 for cat_id in self.cat_ids
             ]))
         else:
-            self.img_ids = img_ids
+            self.img_ids = self.config.img_ids
         
         # single instance
-        if self.single_instance:
+        if self.config.single_instance:
             self.img_ids = [
                 img_id for img_id in self.img_ids
                 if len(self.coco.getAnnIds(
@@ -98,12 +88,12 @@ class CocoDataset(BaseDataset):
             for img in img_data
         ]
         self.files = [
-            os.path.join(self.root_path, img['file_name']) 
+            os.path.join(self.data_dir, img['file_name']) 
             for img in img_data
         ]
         
         # connected
-        if self.connected:
+        if self.config.connected:
             def filter_func(x_list, filter_list):
                 return [
                     x for x, is_filter in zip(x_list, filter_list)
@@ -119,7 +109,7 @@ class CocoDataset(BaseDataset):
             ]
             filter_list = [
                 len(anns) > 0
-                and anns[0]['area'] > self.min_area
+                and anns[0]['area'] > self.config.min_area
                 for anns in self.anns
             ]
             # for i, is_filter in enumerate(filter_list):
@@ -132,18 +122,18 @@ class CocoDataset(BaseDataset):
 
         self.transform = transforms.Compose([
             ToTensor(),
-            ResizeMax(int(self.resize_rate * max(self.height, self.width))),
-            BoundedRandomCrop((self.height, self.width), pad_if_needed=True),
+            ResizeMax(int(self.config.resize_rate * max(self.config.height, self.config.width))),
+            BoundedRandomCrop((self.config.height, self.config.width), pad_if_needed=True),
         ])
         
         # augment
-        if self.is_augment:
+        if self.config.is_augment and not is_test:
             self.augment_transform = transforms.Compose([
                 ToTensor(),
                 RandomFlip(),
-                RandomRotation(self.augment_rotation, expand=True),
-                ResizeMax(int(self.resize_rate * max(self.height, self.width))),
-                BoundedRandomCrop((self.height, self.width), pad_if_needed=True),
+                RandomRotation(self.config.augment_rotation, expand=True),
+                ResizeMax(int(self.config.resize_rate * max(self.config.height, self.config.width))),
+                BoundedRandomCrop((self.config.height, self.config.width), pad_if_needed=True),
             ])
 
         print(f'Dataset contains {len(self)} images')
@@ -151,7 +141,7 @@ class CocoDataset(BaseDataset):
     def __len__(self) -> int:
         return len(self.files)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.LongTensor]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         anns = self.anns[idx]
 
         mask = torch.LongTensor(np.max(np.stack([

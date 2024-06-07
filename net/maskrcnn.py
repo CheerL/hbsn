@@ -3,52 +3,49 @@ from typing import Dict, List, OrderedDict, Tuple
 import torch
 from torch import nn
 from torch.nn import functional as F
-from torchvision.models.detection import (MaskRCNN_ResNet50_FPN_Weights,
-                                          maskrcnn_resnet50_fpn)
-from torchvision.models.detection.roi_heads import (keypointrcnn_inference,
-                                                    maskrcnn_inference)
+from torchvision.models.detection import (
+    MaskRCNN_ResNet50_FPN_Weights,
+    maskrcnn_resnet50_fpn,
+)
+from torchvision.models.detection.roi_heads import (
+    keypointrcnn_inference,
+    maskrcnn_inference,
+)
 from torchvision.models.detection.rpn import concat_box_prediction_layers
-from torchvision.models.detection.transform import (paste_masks_in_image,
-                                                    resize_boxes,
-                                                    resize_keypoints)
+from torchvision.models.detection.transform import (
+    paste_masks_in_image,
+    resize_boxes,
+    resize_keypoints,
+)
 
-from net.seg_hbsn_net import SegHBSNNet
+from net.hbsn import HBSNet
+from net.seg_hbsn_net import SegHBSNNet, SegHBSNNetConfig
 
 DTYPE = torch.float32
 
 
+class MaskRCNNConfig(SegHBSNNetConfig):
+    select_num=10
+    weight_hidden_size=20
+
 class MaskRCNN(SegHBSNNet):
-    def __init__(
-        self, height=256, width=256, input_channels=3, output_channels=1, 
-        select_num=10, weight_hidden_size=20, 
-        dice_rate=0.1, iou_rate=0, hbs_loss_rate=1, mask_scale=100,
-        hbsn_checkpoint='', hbsn_version=1,
-        hbsn_channels=[64, 128, 256, 512], hbsn_radius=50,
-        hbsn_stn_mode=0, hbsn_stn_rate=0.0,
-        dtype=DTYPE, device="cpu", config=None):
-        super().__init__(
-            height, width, input_channels, output_channels,
-            dice_rate, iou_rate, hbs_loss_rate, mask_scale,
-            hbsn_checkpoint, hbsn_version, hbsn_channels, hbsn_radius, hbsn_stn_mode, hbsn_stn_rate,
-            dtype, device, config
-        )
-        self.select_num = select_num
-        self.weight_hidden_size = weight_hidden_size
+    def __init__(self, hbsn: HBSNet, config: MaskRCNNConfig):
+        super().__init__(hbsn, config)
+        self.config = config
         
+    def build_model(self):
         self.model = maskrcnn_resnet50_fpn(weights=MaskRCNN_ResNet50_FPN_Weights.DEFAULT)
         
         self.weight_layer = nn.Sequential(
-            nn.Linear(2, self.weight_hidden_size),
+            nn.Linear(2, self.config.weight_hidden_size),
             nn.ReLU(),
-            nn.Linear(self.weight_hidden_size, 1),
+            nn.Linear(self.config.weight_hidden_size, 1),
             nn.Softmax(dim=1)
         )
         self.mask_conv = nn.Sequential(
-            nn.Conv2d(self.select_num, self.output_channels, kernel_size=1),
+            nn.Conv2d(self.config.select_num, self.config.output_channels, kernel_size=1),
             nn.Sigmoid()
         )
-        
-        self.to(self.device)
         
     
     def model_forward(self, images):
@@ -75,16 +72,16 @@ class MaskRCNN(SegHBSNNet):
         detections = self.postprocess(detections, images.image_sizes)
 
         masks = [x["masks"][:self.select_num].squeeze(1) for x in detections]
-        masks = [F.pad(x, (0, 0, 0, 0, 0, self.select_num - x.shape[0])) for x in masks]
+        masks = [F.pad(x, (0, 0, 0, 0, 0, self.config.select_num - x.shape[0])) for x in masks]
         masks = torch.stack(masks)
         if str(masks.device) != str(self.device):
-            masks = masks.to(self.device, dtype=self.dtype)
+            masks = masks.to(self.config.device, dtype=self.config.dtype)
 
         weight = [torch.stack([x["labels"].float(), x["scores"]], dim=1)[:self.select_num] for x in detections]
-        weight = [F.pad(x, (0, 0, 0, self.select_num - x.shape[0])) for x in weight]
+        weight = [F.pad(x, (0, 0, 0, self.config.select_num - x.shape[0])) for x in weight]
         weight = torch.stack(weight)
         if str(weight.device) != str(self.device):
-            weight = weight.to(self.device, dtype=self.dtype)
+            weight = weight.to(self.config.device, dtype=self.config.dtype)
             
         weight = self.weight_layer(weight)
         masks = self.mask_conv(masks * weight.unsqueeze(3))
@@ -208,7 +205,7 @@ class MaskRCNN(SegHBSNNet):
         image_shapes: List[Tuple[int, int]]
     ) -> List[Dict[str, torch.Tensor]]:
         for i, (pred, im_s) in enumerate(zip(result, image_shapes)):
-            o_im_s = (self.height, self.width)
+            o_im_s = (self.config.height, self.config.width)
             boxes = pred["boxes"]
             boxes = resize_boxes(boxes, im_s, o_im_s)
             result[i]["boxes"] = boxes
@@ -228,3 +225,7 @@ class MaskRCNN(SegHBSNNet):
             super().fixable_layers,
             self.model
         ])
+        
+    @classmethod
+    def factory(cls, config: MaskRCNNConfig):
+        return super().factory(config)
