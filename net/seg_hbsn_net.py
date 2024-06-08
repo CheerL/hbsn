@@ -1,6 +1,7 @@
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 import torch
+from torch import Tensor
 from torch.nn import functional as F
 
 from net.base_net import BaseNet, BaseNetConfig
@@ -13,6 +14,10 @@ class SegHBSNNetConfig(BaseNetConfig):
     hbs_loss_rate = 1.0
     mask_scale = 10
     hbsn_checkpoint = ""
+
+    # `is_freeze` is set to True by default
+    # since we want to freeze the inside HBSNet.
+    is_freeze = True
 
     def __init__(
         self, config_dict: Dict[str, Any] = {}, hbsn_config: HBSNetConfig | None = None
@@ -51,23 +56,23 @@ class SegHBSNNet(BaseNet):
     def build_model(self):
         raise NotImplementedError("build_model not implemented")
 
-    def model_forward(self, images):
+    def model_forward(self, img):
         raise NotImplementedError("model_forward not implemented")
 
-    def forward(self, images):
-        predict_mask = self.model_forward(images)
+    def forward(self, img):
+        predict_mask = self.model_forward(img)
         # predict_mask = self.binarize_mask(predict_mask)
         hbs = self.hbsn(self.binarize_mask(predict_mask))
         return predict_mask, hbs
 
-    def binarize_mask(self, x):
-        y = torch.sigmoid(self.config.mask_scale * (x - 0.5))
-        return y
+    def binarize_mask(self, mask: Tensor):
+        binarized_mask = torch.sigmoid(self.config.mask_scale * (mask - 0.5))
+        return binarized_mask
 
-    # def get_hard_mask(self, x):
-    #     return torch.relu(torch.sign(x - 0.5))
+    def get_hard_mask(self, mask: Tensor):
+        return torch.relu(torch.sign(mask - 0.5))
 
-    def get_metrics(self, predict, ground_truth):
+    def get_metrics(self, predict: Tensor, ground_truth: Tensor):
         tp = (predict * ground_truth).sum(dim=(1, 2, 3))
         fp = (predict * (1 - ground_truth)).sum(dim=(1, 2, 3))
         fn = ((1 - predict) * ground_truth).sum(dim=(1, 2, 3))
@@ -76,7 +81,9 @@ class SegHBSNNet(BaseNet):
         iou = tp / (tp + fp + fn)
         return f1, iou
 
-    def loss(self, predict, ground_truth):
+    def loss(
+        self, predict: Tuple[Tensor, Tensor], ground_truth: Tensor
+    ) -> Tuple[Dict[str, Tensor], Tuple[Tensor, Tensor, Tensor]]:
         predict_mask, predict_hbs = predict
         mse_loss = F.mse_loss(predict_mask, ground_truth)
         f1, iou = self.get_metrics(self.binarize_mask(predict_mask), ground_truth)
@@ -97,14 +104,19 @@ class SegHBSNNet(BaseNet):
             + self.hbs_loss_rate * hbs_loss_dict["loss"]
         )
 
-        loss_dict = {
+        loss_dict: Dict[str, Tensor] = {
             "loss": loss,
             "mse_loss": mse_loss,
             "dice": f1,
             "iou": iou,
             "hbs_loss": hbs_loss_dict["hbs_loss"],
         }
-        return loss_dict, (predict_mask, predict_hbs, ground_truth_hbs)
+        output_data: Tuple[Tensor, Tensor, Tensor] = (
+            predict_mask,
+            predict_hbs,
+            ground_truth_hbs,
+        )
+        return loss_dict, output_data
 
     @property
     def fixable_layers(self):

@@ -10,12 +10,17 @@ from net.deeplab import DeepLab
 from net.hbsn import HBSNet, HBSNetConfig
 from net.maskrcnn import MaskRCNN, MaskRCNNConfig
 from net.seg_hbsn_net import SegHBSNNetConfig
-from net.unetpp import UnetPP
 from net.tpsn import TPSN
-from recoder import CocoHBSNRecoder, HBSNRecoder, RecoderConfig
+from net.unetpp import UnetPP
+from recorder import CocoHBSNRecorder, HBSNRecorder, RecorderConfig
 
 
-def config_factory(type_: str, config_dict: Dict[str, Any]):
+def type_check(type_: str):
+    assert type_ in ["hbsn", "maskrcnn", "deeplab", "unetpp", "tpsn"], "Invalid `type_`"
+
+
+def config_factory(type_: str, config_dict: Dict[str, Any]) -> Config:
+    type_check(type_)
     if type_ == "hbsn":
         net_config = HBSNetConfig(config_dict)
         dataset_config = HBSNDatasetConfig(config_dict)
@@ -26,14 +31,14 @@ def config_factory(type_: str, config_dict: Dict[str, Any]):
         else:
             net_config = SegHBSNNetConfig(config_dict)
 
-    recorder_config = RecoderConfig(config_dict)
+    recorder_config = RecorderConfig(config_dict)
     run_config = RunConfig(config_dict)
 
-    config = Config(net_config, dataset_config, recorder_config, run_config)
-    return config
+    return Config(net_config, dataset_config, recorder_config, run_config)
 
 
 def net_factory(type_: str, config: Config):
+    type_check(type_)
     if type_ == "hbsn":
         assert isinstance(config.net_config, HBSNetConfig), "HBSNetConfig required"
         net = HBSNet.factory(config.net_config)
@@ -54,7 +59,7 @@ def net_factory(type_: str, config: Config):
         ), "SegHBSNNetConfig required"
         net = UnetPP.factory(config.net_config)
         config.recorder_config.log_base_dir = "runs/unetpp"
-    elif type_ == 'tpsn':
+    elif type_ == "tpsn":
         net = TPSN.factory(config.net_config)
         config.recorder_config.log_base_dir = "runs/tpsn"
 
@@ -62,25 +67,26 @@ def net_factory(type_: str, config: Config):
 
 
 def dataset_factory(type_: str, config: Config) -> Tuple[DataLoader, DataLoader]:
+    type_check(type_)
     if type_ == "hbsn":
         assert isinstance(
-            config.dateset_config, HBSNDatasetConfig
+            config.dataset_config, HBSNDatasetConfig
         ), "HBSNDatasetConfig required"
-        dataset = HBSNDataset(config.dateset_config)
-        if config.dateset_config.test_data_dir:
-            test_dataset = HBSNDataset(config.dateset_config, is_test=True)
+        dataset = HBSNDataset(config.dataset_config)
+        if config.dataset_config.test_data_dir:
+            test_dataset = HBSNDataset(config.dataset_config, is_test=True)
         else:
             test_dataset = None
     else:
         assert isinstance(
-            config.dateset_config, CocoDatasetConfig
+            config.dataset_config, CocoDatasetConfig
         ), "CocoDatasetConfig required"
-        dataset = CocoDataset(config.dateset_config)
+        dataset = CocoDataset(config.dataset_config)
         if (
-            config.dateset_config.test_data_dir
-            and config.dateset_config.test_annotation_path
+            config.dataset_config.test_data_dir
+            and config.dataset_config.test_annotation_path
         ):
-            test_dataset = CocoDataset(config.dateset_config, is_test=True)
+            test_dataset = CocoDataset(config.dataset_config, is_test=True)
         else:
             test_dataset = None
 
@@ -101,17 +107,18 @@ def dataset_factory(type_: str, config: Config) -> Tuple[DataLoader, DataLoader]
     return train_dataloader, test_dataloader
 
 
-def recoder_factory(type_: str, config: Config, train_size: int, test_size: int):
+def recorder_factory(type_: str, config: Config, train_size: int, test_size: int):
+    type_check(type_)
     if type_ == "hbsn":
-        recoder = HBSNRecoder(
+        recorder = HBSNRecorder(
             config.recorder_config,
             train_size,
             test_size,
             config.run_config.total_epoches,
             config.run_config.batch_size,
         )
-    elif type_ in ["maskrcnn", "deeplab", "unetpp"]:
-        recoder = CocoHBSNRecoder(
+    else:
+        recorder = CocoHBSNRecorder(
             config.recorder_config,
             train_size,
             test_size,
@@ -119,4 +126,4 @@ def recoder_factory(type_: str, config: Config, train_size: int, test_size: int)
             config.run_config.batch_size,
         )
 
-    return recoder
+    return recorder

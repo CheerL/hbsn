@@ -27,7 +27,7 @@ class HBSNDatasetConfig(BaseDatasetConfig):
     augment_rotation = 180
     augment_scale = [0.5, 2]
     augment_translate = [0.5, 0.5]
-    output_size = 64
+    masked_size = 64
 
 
 class HBSNDataset(BaseDataset):
@@ -94,8 +94,6 @@ class HBSNDataset(BaseDataset):
                 image, hbs = self.transform((image, hbs))
                 C_image, H_image, W_image = image.shape
                 C_hbs, H_hbs, W_hbs = hbs.shape
-                # print(image.shape, hbs.shape)
-                # assert H_image == H_hbs and W_image == W_hbs, "Image and HBS size mismatch"
                 assert C_image == 1, "Image channel should be 1"
                 assert C_hbs == 2, "HBS channel should be 2"
 
@@ -115,10 +113,10 @@ class HBSNDataset(BaseDataset):
         else:
             image, hbs = self.data[file_name]
             
-        if self.config.output_size > 0:
+        if self.config.masked_size > 0:
             hbs = hbs[
-                self.config.output_size : -self.config.output_size,
-                self.config.output_size : -self.config.output_size,
+                self.config.masked_size : -self.config.masked_size,
+                self.config.masked_size : -self.config.masked_size,
                 :,
             ]
         return image, hbs
