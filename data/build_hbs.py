@@ -5,6 +5,7 @@ import random
 from genericpath import exists
 
 import click
+import matlab.engine
 from loguru import logger
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -17,8 +18,6 @@ except ModuleNotFoundError:
 
     sys.path.append(ROOT_DIR)
     from utils.timeout import timeout
-
-import matlab.engine
 
 
 def init_setting(eng):
@@ -98,9 +97,7 @@ def main(image_dir, eng_name, unit_disk_radius, is_random):
                     continue
 
                 try:
-                    generate_hbs(
-                        eng, image_path, mat_path, unit_disk_radius
-                    )
+                    generate_hbs(eng, image_path, mat_path, unit_disk_radius)
                 except TimeoutError:
                     eng = restart_eng(eng, eng_name)
                     os.remove(image_path)

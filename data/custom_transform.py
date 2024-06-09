@@ -19,9 +19,7 @@ class BoundedRandomAffine(transforms.RandomAffine):
                 fill = [float(f) for f in fill]
 
         x, y = torch.where(img[0] >= 0.5)
-        dis = (
-            (x - width / 2).pow(2) + (y - height / 2).pow(2)
-        ).sqrt()
+        dis = ((x - width / 2).pow(2) + (y - height / 2).pow(2)).sqrt()
         max_dis = dis.max()
 
         angle = float(
@@ -31,15 +29,11 @@ class BoundedRandomAffine(transforms.RandomAffine):
         )
 
         if self.scale is not None:
-            max_scale = min(
-                self.scale[1], min(width, height) / (max_dis * 2)
-            )
+            max_scale = min(self.scale[1], min(width, height) / (max_dis * 2))
             min_scale = min(self.scale[0], max_scale)
             scale_ranges = [min_scale, max_scale]
             scale = float(
-                torch.empty(1)
-                .uniform_(scale_ranges[0], scale_ranges[1])
-                .item()
+                torch.empty(1).uniform_(scale_ranges[0], scale_ranges[1]).item()
             )
         else:
             scale = 1.0
@@ -55,12 +49,8 @@ class BoundedRandomAffine(transforms.RandomAffine):
                 float(translate[1] * height),
                 height / 2 - scaled_max_dis,
             )
-            tx = int(
-                round(torch.empty(1).uniform_(-max_dx, max_dx).item())
-            )
-            ty = int(
-                round(torch.empty(1).uniform_(-max_dy, max_dy).item())
-            )
+            tx = int(round(torch.empty(1).uniform_(-max_dx, max_dx).item()))
+            ty = int(round(torch.empty(1).uniform_(-max_dy, max_dy).item()))
             translations = (tx, ty)
         else:
             translations = (0, 0)
@@ -73,9 +63,7 @@ class BoundedRandomAffine(transforms.RandomAffine):
             )
             if len(shears) == 4:
                 shear_y = float(
-                    torch.empty(1)
-                    .uniform_(shears[2], shears[3])
-                    .item()
+                    torch.empty(1).uniform_(shears[2], shears[3]).item()
                 )
         shear = (shear_x, shear_y)
 
@@ -112,9 +100,7 @@ class SoftLabel(Transform):
         noise = torch.randn_like(inpt)
 
         x = inpt + noise * self.noise_rate
-        x = F.gaussian_blur(
-            x, kernel_size=self.kernel_size, sigma=self.sigma
-        )
+        x = F.gaussian_blur(x, kernel_size=self.kernel_size, sigma=self.sigma)
         x[mask] = self.rescale(x[mask], 0.5, new_max)
         x[~mask] = self.rescale(x[~mask], new_min, 0.5 - eps)
         return x
@@ -184,10 +170,7 @@ class BoundedRandomCrop(transforms.RandomCrop):
                 pad_right += diff
                 padded_width += 2 * diff
 
-        if (
-            padded_height < cropped_height
-            or padded_width < cropped_width
-        ):
+        if padded_height < cropped_height or padded_width < cropped_width:
             raise ValueError(
                 f"Required crop size {(cropped_height, cropped_width)} is larger than "
                 f"{'padded ' if self.padding is not None else ''}input image size {(padded_height, padded_width)}."
@@ -203,9 +186,7 @@ class BoundedRandomCrop(transforms.RandomCrop):
                     torch.randint(
                         max(
                             0,
-                            mask_height_max
-                            - cropped_height
-                            + pad_top,
+                            mask_height_max - cropped_height + pad_top,
                         ),
                         min(
                             padded_height - cropped_height + 1,
@@ -254,12 +235,8 @@ class BoundedRandomCrop(transforms.RandomCrop):
         image, mask = inpt
         params = self.get_params(mask)
         if params["needs_resize"]:
-            image = F.resize(
-                image, size=params["resize_size"], antialias=True
-            )
-            mask = F.resize(
-                mask, size=params["resize_size"], antialias=True
-            )
+            image = F.resize(image, size=params["resize_size"], antialias=True)
+            mask = F.resize(mask, size=params["resize_size"], antialias=True)
 
         if params["needs_pad"]:
             image = F.pad(
@@ -310,14 +287,10 @@ class ResizeMax(Transform):
 
     def get_params(self, x: torch.Tensor):
         height, width = x.shape[-2:]
-        size = int(
-            min(height, width) / (max(height, width) / self.max_sz)
-        )
+        size = int(min(height, width) / (max(height, width) / self.max_sz))
         return {"size": size}
 
-    def forward(
-        self, inpt
-    ) -> torch.Tensor:  # The resized image tensor.
+    def forward(self, inpt) -> torch.Tensor:  # The resized image tensor.
         """
         Apply the ResizeMax transformation on an input image tensor.
         """

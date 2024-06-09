@@ -42,9 +42,7 @@ class BaseDataset(Dataset):
     def __len__(self):
         raise NotImplementedError
 
-    def get_dataloader(
-        self, batch_size=32, split_rate=0.8, drop_last=True
-    ):
+    def get_dataloader(self, batch_size=32, split_rate=0.8, drop_last=True):
         if split_rate == 1:
             train_dataset = self
             test_dataset = None

@@ -16,17 +16,15 @@ class ImageGenerator:
         z = z - z.mean()
         z = z / np.abs(z).max()
 
-        fig = plt.figure(
-            figsize=(self.w, self.h), facecolor="black", dpi=1
-        )
+        fig = plt.figure(figsize=(self.w, self.h), facecolor="black", dpi=1)
         plt.xlim(-1.5, 1.5)
         plt.ylim(-1.5, 1.5)
         plt.axis("off")
         plt.fill(z.real, z.imag, color="white")
         plt.draw()
-        img = np.frombuffer(
-            fig.canvas.tostring_rgb(), dtype=np.uint8
-        ).reshape(self.h, self.w, 3)
+        img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(
+            self.h, self.w, 3
+        )
         plt.close(fig)
         return img.copy()
 
@@ -59,12 +57,8 @@ class ImageGenerator:
         y = np.linspace(-1, 1, self.h)
         y, x = np.meshgrid(x, y)
         # 使用双线性插值
-        fx = interpolate.RegularGridInterpolator(
-            (x_sparse, y_sparse), grid_x
-        )
-        fy = interpolate.RegularGridInterpolator(
-            (x_sparse, y_sparse), grid_y
-        )
+        fx = interpolate.RegularGridInterpolator((x_sparse, y_sparse), grid_x)
+        fy = interpolate.RegularGridInterpolator((x_sparse, y_sparse), grid_y)
 
         # 计算插值结果
         grid_dense = np.stack([fx((x, y)), fy((x, y))], axis=-1)
@@ -88,9 +82,7 @@ class ImageGenerator:
             assert grid.shape == (self.h, self.w, 2)
         elif isinstance(grid, float):
             grid = self.distort_grid(grid)
-        elif isinstance(grid, tuple) and (
-            len(grid) == 3 or len(grid) == 1
-        ):
+        elif isinstance(grid, tuple) and (len(grid) == 3 or len(grid) == 1):
             grid = self.distort_grid(**grid)
 
         J = move_image(img, grid, version="scipy").astype(np.uint8)

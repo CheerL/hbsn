@@ -22,9 +22,7 @@ class CocoDatasetConfig(BaseDatasetConfig):
     data_dir: str = "coco/train2017"
     test_data_dir: str = "coco/val2017"
     annotation_path: str = "coco/annotations/instances_train2017.json"
-    test_annotation_path: str = (
-        "coco/annotations/instances_val2017.json"
-    )
+    test_annotation_path: str = "coco/annotations/instances_val2017.json"
     height: int = 256
     width: int = 256
     img_ids: Optional[List[int]] = []
@@ -39,18 +37,13 @@ class CocoDatasetConfig(BaseDatasetConfig):
 
 
 class CocoDataset(BaseDataset):
-    def __init__(
-        self, config: CocoDatasetConfig, is_test: bool = False
-    ):
+    def __init__(self, config: CocoDatasetConfig, is_test: bool = False):
         self.config = config
 
         if not is_test:
             self.annotation_path = self.config.annotation_path
             self.data_dir = self.config.data_dir
-        elif (
-            self.config.test_data_dir
-            and self.config.test_annotation_path
-        ):
+        elif self.config.test_data_dir and self.config.test_annotation_path:
             self.annotation_path = self.config.test_annotation_path
             self.data_dir = self.config.test_data_dir
         else:
@@ -84,11 +77,7 @@ class CocoDataset(BaseDataset):
             self.img_ids = [
                 img_id
                 for img_id in self.img_ids
-                if len(
-                    self.coco.getAnnIds(
-                        imgIds=img_id, catIds=self.cat_ids
-                    )
-                )
+                if len(self.coco.getAnnIds(imgIds=img_id, catIds=self.cat_ids))
                 == 1
             ]
 
@@ -105,8 +94,7 @@ class CocoDataset(BaseDataset):
             for img in img_data
         ]
         self.files = [
-            os.path.join(self.data_dir, img["file_name"])
-            for img in img_data
+            os.path.join(self.data_dir, img["file_name"]) for img in img_data
         ]
 
         # connected
@@ -114,9 +102,7 @@ class CocoDataset(BaseDataset):
 
             def filter_func(x_list, filter_list):
                 return [
-                    x
-                    for x, is_filter in zip(x_list, filter_list)
-                    if is_filter
+                    x for x, is_filter in zip(x_list, filter_list) if is_filter
                 ]
 
             self.anns = [
@@ -124,8 +110,7 @@ class CocoDataset(BaseDataset):
                 for anns in self.anns
             ]
             filter_list = [
-                len(anns) > 0
-                and anns[0]["area"] > self.config.min_area
+                len(anns) > 0 and anns[0]["area"] > self.config.min_area
                 for anns in self.anns
             ]
             # for i, is_filter in enumerate(filter_list):
@@ -158,15 +143,11 @@ class CocoDataset(BaseDataset):
                 [
                     ToTensor(),
                     RandomFlip(),
-                    RandomRotation(
-                        self.config.augment_rotation, expand=True
-                    ),
+                    RandomRotation(self.config.augment_rotation, expand=True),
                     ResizeMax(
                         int(
                             self.config.resize_rate
-                            * max(
-                                self.config.height, self.config.width
-                            )
+                            * max(self.config.height, self.config.width)
                         )
                     ),
                     BoundedRandomCrop(
@@ -181,9 +162,7 @@ class CocoDataset(BaseDataset):
     def __len__(self) -> int:
         return len(self.files)
 
-    def __getitem__(
-        self, idx: int
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
         anns = self.anns[idx]
 
         mask = torch.LongTensor(

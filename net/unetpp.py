@@ -19,12 +19,8 @@ class UnetPP(SegHBSNNet):
 
     @property
     def fixable_layers(self):
-        return nn.ModuleList(
-            [super().fixable_layers, self.model.encoder]
-        )
+        return nn.ModuleList([super().fixable_layers, self.model.encoder])
 
     @property
     def uninitializable_layers(self):
-        return nn.ModuleList(
-            [super().uninitializable_layers, self.model]
-        )
+        return nn.ModuleList([super().uninitializable_layers, self.model])

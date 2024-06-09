@@ -76,15 +76,10 @@ class MaskRCNN(SegHBSNNet):
             features = OrderedDict([("0", features)])
 
         proposals = self.rpn(images, features)
-        detections = self.roi_heads(
-            features, proposals, images.image_sizes
-        )
+        detections = self.roi_heads(features, proposals, images.image_sizes)
         detections = self.postprocess(detections, images.image_sizes)
 
-        masks = [
-            x["masks"][: self.select_num].squeeze(1)
-            for x in detections
-        ]
+        masks = [x["masks"][: self.select_num].squeeze(1) for x in detections]
         masks = [
             F.pad(
                 x,
@@ -94,9 +89,7 @@ class MaskRCNN(SegHBSNNet):
         ]
         masks = torch.stack(masks)
         if str(masks.device) != str(self.device):
-            masks = masks.to(
-                self.config.device, dtype=self.config.dtype
-            )
+            masks = masks.to(self.config.device, dtype=self.config.dtype)
 
         weight = [
             torch.stack([x["labels"].float(), x["scores"]], dim=1)[
@@ -110,9 +103,7 @@ class MaskRCNN(SegHBSNNet):
         ]
         weight = torch.stack(weight)
         if str(weight.device) != str(self.device):
-            weight = weight.to(
-                self.config.device, dtype=self.config.dtype
-            )
+            weight = weight.to(self.config.device, dtype=self.config.dtype)
 
         weight = self.weight_layer(weight)
         masks = self.mask_conv(masks * weight.unsqueeze(3))
@@ -144,12 +135,9 @@ class MaskRCNN(SegHBSNNet):
         anchors = self.model.rpn.anchor_generator(images, features)
 
         num_images = len(anchors)
-        num_anchors_per_level_shape_tensors = [
-            o[0].shape for o in objectness
-        ]
+        num_anchors_per_level_shape_tensors = [o[0].shape for o in objectness]
         num_anchors_per_level = [
-            s[0] * s[1] * s[2]
-            for s in num_anchors_per_level_shape_tensors
+            s[0] * s[1] * s[2] for s in num_anchors_per_level_shape_tensors
         ]
         objectness, pred_bbox_deltas = concat_box_prediction_layers(
             objectness, pred_bbox_deltas
@@ -187,16 +175,14 @@ class MaskRCNN(SegHBSNNet):
             features, proposals, image_shapes
         )
         box_features = self.model.roi_heads.box_head(box_features)
-        class_logits, box_regression = (
-            self.model.roi_heads.box_predictor(box_features)
+        class_logits, box_regression = self.model.roi_heads.box_predictor(
+            box_features
         )
 
         result: List[Dict[str, torch.Tensor]] = []
 
-        boxes, scores, labels = (
-            self.model.roi_heads.postprocess_detections(
-                class_logits, box_regression, proposals, image_shapes
-            )
+        boxes, scores, labels = self.model.roi_heads.postprocess_detections(
+            class_logits, box_regression, proposals, image_shapes
         )
         num_images = len(boxes)
         for i in range(num_images):
@@ -215,16 +201,10 @@ class MaskRCNN(SegHBSNNet):
                 mask_features = self.model.roi_heads.mask_roi_pool(
                     features, mask_proposals, image_shapes
                 )
-                mask_features = self.model.roi_heads.mask_head(
-                    mask_features
-                )
-                mask_logits = self.model.roi_heads.mask_predictor(
-                    mask_features
-                )
+                mask_features = self.model.roi_heads.mask_head(mask_features)
+                mask_logits = self.model.roi_heads.mask_predictor(mask_features)
             else:
-                raise Exception(
-                    "Expected mask_roi_pool to be not None"
-                )
+                raise Exception("Expected mask_roi_pool to be not None")
 
             labels = [r["labels"] for r in result]
             masks_probs = maskrcnn_inference(mask_logits, labels)
@@ -240,10 +220,8 @@ class MaskRCNN(SegHBSNNet):
         ):
             keypoint_proposals = [p["boxes"] for p in result]
 
-            keypoint_features = (
-                self.model.roi_heads.keypoint_roi_pool(
-                    features, keypoint_proposals, image_shapes
-                )
+            keypoint_features = self.model.roi_heads.keypoint_roi_pool(
+                features, keypoint_proposals, image_shapes
             )
             keypoint_features = self.model.roi_heads.keypoint_head(
                 keypoint_features

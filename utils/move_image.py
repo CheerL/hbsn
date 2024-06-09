@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from scipy.interpolate import griddata
 
 
-def move_image(I, f, vertex=None, version="torch"):
+def move_image(img, f, vertex=None, version="torch"):
     """
     INPUT:
         I: H x W tensor
@@ -15,28 +15,26 @@ def move_image(I, f, vertex=None, version="torch"):
         J: N x C x H x W tensor
             J is the output image
     """
-    if I.ndim == 2:
+    if img.ndim == 2:
         N = 1
         C = 1
-        H, W = I.shape
-    elif I.ndim == 3:
+        H, W = img.shape
+    elif img.ndim == 3:
         N = 1
-        H, W, C = I.shape
-    elif isinstance(I, torch.Tensor) and I.ndim == 4:
+        H, W, C = img.shape
+    elif isinstance(img, torch.Tensor) and img.ndim == 4:
         assert version == "torch"
-        N, C, H, W = I.shape
+        N, C, H, W = img.shape
     else:
         raise ValueError("I should be 2 or 3 dimension")
 
     if version == "torch":
         if N == 1:
-            I = (
-                torch.DoubleTensor(I)
-                .reshape(N, H, W, C)
-                .permute(0, 3, 1, 2)
+            img = (
+                torch.DoubleTensor(img).reshape(N, H, W, C).permute(0, 3, 1, 2)
             )
             f = torch.tensor(f).reshape(N, H, W, 2)
-            J = move_image_torch(I, f)
+            J = move_image_torch(img, f)
             J = J.permute(0, 2, 3, 1)
             if C == 1:
                 J = J.reshape(H, W)
@@ -44,22 +42,20 @@ def move_image(I, f, vertex=None, version="torch"):
                 J = J.reshape(H, W, C)
             J = J.numpy().copy()
         else:
-            J = move_image_torch(I, f)
+            J = move_image_torch(img, f)
 
     elif version == "scipy":
-        J = move_image_scipy(I.reshape(H, W, C), f, vertex)
+        J = move_image_scipy(img.reshape(H, W, C), f, vertex)
     else:
         raise ValueError("version should be torch or scipy")
 
     return J
 
 
-def move_image_scipy(
-    I: np.ndarray, f: np.ndarray, vertex: np.ndarray = None
-):
+def move_image_scipy(img: np.ndarray, f: np.ndarray, vertex: np.ndarray = None):
     """
     INPUT:
-        I: H x W x C numpy array
+        img: H x W x C numpy array
             I is the input image
         f: H x W x 2 numpy array
             f is the map, f(J) = I
@@ -69,7 +65,7 @@ def move_image_scipy(
         J: H x W x C numpy array
             J is the output image
     """
-    H, W, C = I.shape
+    H, W, C = img.shape
 
     if vertex is None:
         vx = np.linspace(-1, 1, W)
@@ -79,15 +75,15 @@ def move_image_scipy(
 
     f = f.reshape(H * W, 2)
     vertex = vertex.reshape(H * W, 2)
-    I = I.reshape(H * W, C)
-    J = griddata(f, I, vertex, fill_value=0).reshape(H, W, C)
+    img = img.reshape(H * W, C)
+    J = griddata(f, img, vertex, fill_value=0).reshape(H, W, C)
     return J
 
 
-def move_image_torch(I, f):
+def move_image_torch(img, f):
     """
     INPUT:
-        I: N x C x H x W tensor
+        img: N x C x H x W tensor
             I is the input image
         f: N x H x W x 2 tensor
             f is the map, f(J) = I
@@ -100,7 +96,7 @@ def move_image_torch(I, f):
     # center.type(f.dtype)
     # target_xy = (f - center) / center
     J = F.grid_sample(
-        I,
+        img,
         f,
         mode="bilinear",
         padding_mode="zeros",

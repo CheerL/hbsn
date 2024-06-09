@@ -1,4 +1,3 @@
-from re import T
 from typing import Dict, Optional, Tuple
 
 import torch
@@ -80,28 +79,20 @@ class HBSNet(BaseNet):
         if self.post_stn:
             ground_truth, theta = self.post_stn(ground_truth)
             double_stn_predict, double_theta = self.post_stn(predict)
-            stn_loss = F.mse_loss(
-                double_stn_predict, predict, reduction="mean"
-            )
+            stn_loss = F.mse_loss(double_stn_predict, predict, reduction="mean")
         else:
             stn_loss = Tensor(0.0)
 
         output_data: Tuple[Tensor, Tensor] = (predict, ground_truth)
-        predict_grad = torch.cat(
-            torch.gradient(predict, dim=(2, 3)), dim=1
-        )
+        predict_grad = torch.cat(torch.gradient(predict, dim=(2, 3)), dim=1)
         ground_truth_grad = torch.cat(
             torch.gradient(ground_truth, dim=(2, 3)), dim=1
         )
 
         if is_mask:
             predict = torch.masked_select(predict, self.mask)
-            ground_truth = torch.masked_select(
-                ground_truth, self.mask
-            )
-            predict_grad = torch.masked_select(
-                predict_grad, self.mask
-            )
+            ground_truth = torch.masked_select(ground_truth, self.mask)
+            predict_grad = torch.masked_select(predict_grad, self.mask)
             ground_truth_grad = torch.masked_select(
                 ground_truth_grad, self.mask
             )

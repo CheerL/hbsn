@@ -31,9 +31,7 @@ class HBSNDatasetConfig(BaseDatasetConfig):
 
 
 class HBSNDataset(BaseDataset):
-    def __init__(
-        self, config: HBSNDatasetConfig, is_test: bool = False
-    ):
+    def __init__(self, config: HBSNDatasetConfig, is_test: bool = False):
         self.config = config
 
         if not is_test:
@@ -48,9 +46,7 @@ class HBSNDataset(BaseDataset):
                 f"{self.data_dir}/{file}"
                 for file in os.listdir(self.data_dir)
                 if file.endswith(".png")
-                and exists(
-                    f"{self.data_dir}/{file.replace('.png', '.mat')}"
-                )
+                and exists(f"{self.data_dir}/{file.replace('.png', '.mat')}")
             ]
         )
         self.data = {}

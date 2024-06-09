@@ -27,10 +27,7 @@ class BaseConfig:
         ]
 
     def get_config(self):
-        return {
-            attr: self.__getattribute__(attr)
-            for attr in self._show_keys
-        }
+        return {attr: self.__getattribute__(attr) for attr in self._show_keys}
 
 
 class RunConfig(BaseConfig):

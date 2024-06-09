@@ -1,4 +1,3 @@
-from re import T
 from typing import Any, Dict, Tuple
 
 from torch.utils.data import DataLoader
@@ -40,9 +39,7 @@ def config_factory(type_: str, config_dict: Dict[str, Any]) -> Config:
     recorder_config = RecorderConfig(config_dict)
     run_config = RunConfig(config_dict)
 
-    return Config(
-        net_config, dataset_config, recorder_config, run_config
-    )
+    return Config(net_config, dataset_config, recorder_config, run_config)
 
 
 def net_factory(type_: str, config: Config):
@@ -88,9 +85,7 @@ def dataset_factory(
         ), "HBSNDatasetConfig required"
         dataset = HBSNDataset(config.dataset_config)
         if config.dataset_config.test_data_dir:
-            test_dataset = HBSNDataset(
-                config.dataset_config, is_test=True
-            )
+            test_dataset = HBSNDataset(config.dataset_config, is_test=True)
         else:
             test_dataset = None
     else:
@@ -102,9 +97,7 @@ def dataset_factory(
             config.dataset_config.test_data_dir
             and config.dataset_config.test_annotation_path
         ):
-            test_dataset = CocoDataset(
-                config.dataset_config, is_test=True
-            )
+            test_dataset = CocoDataset(config.dataset_config, is_test=True)
         else:
             test_dataset = None
 

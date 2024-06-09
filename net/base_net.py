@@ -54,9 +54,7 @@ class BaseNet(nn.Module):
         raise NotImplementedError()
 
     def initialize(self):
-        non_initializable_modules = list(
-            self.uninitializable_layers.modules()
-        )
+        non_initializable_modules = list(self.uninitializable_layers.modules())
 
         for m in self.modules():
             if (
@@ -89,9 +87,7 @@ class BaseNet(nn.Module):
                 "best_epoch": best_epoch,
                 "best_loss": best_loss,
                 "config": config,
-                "optimizer": optimizer.state_dict()
-                if optimizer
-                else None,
+                "optimizer": optimizer.state_dict() if optimizer else None,
             },
             path,
         )
@@ -103,16 +99,12 @@ class BaseNet(nn.Module):
         checkpoint = torch.load(path, map_location=self.config.device)
         checkpoint = self._handle_checkpoint(checkpoint)
         # print(self.load_strict)
-        self.load_state_dict(
-            checkpoint["state_dict"], self.config.load_strict
-        )
+        self.load_state_dict(checkpoint["state_dict"], self.config.load_strict)
         epoch = checkpoint["epoch"]
         best_epoch = checkpoint["best_epoch"]
         best_loss = checkpoint["best_loss"]
         optimizer_data = (
-            checkpoint["optimizer"]
-            if "optimizer" in checkpoint
-            else {}
+            checkpoint["optimizer"] if "optimizer" in checkpoint else {}
         )
 
         return epoch, best_epoch, best_loss, optimizer_data

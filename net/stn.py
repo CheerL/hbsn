@@ -38,9 +38,7 @@ class STN(nn.Module):
                 kernel_size=loc_conv1_kernel_size,
                 dtype=dtype,
             ),
-            nn.MaxPool2d(
-                loc_maxpool_kernel_size, stride=loc_maxpool_stride
-            ),
+            nn.MaxPool2d(loc_maxpool_kernel_size, stride=loc_maxpool_stride),
             nn.ReLU(True),
             nn.Conv2d(
                 loc_conv1_out_channels,
@@ -48,9 +46,7 @@ class STN(nn.Module):
                 kernel_size=loc_conv2_kernel_size,
                 dtype=dtype,
             ),
-            nn.MaxPool2d(
-                loc_maxpool_kernel_size, stride=loc_maxpool_stride
-            ),
+            nn.MaxPool2d(loc_maxpool_kernel_size, stride=loc_maxpool_stride),
             nn.ReLU(True),
         )
 
@@ -82,16 +78,12 @@ class STN(nn.Module):
             fc_bias = torch.tensor([0], dtype=dtype)
 
         # Regressor for the 3 * 2 affine matrix
-        self.fc_loc1 = nn.Linear(
-            self.fc_loc_input_size, 32, dtype=dtype
-        )
+        self.fc_loc1 = nn.Linear(self.fc_loc_input_size, 32, dtype=dtype)
         self.fc_loc2 = nn.Linear(32, fc_loc_output_size, dtype=dtype)
         self.fc_loc2.weight.data.zero_()
         self.fc_loc2.bias.data.copy_(fc_bias)
 
-        self.fc_loc = nn.Sequential(
-            self.fc_loc1, nn.ReLU(True), self.fc_loc2
-        )
+        self.fc_loc = nn.Sequential(self.fc_loc1, nn.ReLU(True), self.fc_loc2)
 
     # Spatial transformer network forward function
     def forward(self, x):

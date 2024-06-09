@@ -23,49 +23,29 @@ except ModuleNotFoundError:
 
 
 @click.command()
-@click.option(
-    "--prefix", default="No", help="Prefix of the generated images"
-)
+@click.option("--prefix", default="No", help="Prefix of the generated images")
 @click.option(
     "--image_dir",
     default="img/generated",
     help="Directory of images to generate HBS",
 )
-@click.option(
-    "--h", default=256, help="Height of the generated images"
-)
-@click.option(
-    "--w", default=256, help="Width of the generated images"
-)
+@click.option("--h", default=256, help="Height of the generated images")
+@click.option("--w", default=256, help="Width of the generated images")
 @click.option(
     "--point_n",
     default=500,
     help="Number of points in the generated images",
 )
-@click.option(
-    "--no_cw", default=False, is_flags=True, help="Stop using CW"
-)
-@click.option(
-    "--no_poly", default=False, is_flags=True, help="Stop using poly"
-)
-@click.option(
-    "--cw_min_size", default=1, help="Min number of k in CW"
-)
-@click.option(
-    "--cw_max_size", default=15, help="Max number of k in CW"
-)
-@click.option(
-    "--cw_repeat_time", default=5, help="Repeat times of CW"
-)
+@click.option("--no_cw", default=False, is_flags=True, help="Stop using CW")
+@click.option("--no_poly", default=False, is_flags=True, help="Stop using poly")
+@click.option("--cw_min_size", default=1, help="Min number of k in CW")
+@click.option("--cw_max_size", default=15, help="Max number of k in CW")
+@click.option("--cw_repeat_time", default=5, help="Repeat times of CW")
 @click.option("--cw_noise_time", default=5, help="Noise times of CW")
 @click.option("--poly_min_size", default=3, help="Min angle in poly")
 @click.option("--poly_max_size", default=15, help="Max angle in poly")
-@click.option(
-    "--poly_repeat_time", default=5, help="Repeat times of poly"
-)
-@click.option(
-    "--poly_noise_time", default=5, help="Noise times of poly"
-)
+@click.option("--poly_repeat_time", default=5, help="Repeat times of poly")
+@click.option("--poly_noise_time", default=5, help="Noise times of poly")
 def main(
     prefix,
     image_dir,
@@ -135,9 +115,7 @@ def generate_by_cw(
                 )
 
                 for n in range(random.randint(0, cw_noise_time)):
-                    cw_distort_rate = random.choice(
-                        cw_distort_rate_list
-                    )
+                    cw_distort_rate = random.choice(cw_distort_rate_list)
                     dimg = cw_gen.distort_image(img, cw_distort_rate)
                     cw_gen.save_image(
                         dimg,
@@ -163,9 +141,7 @@ def generate_by_poly(
                 img, f"{image_dir}/{prefix}_polygon_{size}_{r}.png"
             )
             for n in range(random.randint(0, poly_noise_time)):
-                poly_distort_rate = random.choice(
-                    poly_distort_rate_list
-                )
+                poly_distort_rate = random.choice(poly_distort_rate_list)
                 dimg = poly_gen.distort_image(img, poly_distort_rate)
                 poly_gen.save_image(
                     dimg,

@@ -25,9 +25,7 @@ CHECKPOINT_INTERVAL = 5
 def run(net: BaseNet, input_data: Tuple[torch.Tensor, torch.Tensor]):
     img, ground_truth = input_data
     img = img.to(net.config.device, dtype=net.config.dtype)
-    ground_truth = ground_truth.to(
-        net.config.device, dtype=net.config.dtype
-    )
+    ground_truth = ground_truth.to(net.config.device, dtype=net.config.dtype)
 
     predict = net(img)
     loss_dict, output_data = net.loss(predict, ground_truth)
@@ -45,7 +43,7 @@ def epoch_run(
     net.train() if is_train else net.eval()
     with torch.no_grad() if not is_train else torch.enable_grad():
         for iteration, input_data in enumerate(dataloader):
-            loss_dict, predict = run(net, input_data)
+            loss_dict, output_data = run(net, input_data)
             recorder.add_loss(epoch, iteration, loss_dict, is_train)
             if is_train:
                 optimizer.zero_grad()
@@ -54,7 +52,11 @@ def epoch_run(
 
             if iteration % IMAGE_INTERVAL == 0:
                 recorder.add_output(
-                    epoch, iteration, input_data, predict, is_train
+                    epoch,
+                    iteration,
+                    input_data,
+                    output_data,
+                    is_train,
                 )
         recorder.add_epoch_loss(epoch, is_train)
 
@@ -82,9 +84,7 @@ def save_checkpoint(
             config,
             optimizer,
         )
-        logger.warning(
-            f"Model saved at epoch {epoch} to {checkpoint_path}"
-        )
+        logger.warning(f"Model saved at epoch {epoch} to {checkpoint_path}")
 
     is_best = recorder.update_best(epoch)
     if is_best:
@@ -94,9 +94,7 @@ def save_checkpoint(
         _save_checkpoint(False)
 
 
-def initialization(
-    net: BaseNet, recorder: BaseRecorder, config: Config
-):
+def initialization(net: BaseNet, recorder: BaseRecorder, config: Config):
     net.initialize()
     recorder.init_recorder(config, net)
 
@@ -134,9 +132,7 @@ def load_checkpoint(
             #     del optimizer_data['param_groups']
             optimizer.load_state_dict(optimizer_data)
 
-        logger.info(
-            f"Model loaded from {config.run_config.checkpoint_path}"
-        )
+        logger.info(f"Model loaded from {config.run_config.checkpoint_path}")
 
         recorder.best_epoch = best_epoch
         recorder.best_loss = best_loss
@@ -161,13 +157,9 @@ def train(type_: str, **config_dict):
     )
 
     optimizer, scheduler = initialization(net, recorder, config)
-    init_epoch = load_checkpoint(
-        net, recorder, optimizer, scheduler, config
-    )
+    init_epoch = load_checkpoint(net, recorder, optimizer, scheduler, config)
 
-    for epoch in range(
-        init_epoch + 1, config.run_config.total_epoches
-    ):
+    for epoch in range(init_epoch + 1, config.run_config.total_epoches):
         # Training
         epoch_run(
             net,

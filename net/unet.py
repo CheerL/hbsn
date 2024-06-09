@@ -134,9 +134,7 @@ class UNet(nn.Module):
         self.layers_down = len(self.channels_down)
         self.layers_up = len(self.channels_up)
 
-        self.inc = DoubleConv(
-            n_channels, self.channels_down[0], dtype=dtype
-        )
+        self.inc = DoubleConv(n_channels, self.channels_down[0], dtype=dtype)
         self.downs = nn.ModuleList(
             [
                 DownBlock(

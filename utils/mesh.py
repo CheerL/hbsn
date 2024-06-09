@@ -50,28 +50,26 @@ def read_image(
         I: C x H x W or H x W numpy array (depends on CHW)
             I is the image
     """
-    I = cv2.imread(path)
-    I = cv2.cvtColor(I, cv2.COLOR_BGR2RGB)
-    H, W, C = I.shape
+    img = cv2.imread(path)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    H, W, C = img.shape
 
     if gray:
-        I = cv2.cvtColor(I, cv2.COLOR_RGB2GRAY)
+        img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
 
     if binary_threshold:
-        _, I = cv2.threshold(
-            I, binary_threshold, 255, cv2.THRESH_BINARY
-        )
+        _, img = cv2.threshold(img, binary_threshold, 255, cv2.THRESH_BINARY)
 
     if noramlize:
-        I = I / 255.0
+        img = img / 255.0
 
     if CHW:
         if not gray:
-            I = I.transpose(2, 0, 1)
+            img = img.transpose(2, 0, 1)
         else:
-            I = I.reshape(1, H, W)
+            img = img.reshape(1, H, W)
 
-    return I
+    return img
 
 
 def image_meshgen(height, width, normal=False):

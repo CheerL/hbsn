@@ -35,6 +35,4 @@ class DeepLab(SegHBSNNet):
 
     @property
     def uninitializable_layers(self):
-        return nn.ModuleList(
-            [super().uninitializable_layers, self.model]
-        )
+        return nn.ModuleList([super().uninitializable_layers, self.model])

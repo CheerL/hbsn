@@ -68,9 +68,7 @@ class SegHBSNNet(BaseNet):
         return predict_mask, hbs
 
     def binarize_mask(self, mask: Tensor):
-        binarized_mask = torch.sigmoid(
-            self.config.mask_scale * (mask - 0.5)
-        )
+        binarized_mask = torch.sigmoid(self.config.mask_scale * (mask - 0.5))
         return binarized_mask
 
     def get_hard_mask(self, mask: Tensor):
@@ -135,10 +133,8 @@ class SegHBSNNet(BaseNet):
     @classmethod
     def factory(cls, config: SegHBSNNetConfig):
         if config.hbsn_checkpoint:
-            hbsn_checkpoint, hbsn_config, _, _, _ = (
-                BaseNet.load_model(
-                    config.hbsn_checkpoint, config.device
-                )
+            hbsn_checkpoint, hbsn_config, _, _, _ = BaseNet.load_model(
+                config.hbsn_checkpoint, config.device
             )
             config.hbsn_config = hbsn_config.net_config
             hbsn = HBSNet.factory(config.hbsn_config)
