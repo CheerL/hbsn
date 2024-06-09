@@ -27,7 +27,10 @@ class BaseConfig:
         ]
 
     def get_config(self):
-        return {attr: self.__getattribute__(attr) for attr in self._show_keys}
+        return {
+            attr: self.__getattribute__(attr)
+            for attr in self._show_keys
+        }
 
 
 class RunConfig(BaseConfig):
@@ -47,7 +50,7 @@ class RunConfig(BaseConfig):
 class Config:
     """
     Total configuration for the project,
-    cataining the configuration of the network, dataset, recorder and run.
+    cataining the configuration of network, dataset, recorder and run.
     """
 
     def __init__(

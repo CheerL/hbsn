@@ -2,11 +2,9 @@ import os
 import random
 from typing import Tuple
 
-import fire
 import numpy
 import torch
 import torch.utils.data
-
 from loguru import logger
 
 from factory import (
@@ -27,21 +25,23 @@ CHECKPOINT_INTERVAL = 5
 def run(net: BaseNet, input_data: Tuple[torch.Tensor, torch.Tensor]):
     img, ground_truth = input_data
     img = img.to(net.config.device, dtype=net.config.dtype)
-    ground_truth = ground_truth.to(net.config.device, dtype=net.config.dtype)
-    
+    ground_truth = ground_truth.to(
+        net.config.device, dtype=net.config.dtype
+    )
+
     predict = net(img)
-    loss_dict, predict = net.loss(predict, ground_truth)
-    return loss_dict, predict
+    loss_dict, output_data = net.loss(predict, ground_truth)
+    return loss_dict, output_data
 
 
 def epoch_run(
-    net: BaseNet, 
-    dataloader: torch.utils.data.DataLoader, 
-    optimizer: torch.optim.Optimizer, 
-    recorder: BaseRecorder, 
-    epoch: int, 
-    is_train: bool=True
-    ):
+    net: BaseNet,
+    dataloader: torch.utils.data.DataLoader,
+    optimizer: torch.optim.Optimizer,
+    recorder: BaseRecorder,
+    epoch: int,
+    is_train: bool = True,
+):
     net.train() if is_train else net.eval()
     with torch.no_grad() if not is_train else torch.enable_grad():
         for iteration, input_data in enumerate(dataloader):
@@ -53,7 +53,9 @@ def epoch_run(
                 optimizer.step()
 
             if iteration % IMAGE_INTERVAL == 0:
-                recorder.add_output(epoch, iteration, input_data, predict, is_train)
+                recorder.add_output(
+                    epoch, iteration, input_data, predict, is_train
+                )
         recorder.add_epoch_loss(epoch, is_train)
 
 
@@ -80,7 +82,9 @@ def save_checkpoint(
             config,
             optimizer,
         )
-        logger.warning(f"Model saved at epoch {epoch} to {checkpoint_path}")
+        logger.warning(
+            f"Model saved at epoch {epoch} to {checkpoint_path}"
+        )
 
     is_best = recorder.update_best(epoch)
     if is_best:
@@ -90,7 +94,9 @@ def save_checkpoint(
         _save_checkpoint(False)
 
 
-def initialization(net: BaseNet, recorder: BaseRecorder, config: Config):
+def initialization(
+    net: BaseNet, recorder: BaseRecorder, config: Config
+):
     net.initialize()
     recorder.init_recorder(config, net)
 
@@ -128,7 +134,9 @@ def load_checkpoint(
             #     del optimizer_data['param_groups']
             optimizer.load_state_dict(optimizer_data)
 
-        logger.info(f"Model loaded from {config.run_config.checkpoint_path}")
+        logger.info(
+            f"Model loaded from {config.run_config.checkpoint_path}"
+        )
 
         recorder.best_epoch = best_epoch
         recorder.best_loss = best_loss
@@ -153,16 +161,30 @@ def train(type_: str, **config_dict):
     )
 
     optimizer, scheduler = initialization(net, recorder, config)
-    init_epoch = load_checkpoint(net, recorder, optimizer, scheduler, config)
+    init_epoch = load_checkpoint(
+        net, recorder, optimizer, scheduler, config
+    )
 
-    for epoch in range(init_epoch + 1, config.run_config.total_epoches):
+    for epoch in range(
+        init_epoch + 1, config.run_config.total_epoches
+    ):
         # Training
-        epoch_run(net, train_dataloader, optimizer, recorder, epoch, is_train=True)
+        epoch_run(
+            net,
+            train_dataloader,
+            optimizer,
+            recorder,
+            epoch,
+            is_train=True,
+        )
         # Testing
-        epoch_run(net, test_dataloader, optimizer, recorder, epoch, is_train=False)
+        epoch_run(
+            net,
+            test_dataloader,
+            optimizer,
+            recorder,
+            epoch,
+            is_train=False,
+        )
         scheduler.step()
         save_checkpoint(net, recorder, config, optimizer, epoch)
-
-
-if __name__ == "__main__":
-    fire.Fire(train)

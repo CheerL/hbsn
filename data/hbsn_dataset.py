@@ -31,9 +31,11 @@ class HBSNDatasetConfig(BaseDatasetConfig):
 
 
 class HBSNDataset(BaseDataset):
-    def __init__(self, config: HBSNDatasetConfig, is_test: bool = False):
+    def __init__(
+        self, config: HBSNDatasetConfig, is_test: bool = False
+    ):
         self.config = config
-        
+
         if not is_test:
             self.data_dir = self.config.data_dir
         elif self.config.test_data_dir:
@@ -46,7 +48,9 @@ class HBSNDataset(BaseDataset):
                 f"{self.data_dir}/{file}"
                 for file in os.listdir(self.data_dir)
                 if file.endswith(".png")
-                and exists(f"{self.data_dir}/{file.replace('.png', '.mat')}")
+                and exists(
+                    f"{self.data_dir}/{file.replace('.png', '.mat')}"
+                )
             ]
         )
         self.data = {}
@@ -62,7 +66,9 @@ class HBSNDataset(BaseDataset):
                 ]
             )
             if self.config.is_soft_label
-            else transforms.Compose([transforms.Grayscale(), transforms.ToTensor()])
+            else transforms.Compose(
+                [transforms.Grayscale(), transforms.ToTensor()]
+            )
         )
         hbs_transform = transforms.Compose([transforms.ToTensor()])
         self.transform = transforms.Lambda(
@@ -83,7 +89,12 @@ class HBSNDataset(BaseDataset):
             self.augment_transform = transforms.Compose(
                 [
                     self.transform,
-                    transforms.Lambda(lambda x: (augment_image_transform(x[0]), x[1])),
+                    transforms.Lambda(
+                        lambda x: (
+                            augment_image_transform(x[0]),
+                            x[1],
+                        )
+                    ),
                 ]
             )
 
@@ -112,7 +123,7 @@ class HBSNDataset(BaseDataset):
             self.data[file_name] = (image, hbs)
         else:
             image, hbs = self.data[file_name]
-            
+
         if self.config.masked_size > 0:
             hbs = hbs[
                 self.config.masked_size : -self.config.masked_size,
@@ -122,4 +133,9 @@ class HBSNDataset(BaseDataset):
         return image, hbs
 
     def get_size(self):
-        return self.height, self.width, self.input_channels, self.output_channels
+        return (
+            self.height,
+            self.width,
+            self.input_channels,
+            self.output_channels,
+        )

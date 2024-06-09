@@ -1,4 +1,7 @@
+from typing import Dict, Tuple
+
 import segmentation_models_pytorch as smp
+import torch
 import torch.nn.functional as F
 
 from net.seg_hbsn_net import SegHBSNNet
@@ -6,30 +9,44 @@ from net.seg_hbsn_net import SegHBSNNet
 
 class TPSN(SegHBSNNet):
     def build_model(self):
-        self.model = smp.UnetPlusPlus(encoder_name='resnet50', encoder_weights='imagenet', classes=1, activation='sigmoid')
+        self.model = smp.UnetPlusPlus(
+            encoder_name="resnet50",
+            encoder_weights="imagenet",
+            classes=1,
+            activation="sigmoid",
+        )
 
-    def model_forward(self, x):
-        x = self.model(x)
-        return x
-    
+    def model_forward(self, img: torch.Tensor) -> torch.Tensor:
+        predict_mask = self.model(img)
+        return predict_mask
+
     # @property
     # def fixable_layers(self):
     #     return nn.ModuleList([
     #         super().fixable_layers,
     #         self.model.encoder
     #     ])
-        
+
     # @property
     # def uninitializable_layers(self):
     #     return nn.ModuleList([
     #         super().uninitializable_layers,
     #         self.model
     #     ])
-        
-    def loss(self, predict, ground_truth):
+
+    def loss(
+        self,
+        predict: Tuple[torch.Tensor, torch.Tensor],
+        ground_truth: torch.Tensor,
+    ) -> Tuple[
+        Dict[str, torch.Tensor],
+        Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    ]:
         predict_mask, predict_hbs = predict
         mse_loss = F.mse_loss(predict_mask, ground_truth)
-        f1, iou = self.get_metrics(self.binarize_mask(predict_mask), ground_truth)
+        f1, iou = self.get_metrics(
+            self.binarize_mask(predict_mask), ground_truth
+        )
         f1 = f1.mean()
         iou = iou.mean()
         dice_loss = 1 - f1
@@ -54,4 +71,8 @@ class TPSN(SegHBSNNet):
             "iou": iou,
             "hbs_loss": hbs_loss_dict["hbs_loss"],
         }
-        return loss_dict, (predict_mask, predict_hbs, ground_truth_hbs)
+        return loss_dict, (
+            predict_mask,
+            predict_hbs,
+            ground_truth_hbs,
+        )

@@ -11,7 +11,9 @@ from torchvision.models.detection.roi_heads import (
     keypointrcnn_inference,
     maskrcnn_inference,
 )
-from torchvision.models.detection.rpn import concat_box_prediction_layers
+from torchvision.models.detection.rpn import (
+    concat_box_prediction_layers,
+)
 from torchvision.models.detection.transform import (
     paste_masks_in_image,
     resize_boxes,
@@ -25,29 +27,35 @@ DTYPE = torch.float32
 
 
 class MaskRCNNConfig(SegHBSNNetConfig):
-    select_num=10
-    weight_hidden_size=20
+    select_num = 10
+    weight_hidden_size = 20
+
 
 class MaskRCNN(SegHBSNNet):
     def __init__(self, hbsn: HBSNet, config: MaskRCNNConfig):
         super().__init__(hbsn, config)
         self.config = config
-        
+
     def build_model(self):
-        self.model = maskrcnn_resnet50_fpn(weights=MaskRCNN_ResNet50_FPN_Weights.DEFAULT)
-        
+        self.model = maskrcnn_resnet50_fpn(
+            weights=MaskRCNN_ResNet50_FPN_Weights.DEFAULT
+        )
+
         self.weight_layer = nn.Sequential(
             nn.Linear(2, self.config.weight_hidden_size),
             nn.ReLU(),
             nn.Linear(self.config.weight_hidden_size, 1),
-            nn.Softmax(dim=1)
+            nn.Softmax(dim=1),
         )
         self.mask_conv = nn.Sequential(
-            nn.Conv2d(self.config.select_num, self.config.output_channels, kernel_size=1),
-            nn.Sigmoid()
+            nn.Conv2d(
+                self.config.select_num,
+                self.config.output_channels,
+                kernel_size=1,
+            ),
+            nn.Sigmoid(),
         )
-        
-    
+
     def model_forward(self, images):
         """
         Args:
@@ -66,35 +74,54 @@ class MaskRCNN(SegHBSNNet):
         features = self.model.backbone(images.tensors)
         if isinstance(features, torch.Tensor):
             features = OrderedDict([("0", features)])
-        
+
         proposals = self.rpn(images, features)
-        detections = self.roi_heads(features, proposals, images.image_sizes)
+        detections = self.roi_heads(
+            features, proposals, images.image_sizes
+        )
         detections = self.postprocess(detections, images.image_sizes)
 
-        masks = [x["masks"][:self.select_num].squeeze(1) for x in detections]
-        masks = [F.pad(x, (0, 0, 0, 0, 0, self.config.select_num - x.shape[0])) for x in masks]
+        masks = [
+            x["masks"][: self.select_num].squeeze(1)
+            for x in detections
+        ]
+        masks = [
+            F.pad(
+                x,
+                (0, 0, 0, 0, 0, self.config.select_num - x.shape[0]),
+            )
+            for x in masks
+        ]
         masks = torch.stack(masks)
         if str(masks.device) != str(self.device):
-            masks = masks.to(self.config.device, dtype=self.config.dtype)
+            masks = masks.to(
+                self.config.device, dtype=self.config.dtype
+            )
 
-        weight = [torch.stack([x["labels"].float(), x["scores"]], dim=1)[:self.select_num] for x in detections]
-        weight = [F.pad(x, (0, 0, 0, self.config.select_num - x.shape[0])) for x in weight]
+        weight = [
+            torch.stack([x["labels"].float(), x["scores"]], dim=1)[
+                : self.select_num
+            ]
+            for x in detections
+        ]
+        weight = [
+            F.pad(x, (0, 0, 0, self.config.select_num - x.shape[0]))
+            for x in weight
+        ]
         weight = torch.stack(weight)
         if str(weight.device) != str(self.device):
-            weight = weight.to(self.config.device, dtype=self.config.dtype)
-            
+            weight = weight.to(
+                self.config.device, dtype=self.config.dtype
+            )
+
         weight = self.weight_layer(weight)
         masks = self.mask_conv(masks * weight.unsqueeze(3))
         # masks = get_mask(masks-0.5, eps=1/scale)
         return masks
 
-
     def rpn(
-        self,
-        images,
-        features: Dict[str, torch.Tensor]
+        self, images, features: Dict[str, torch.Tensor]
     ) -> List[torch.Tensor]:
-
         """
         Args:
             images (ImageList): images for which we want to compute the predictions
@@ -117,23 +144,37 @@ class MaskRCNN(SegHBSNNet):
         anchors = self.model.rpn.anchor_generator(images, features)
 
         num_images = len(anchors)
-        num_anchors_per_level_shape_tensors = [o[0].shape for o in objectness]
-        num_anchors_per_level = [s[0] * s[1] * s[2] for s in num_anchors_per_level_shape_tensors]
-        objectness, pred_bbox_deltas = concat_box_prediction_layers(objectness, pred_bbox_deltas)
+        num_anchors_per_level_shape_tensors = [
+            o[0].shape for o in objectness
+        ]
+        num_anchors_per_level = [
+            s[0] * s[1] * s[2]
+            for s in num_anchors_per_level_shape_tensors
+        ]
+        objectness, pred_bbox_deltas = concat_box_prediction_layers(
+            objectness, pred_bbox_deltas
+        )
         # apply pred_bbox_deltas to anchors to obtain the decoded proposals
         # note that we detach the deltas because Faster R-CNN do not backprop through
         # the proposals
-        proposals = self.model.rpn.box_coder.decode(pred_bbox_deltas.detach(), anchors)
+        proposals = self.model.rpn.box_coder.decode(
+            pred_bbox_deltas.detach(), anchors
+        )
         proposals = proposals.view(num_images, -1, 4)
-        boxes, _ = self.model.rpn.filter_proposals(proposals, objectness, images.image_sizes, num_anchors_per_level)
+        boxes, _ = self.model.rpn.filter_proposals(
+            proposals,
+            objectness,
+            images.image_sizes,
+            num_anchors_per_level,
+        )
 
         return boxes
-    
+
     def roi_heads(
         self,
         features: Dict[str, torch.Tensor],
         proposals: List[torch.Tensor],
-        image_shapes: List[Tuple[int, int]]
+        image_shapes: List[Tuple[int, int]],
     ):
         """
         Args:
@@ -142,13 +183,21 @@ class MaskRCNN(SegHBSNNet):
             image_shapes (List[Tuple[H, W]])
             targets (List[Dict])
         """
-        box_features = self.model.roi_heads.box_roi_pool(features, proposals, image_shapes)
+        box_features = self.model.roi_heads.box_roi_pool(
+            features, proposals, image_shapes
+        )
         box_features = self.model.roi_heads.box_head(box_features)
-        class_logits, box_regression = self.model.roi_heads.box_predictor(box_features)
+        class_logits, box_regression = (
+            self.model.roi_heads.box_predictor(box_features)
+        )
 
         result: List[Dict[str, torch.Tensor]] = []
-        
-        boxes, scores, labels = self.model.roi_heads.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
+
+        boxes, scores, labels = (
+            self.model.roi_heads.postprocess_detections(
+                class_logits, box_regression, proposals, image_shapes
+            )
+        )
         num_images = len(boxes)
         for i in range(num_images):
             result.append(
@@ -163,11 +212,19 @@ class MaskRCNN(SegHBSNNet):
             mask_proposals = [p["boxes"] for p in result]
 
             if self.model.roi_heads.mask_roi_pool is not None:
-                mask_features = self.model.roi_heads.mask_roi_pool(features, mask_proposals, image_shapes)
-                mask_features = self.model.roi_heads.mask_head(mask_features)
-                mask_logits = self.model.roi_heads.mask_predictor(mask_features)
+                mask_features = self.model.roi_heads.mask_roi_pool(
+                    features, mask_proposals, image_shapes
+                )
+                mask_features = self.model.roi_heads.mask_head(
+                    mask_features
+                )
+                mask_logits = self.model.roi_heads.mask_predictor(
+                    mask_features
+                )
             else:
-                raise Exception("Expected mask_roi_pool to be not None")
+                raise Exception(
+                    "Expected mask_roi_pool to be not None"
+                )
 
             labels = [r["labels"] for r in result]
             masks_probs = maskrcnn_inference(mask_logits, labels)
@@ -183,17 +240,29 @@ class MaskRCNN(SegHBSNNet):
         ):
             keypoint_proposals = [p["boxes"] for p in result]
 
-            keypoint_features = self.model.roi_heads.keypoint_roi_pool(features, keypoint_proposals, image_shapes)
-            keypoint_features = self.model.roi_heads.keypoint_head(keypoint_features)
-            keypoint_logits = self.model.roi_heads.keypoint_predictor(keypoint_features)
+            keypoint_features = (
+                self.model.roi_heads.keypoint_roi_pool(
+                    features, keypoint_proposals, image_shapes
+                )
+            )
+            keypoint_features = self.model.roi_heads.keypoint_head(
+                keypoint_features
+            )
+            keypoint_logits = self.model.roi_heads.keypoint_predictor(
+                keypoint_features
+            )
 
             if keypoint_logits is None or keypoint_proposals is None:
                 raise ValueError(
                     "both keypoint_logits and keypoint_proposals should not be None when not in training mode"
                 )
 
-            keypoints_probs, kp_scores = keypointrcnn_inference(keypoint_logits, keypoint_proposals)
-            for keypoint_prob, kps, r in zip(keypoints_probs, kp_scores, result):
+            keypoints_probs, kp_scores = keypointrcnn_inference(
+                keypoint_logits, keypoint_proposals
+            )
+            for keypoint_prob, kps, r in zip(
+                keypoints_probs, kp_scores, result
+            ):
                 r["keypoints"] = keypoint_prob
                 r["keypoints_scores"] = kps
 
@@ -202,7 +271,7 @@ class MaskRCNN(SegHBSNNet):
     def postprocess(
         self,
         result: List[Dict[str, torch.Tensor]],
-        image_shapes: List[Tuple[int, int]]
+        image_shapes: List[Tuple[int, int]],
     ) -> List[Dict[str, torch.Tensor]]:
         for i, (pred, im_s) in enumerate(zip(result, image_shapes)):
             o_im_s = (self.config.height, self.config.width)
@@ -221,11 +290,8 @@ class MaskRCNN(SegHBSNNet):
 
     @property
     def fixable_layers(self):
-        return nn.ModuleList([
-            super().fixable_layers,
-            self.model
-        ])
-        
+        return nn.ModuleList([super().fixable_layers, self.model])
+
     @classmethod
     def factory(cls, config: MaskRCNNConfig):
         return super().factory(config)

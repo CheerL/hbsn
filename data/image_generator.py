@@ -8,26 +8,30 @@ from utils.move_image import move_image
 
 
 class ImageGenerator:
-    def __init__(self, h: int=256, w: int=256):
+    def __init__(self, h: int = 256, w: int = 256):
         self.h = h
         self.w = w
-    
+
     def bound2image(self, z: np.ndarray):
         z = z - z.mean()
         z = z / np.abs(z).max()
 
-        fig = plt.figure(figsize=(self.w, self.h), facecolor='black', dpi=1)
+        fig = plt.figure(
+            figsize=(self.w, self.h), facecolor="black", dpi=1
+        )
         plt.xlim(-1.5, 1.5)
         plt.ylim(-1.5, 1.5)
-        plt.axis('off')
-        plt.fill(z.real, z.imag, color='white')
+        plt.axis("off")
+        plt.fill(z.real, z.imag, color="white")
         plt.draw()
-        img = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8).reshape(self.h, self.w, 3)
+        img = np.frombuffer(
+            fig.canvas.tostring_rgb(), dtype=np.uint8
+        ).reshape(self.h, self.w, 3)
         plt.close(fig)
         return img.copy()
-    
+
     def save_image(self, img: np.ndarray, path: str):
-        logger.info(f'Saving image to {path}')
+        logger.info(f"Saving image to {path}")
         plt.imsave(path, img)
 
     def distort_grid(self, distortion_scale=0.03, n=20, m=20):
@@ -43,11 +47,10 @@ class ImageGenerator:
         """
         x_sparse = np.linspace(-1, 1, n)
         y_sparse = np.linspace(-1, 1, m)
-        
+
         xv, yv = np.meshgrid(x_sparse, y_sparse)
         distortion = distortion_scale * np.random.randn(n, m, 2)
         grid = np.stack([xv, yv], axis=-1) + distortion
-        
 
         grid_x = grid[:, :, 0]
         grid_y = grid[:, :, 1]
@@ -56,13 +59,17 @@ class ImageGenerator:
         y = np.linspace(-1, 1, self.h)
         y, x = np.meshgrid(x, y)
         # 使用双线性插值
-        fx = interpolate.RegularGridInterpolator((x_sparse, y_sparse), grid_x)
-        fy = interpolate.RegularGridInterpolator((x_sparse, y_sparse), grid_y)
+        fx = interpolate.RegularGridInterpolator(
+            (x_sparse, y_sparse), grid_x
+        )
+        fy = interpolate.RegularGridInterpolator(
+            (x_sparse, y_sparse), grid_y
+        )
 
         # 计算插值结果
         grid_dense = np.stack([fx((x, y)), fy((x, y))], axis=-1)
         return grid_dense
-    
+
     def distort_image(self, img, grid):
         """
         INPUT:
@@ -72,7 +79,7 @@ class ImageGenerator:
                 when tensor, grid is the map, grid(J) = I
                 when float, grid is the distortion scale
                 when tuple, grid is the distortion scale and other parameters
-                
+
         OUTPUT:
             J: H x W x C tensor
                 J is the output image
@@ -81,21 +88,24 @@ class ImageGenerator:
             assert grid.shape == (self.h, self.w, 2)
         elif isinstance(grid, float):
             grid = self.distort_grid(grid)
-        elif isinstance(grid, tuple) and (len(grid) == 3 or len(grid) == 1):
+        elif isinstance(grid, tuple) and (
+            len(grid) == 3 or len(grid) == 1
+        ):
             grid = self.distort_grid(**grid)
-        
-        J = move_image(img, grid, version='scipy').astype(np.uint8)
+
+        J = move_image(img, grid, version="scipy").astype(np.uint8)
         return J
-    
+
     def generate_image(self):
         raise NotImplementedError
 
+
 class ConformalWeldingImageGenerator(ImageGenerator):
-    def __init__(self, h:int=256, w:int=256, n: int=500):
+    def __init__(self, h: int = 256, w: int = 256, n: int = 500):
         super().__init__(h, w)
         self.n = n
         self.x = self.regular_x()
-        
+
     def generate_image(self, k, scale):
         y = self.random_y(k, scale)
         z, _ = geodesicwelding(y, [], y, self.x)
@@ -108,19 +118,19 @@ class ConformalWeldingImageGenerator(ImageGenerator):
         return x
 
     def random_y(self, k, scale):
-        gap = np.sort(np.random.randint(1, self.n-1, size=k-1))
+        gap = np.sort(np.random.randint(1, self.n - 1, size=k - 1))
         gap = np.insert(gap, 0, 0)
-        gap = np.append(gap, self.n-1)
-        
+        gap = np.append(gap, self.n - 1)
+
         means = np.random.randn(k) * scale
         stds = np.random.randn(k)
         length = np.diff(gap)
-        
+
         y = np.zeros(self.n)
         for i in range(k):
             rd = np.random.randn(length[i])
             rd = rd * stds[i] + means[i]
-            y[gap[i]:gap[i+1]] = rd
+            y[gap[i] : gap[i + 1]] = rd
 
         y = self.map_to_unit_circle(y)
         return y
@@ -130,7 +140,8 @@ class ConformalWeldingImageGenerator(ImageGenerator):
         x = (x - x[0]) / (x[-1] - x[-2] + x[-1] - x[0])
         x = np.exp(1j * 2 * np.pi * x)
         return x
-        
+
+
 class PolygonImageGenerator(ImageGenerator):
     def generate_image(self, n):
         x = np.random.rand(n)

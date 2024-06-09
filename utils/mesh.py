@@ -1,14 +1,13 @@
-
 import cv2
 import numpy as np
 import torch
 from scipy.spatial import Delaunay
 
 
-def create_rect_mesh(h:int, w:int):
-    '''
+def create_rect_mesh(h: int, w: int):
+    """
     Create a rectangle delaunay mesh grid with size h x w
-    
+
     INPUT:
         h: int
             height of the image
@@ -19,19 +18,23 @@ def create_rect_mesh(h:int, w:int):
             face is the index of the vertex that form a triangle
         vertex: h x w x 2 numpy array
             coordinate of each vertex
-    '''
+    """
     vy, vx = torch.meshgrid(torch.arange(h), torch.arange(w))
     vertex = torch.stack([vx, vy], dim=-1).double()
 
-    tri = Delaunay(vertex.reshape(-1,2), incremental=True)
+    tri = Delaunay(vertex.reshape(-1, 2), incremental=True)
     face = torch.from_numpy(tri.simplices).int()
     return face, vertex
 
-def read_image(path: str, gray:bool=True, 
-               binary_threshold: int = 0, 
-               noramlize: bool = False, 
-               CHW=False):
-    '''
+
+def read_image(
+    path: str,
+    gray: bool = True,
+    binary_threshold: int = 0,
+    noramlize: bool = False,
+    CHW=False,
+):
+    """
     INPUT:
         path: str
             path to the image
@@ -46,27 +49,30 @@ def read_image(path: str, gray:bool=True,
     OUTPUT:
         I: C x H x W or H x W numpy array (depends on CHW)
             I is the image
-    '''
+    """
     I = cv2.imread(path)
     I = cv2.cvtColor(I, cv2.COLOR_BGR2RGB)
     H, W, C = I.shape
-    
+
     if gray:
         I = cv2.cvtColor(I, cv2.COLOR_RGB2GRAY)
 
     if binary_threshold:
-        _, I = cv2.threshold(I, binary_threshold, 255, cv2.THRESH_BINARY)
+        _, I = cv2.threshold(
+            I, binary_threshold, 255, cv2.THRESH_BINARY
+        )
 
     if noramlize:
         I = I / 255.0
 
     if CHW:
         if not gray:
-            I = I.transpose(2,0,1)
+            I = I.transpose(2, 0, 1)
         else:
-            I = I.reshape(1,H,W)
+            I = I.reshape(1, H, W)
 
     return I
+
 
 def image_meshgen(height, width, normal=False):
     """
@@ -76,22 +82,22 @@ def image_meshgen(height, width, normal=False):
     Outputs:
         face : m x 3 index of trangulation connectivity
         vertex : n x 2 vertices coordinates(x, y)
-        boundary_mask: m x 1 mask of boundary faces, 
+        boundary_mask: m x 1 mask of boundary faces,
                        1 for faces having boundary points, 0 for others
-    """    
+    """
     x, y = np.meshgrid(np.arange(width), np.arange(height))
     y = y[::-1, :]
     if normal:
-        x = x / (width-1)
-        y = y / (height-1)
+        x = x / (width - 1)
+        y = y / (height - 1)
     x = x.reshape((-1, 1))
     y = y.reshape((-1, 1))
     vertex = np.hstack((x, y))
     # vy, vx = torch.meshgrid(torch.arange(height), torch.arange(width))
     # vertex = torch.stack([vx, vy], dim=-1)
 
-    face = np.zeros(((height-1)*(width-1)*2, 3))
-    ind = np.arange(height*width).reshape((height, width))
+    face = np.zeros(((height - 1) * (width - 1) * 2, 3))
+    ind = np.arange(height * width).reshape((height, width))
     mid = ind[0:-1, 1:]
     left1 = ind[0:-1, 0:-1]
     left2 = ind[1:, 1:]
@@ -104,8 +110,8 @@ def image_meshgen(height, width, normal=False):
     face[1::2, 2] = right.reshape(-1)
 
     # boundary is 1, the other faces is 0
-    boundary_mask = np.zeros(((height-1)*(width-1)*2, 3))
-    ind_mask = np.arange(height*width).reshape((height, width)) + 1
+    boundary_mask = np.zeros(((height - 1) * (width - 1) * 2, 3))
+    ind_mask = np.arange(height * width).reshape((height, width)) + 1
     ind_mask[1:-1, 1:-1] = 0
     ind_mask[ind_mask > 0] = 1
     mid_mask = ind_mask[0:-1, 1:]
@@ -118,6 +124,6 @@ def image_meshgen(height, width, normal=False):
     boundary_mask[1::2, 0] = left2_mask.reshape(-1)
     boundary_mask[1::2, 1] = mid_mask.reshape(-1)
     boundary_mask[1::2, 2] = right_mask.reshape(-1)
-    boundary_mask = (np.sum(boundary_mask, axis = 1) > 0) + 0.0
+    boundary_mask = (np.sum(boundary_mask, axis=1) > 0) + 0.0
 
     return face, vertex, boundary_mask

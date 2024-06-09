@@ -27,7 +27,9 @@ class HBSNetConfig(BaseNetConfig):
 
     def __init__(self, config_dict: dict = {}):
         super().__init__(config_dict)
-        self._output_rate = 2 ** (len(self.channels_up) - len(self.channels_down))
+        self._output_rate = 2 ** (
+            len(self.channels_up) - len(self.channels_down)
+        )
         self.output_height = int(self.height * self._output_rate)
         self.output_width = int(self.width * self._output_rate)
 
@@ -78,22 +80,36 @@ class HBSNet(BaseNet):
         if self.post_stn:
             ground_truth, theta = self.post_stn(ground_truth)
             double_stn_predict, double_theta = self.post_stn(predict)
-            stn_loss = F.mse_loss(double_stn_predict, predict, reduction="mean")
+            stn_loss = F.mse_loss(
+                double_stn_predict, predict, reduction="mean"
+            )
         else:
             stn_loss = Tensor(0.0)
 
         output_data: Tuple[Tensor, Tensor] = (predict, ground_truth)
-        predict_grad = torch.cat(torch.gradient(predict, dim=(2, 3)), dim=1)
-        ground_truth_grad = torch.cat(torch.gradient(ground_truth, dim=(2, 3)), dim=1)
+        predict_grad = torch.cat(
+            torch.gradient(predict, dim=(2, 3)), dim=1
+        )
+        ground_truth_grad = torch.cat(
+            torch.gradient(ground_truth, dim=(2, 3)), dim=1
+        )
 
         if is_mask:
             predict = torch.masked_select(predict, self.mask)
-            ground_truth = torch.masked_select(ground_truth, self.mask)
-            predict_grad = torch.masked_select(predict_grad, self.mask)
-            ground_truth_grad = torch.masked_select(ground_truth_grad, self.mask)
+            ground_truth = torch.masked_select(
+                ground_truth, self.mask
+            )
+            predict_grad = torch.masked_select(
+                predict_grad, self.mask
+            )
+            ground_truth_grad = torch.masked_select(
+                ground_truth_grad, self.mask
+            )
 
         hbs_loss = F.mse_loss(predict, ground_truth, reduction="mean")
-        grad_loss = F.mse_loss(predict_grad, ground_truth_grad, reduction="mean")
+        grad_loss = F.mse_loss(
+            predict_grad, ground_truth_grad, reduction="mean"
+        )
 
         loss = (
             hbs_loss
@@ -148,7 +164,9 @@ class HBSNet(BaseNet):
 
     @classmethod
     def from_checkpoint(cls, checkpoint_path: str, device: str):
-        checkpoint, config, _, _, _ = BaseNet.load_model(checkpoint_path, device)
+        checkpoint, config, _, _, _ = BaseNet.load_model(
+            checkpoint_path, device
+        )
         hbsn = HBSNet.factory(config.net_config)
         hbsn.load_state_dict(checkpoint["state_dict"])
         return hbsn, config

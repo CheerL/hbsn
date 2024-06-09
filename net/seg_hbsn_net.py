@@ -20,7 +20,9 @@ class SegHBSNNetConfig(BaseNetConfig):
     is_freeze = True
 
     def __init__(
-        self, config_dict: Dict[str, Any] = {}, hbsn_config: HBSNetConfig | None = None
+        self,
+        config_dict: Dict[str, Any] = {},
+        hbsn_config: HBSNetConfig | None = None,
     ):
         super().__init__(config_dict)
         if hbsn_config:
@@ -56,17 +58,19 @@ class SegHBSNNet(BaseNet):
     def build_model(self):
         raise NotImplementedError("build_model not implemented")
 
-    def model_forward(self, img):
+    def model_forward(self, img: Tensor) -> Tensor:
         raise NotImplementedError("model_forward not implemented")
 
-    def forward(self, img):
+    def forward(self, img: Tensor) -> Tuple[Tensor, Tensor]:
         predict_mask = self.model_forward(img)
         # predict_mask = self.binarize_mask(predict_mask)
         hbs = self.hbsn(self.binarize_mask(predict_mask))
         return predict_mask, hbs
 
     def binarize_mask(self, mask: Tensor):
-        binarized_mask = torch.sigmoid(self.config.mask_scale * (mask - 0.5))
+        binarized_mask = torch.sigmoid(
+            self.config.mask_scale * (mask - 0.5)
+        )
         return binarized_mask
 
     def get_hard_mask(self, mask: Tensor):
@@ -86,7 +90,9 @@ class SegHBSNNet(BaseNet):
     ) -> Tuple[Dict[str, Tensor], Tuple[Tensor, Tensor, Tensor]]:
         predict_mask, predict_hbs = predict
         mse_loss = F.mse_loss(predict_mask, ground_truth)
-        f1, iou = self.get_metrics(self.binarize_mask(predict_mask), ground_truth)
+        f1, iou = self.get_metrics(
+            self.binarize_mask(predict_mask), ground_truth
+        )
         f1 = f1.mean()
         iou = iou.mean()
         dice_loss = 1 - f1
@@ -129,8 +135,10 @@ class SegHBSNNet(BaseNet):
     @classmethod
     def factory(cls, config: SegHBSNNetConfig):
         if config.hbsn_checkpoint:
-            hbsn_checkpoint, hbsn_config, _, _, _ = BaseNet.load_model(
-                config.hbsn_checkpoint, config.device
+            hbsn_checkpoint, hbsn_config, _, _, _ = (
+                BaseNet.load_model(
+                    config.hbsn_checkpoint, config.device
+                )
             )
             config.hbsn_config = hbsn_config.net_config
             hbsn = HBSNet.factory(config.hbsn_config)

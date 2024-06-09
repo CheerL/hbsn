@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from scipy.interpolate import griddata
 
 
-def move_image(I, f, vertex=None, version='torch'):
+def move_image(I, f, vertex=None, version="torch"):
     """
     INPUT:
         I: H x W tensor
@@ -23,14 +23,18 @@ def move_image(I, f, vertex=None, version='torch'):
         N = 1
         H, W, C = I.shape
     elif isinstance(I, torch.Tensor) and I.ndim == 4:
-        assert version == 'torch'
+        assert version == "torch"
         N, C, H, W = I.shape
     else:
-        raise ValueError('I should be 2 or 3 dimension')
-    
-    if version == 'torch':
+        raise ValueError("I should be 2 or 3 dimension")
+
+    if version == "torch":
         if N == 1:
-            I = torch.DoubleTensor(I).reshape(N, H, W, C).permute(0, 3, 1, 2)
+            I = (
+                torch.DoubleTensor(I)
+                .reshape(N, H, W, C)
+                .permute(0, 3, 1, 2)
+            )
             f = torch.tensor(f).reshape(N, H, W, 2)
             J = move_image_torch(I, f)
             J = J.permute(0, 2, 3, 1)
@@ -41,16 +45,19 @@ def move_image(I, f, vertex=None, version='torch'):
             J = J.numpy().copy()
         else:
             J = move_image_torch(I, f)
-            
-    elif version == 'scipy':
+
+    elif version == "scipy":
         J = move_image_scipy(I.reshape(H, W, C), f, vertex)
     else:
-        raise ValueError('version should be torch or scipy')
+        raise ValueError("version should be torch or scipy")
 
     return J
 
-def move_image_scipy(I: np.ndarray, f: np.ndarray, vertex: np.ndarray = None):
-    '''
+
+def move_image_scipy(
+    I: np.ndarray, f: np.ndarray, vertex: np.ndarray = None
+):
+    """
     INPUT:
         I: H x W x C numpy array
             I is the input image
@@ -61,7 +68,7 @@ def move_image_scipy(I: np.ndarray, f: np.ndarray, vertex: np.ndarray = None):
     OUTPUT:
         J: H x W x C numpy array
             J is the output image
-    '''
+    """
     H, W, C = I.shape
 
     if vertex is None:
@@ -70,9 +77,9 @@ def move_image_scipy(I: np.ndarray, f: np.ndarray, vertex: np.ndarray = None):
         vx, vy = np.meshgrid(vx, vy)
         vertex = np.stack([vx, vy], axis=-1)
 
-    f = f.reshape(H*W,2)
-    vertex = vertex.reshape(H*W,2)
-    I = I.reshape(H*W, C)
+    f = f.reshape(H * W, 2)
+    vertex = vertex.reshape(H * W, 2)
+    I = I.reshape(H * W, C)
     J = griddata(f, I, vertex, fill_value=0).reshape(H, W, C)
     return J
 
@@ -93,7 +100,10 @@ def move_image_torch(I, f):
     # center.type(f.dtype)
     # target_xy = (f - center) / center
     J = F.grid_sample(
-        I, f, mode="bilinear", padding_mode="zeros", align_corners=False
+        I,
+        f,
+        mode="bilinear",
+        padding_mode="zeros",
+        align_corners=False,
     )
     return J
-

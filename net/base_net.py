@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Dict, Tuple
 
 import torch
 import torch.nn as nn
@@ -48,11 +48,15 @@ class BaseNet(nn.Module):
     def forward(self, img):
         raise NotImplementedError()
 
-    def loss(self, predict, ground_truth) -> Tuple[Dict[str, Any], Any]:
+    def loss(
+        self, predict, ground_truth
+    ) -> Tuple[Dict[str, torch.Tensor], Tuple[torch.Tensor, ...]]:
         raise NotImplementedError()
 
     def initialize(self):
-        non_initializable_modules = list(self.uninitializable_layers.modules())
+        non_initializable_modules = list(
+            self.uninitializable_layers.modules()
+        )
 
         for m in self.modules():
             if (
@@ -69,7 +73,15 @@ class BaseNet(nn.Module):
             self.config.width,
         )
 
-    def save(self, path, epoch, best_epoch, best_loss, config={}, optimizer=None):
+    def save(
+        self,
+        path,
+        epoch,
+        best_epoch,
+        best_loss,
+        config={},
+        optimizer=None,
+    ):
         torch.save(
             {
                 "state_dict": self.state_dict(),
@@ -77,7 +89,9 @@ class BaseNet(nn.Module):
                 "best_epoch": best_epoch,
                 "best_loss": best_loss,
                 "config": config,
-                "optimizer": optimizer.state_dict() if optimizer else None,
+                "optimizer": optimizer.state_dict()
+                if optimizer
+                else None,
             },
             path,
         )
@@ -89,11 +103,17 @@ class BaseNet(nn.Module):
         checkpoint = torch.load(path, map_location=self.config.device)
         checkpoint = self._handle_checkpoint(checkpoint)
         # print(self.load_strict)
-        self.load_state_dict(checkpoint["state_dict"], self.config.load_strict)
+        self.load_state_dict(
+            checkpoint["state_dict"], self.config.load_strict
+        )
         epoch = checkpoint["epoch"]
         best_epoch = checkpoint["best_epoch"]
         best_loss = checkpoint["best_loss"]
-        optimizer_data = checkpoint["optimizer"] if "optimizer" in checkpoint else {}
+        optimizer_data = (
+            checkpoint["optimizer"]
+            if "optimizer" in checkpoint
+            else {}
+        )
 
         return epoch, best_epoch, best_loss, optimizer_data
 
@@ -111,9 +131,13 @@ class BaseNet(nn.Module):
             param.requires_grad = False
 
     def get_param_dict(self, lr):
-        fixable_param_ids = [id(param) for param in self.fixable_layers.parameters()]
+        fixable_param_ids = [
+            id(param) for param in self.fixable_layers.parameters()
+        ]
         params = [
-            param for param in self.parameters() if id(param) not in fixable_param_ids
+            param
+            for param in self.parameters()
+            if id(param) not in fixable_param_ids
         ]
         param_dict = [{"params": params, "initial_lr": lr}]
         if self.config.is_freeze:

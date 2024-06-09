@@ -7,7 +7,13 @@ DTYPE = torch.float32
 class DoubleConv(nn.Module):
     """(convolution => [BN] => ReLU) * 2"""
 
-    def __init__(self, in_channels, out_channels, mid_channels=None, dtype=DTYPE):
+    def __init__(
+        self,
+        in_channels,
+        out_channels,
+        mid_channels=None,
+        dtype=DTYPE,
+    ):
         super().__init__()
         if not mid_channels:
             mid_channels = out_channels
@@ -44,7 +50,8 @@ class DownBlock(nn.Module):
     def __init__(self, in_channels, out_channels, dtype=DTYPE):
         super().__init__()
         self.maxpool_conv = nn.Sequential(
-            nn.MaxPool2d(2), DoubleConv(in_channels, out_channels, dtype=dtype)
+            nn.MaxPool2d(2),
+            DoubleConv(in_channels, out_channels, dtype=dtype),
         )
 
     def forward(self, x):
@@ -55,7 +62,12 @@ class UpBlock(nn.Module):
     """Upscaling then double conv"""
 
     def __init__(
-        self, in_channels, skip_channels, out_channels, bilinear=True, dtype=DTYPE
+        self,
+        in_channels,
+        skip_channels,
+        out_channels,
+        bilinear=True,
+        dtype=DTYPE,
     ):
         super().__init__()
         self.is_bilinear = bilinear
@@ -64,17 +76,32 @@ class UpBlock(nn.Module):
 
         if self.is_bilinear:
             self.up = nn.Sequential(
-                nn.Upsample(scale_factor=2, mode="bilinear", align_corners=True),
-                nn.Conv2d(in_channels, in_channels // 2, kernel_size=1, dtype=dtype),
+                nn.Upsample(
+                    scale_factor=2,
+                    mode="bilinear",
+                    align_corners=True,
+                ),
+                nn.Conv2d(
+                    in_channels,
+                    in_channels // 2,
+                    kernel_size=1,
+                    dtype=dtype,
+                ),
                 nn.ReLU(inplace=True),
             )
         else:
             self.up = nn.ConvTranspose2d(
-                in_channels, in_channels // 2, kernel_size=2, stride=2, dtype=dtype
+                in_channels,
+                in_channels // 2,
+                kernel_size=2,
+                stride=2,
+                dtype=dtype,
             )
 
         self.conv = DoubleConv(
-            in_channels // 2 + skip_channels, out_channels, dtype=dtype
+            in_channels // 2 + skip_channels,
+            out_channels,
+            dtype=dtype,
         )
 
     def forward(self, x, x2):
@@ -107,10 +134,16 @@ class UNet(nn.Module):
         self.layers_down = len(self.channels_down)
         self.layers_up = len(self.channels_up)
 
-        self.inc = DoubleConv(n_channels, self.channels_down[0], dtype=dtype)
+        self.inc = DoubleConv(
+            n_channels, self.channels_down[0], dtype=dtype
+        )
         self.downs = nn.ModuleList(
             [
-                DownBlock(self.channels_down[i], self.channels_down[i + 1], dtype=dtype)
+                DownBlock(
+                    self.channels_down[i],
+                    self.channels_down[i + 1],
+                    dtype=dtype,
+                )
                 for i in range(self.layers_down - 1)
             ]
         )
@@ -142,7 +175,9 @@ class UNet(nn.Module):
     def decode(self, features):
         x = features[-1]
         for i in range(self.layers_up - 1):
-            x = self.ups[self.layers_up - 2 - i](x, features[self.layers_down - 2 - i])
+            x = self.ups[self.layers_up - 2 - i](
+                x, features[self.layers_down - 2 - i]
+            )
         return x
 
     def forward(self, x):

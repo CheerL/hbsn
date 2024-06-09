@@ -72,12 +72,16 @@ class BaseRecorder(SummaryWriter):
             self.log_dir = self.config.log_dir
         else:
             current_time = datetime.now().strftime("%b%d_%H-%M-%S")
-            self.log_dir = os.path.join(self.config.log_base_dir, current_time)
+            self.log_dir = os.path.join(
+                self.config.log_base_dir, current_time
+            )
             if self.config.comment:
                 self.log_dir += f"_{self.config.comment}"
 
         self.log_path = os.path.join(self.log_dir, "log.log")
-        self.checkpoint_dir = os.path.join(self.log_dir, "checkpoints")
+        self.checkpoint_dir = os.path.join(
+            self.log_dir, "checkpoints"
+        )
         if not os.path.exists(self.checkpoint_dir):
             os.makedirs(self.checkpoint_dir)
 
@@ -124,7 +128,9 @@ class BaseRecorder(SummaryWriter):
         loss_dict: Dict[str, torch.Tensor],
         is_train: bool = True,
     ):
-        assert "loss" in loss_dict, "loss_dict must contain the key 'loss'"
+        assert (
+            "loss" in loss_dict
+        ), "loss_dict must contain the key 'loss'"
         prefix, size, total_iteration, logger_func = self._get_info(
             epoch, iteration, is_train=is_train
         )
@@ -135,7 +141,9 @@ class BaseRecorder(SummaryWriter):
             self.test_loss[iteration] = loss_dict["loss"]
 
         for loss_name, loss_value in loss_dict.items():
-            self.add_scalar(f"{loss_name}/{prefix}", loss_value, total_iteration)
+            self.add_scalar(
+                f"{loss_name}/{prefix}", loss_value, total_iteration
+            )
 
         self.flush()
 
@@ -150,7 +158,9 @@ class BaseRecorder(SummaryWriter):
         )
 
     def add_epoch_loss(self, epoch, is_train=True):
-        prefix, _, _, logger_func = self._get_info(epoch, is_train=is_train)
+        prefix, _, _, logger_func = self._get_info(
+            epoch, is_train=is_train
+        )
 
         if is_train:
             loss = self.train_loss.mean().item()
@@ -164,7 +174,9 @@ class BaseRecorder(SummaryWriter):
             f"{prefix} epoch total: epoch={epoch}/{self.total_epoches}, total loss={loss}"
         )
 
-    def add_output(self, epoch, iteration, input_data, predict, is_train=True):
+    def add_output(
+        self, epoch, iteration, input_data, predict, is_train=True
+    ):
         raise NotImplementedError()
 
     def update_best(self, epoch):
@@ -190,8 +202,18 @@ class BaseRecorder(SummaryWriter):
 
 
 class HBSNRecorder(BaseRecorder):
-    def add_output(self, epoch, iteration, input_data, predict, is_train=True, num=10):
-        prefix, _, total_iteration, _ = self._get_info(epoch, iteration, is_train)
+    def add_output(
+        self,
+        epoch,
+        iteration,
+        input_data,
+        predict,
+        is_train=True,
+        num=10,
+    ):
+        prefix, _, total_iteration, _ = self._get_info(
+            epoch, iteration, is_train
+        )
         k, num = get_random_index(num, self.batch_size)
         # print(k, num, output_data)
 
@@ -199,9 +221,13 @@ class HBSNRecorder(BaseRecorder):
         predict_hbs, ground_truth_hbs = predict
         img_k = img[k].detach().cpu().numpy()
         predict_hbs_k = predict_hbs[k].detach().cpu().numpy()
-        ground_truth_hbs_k = ground_truth_hbs[k].detach().cpu().numpy()
+        ground_truth_hbs_k = (
+            ground_truth_hbs[k].detach().cpu().numpy()
+        )
         subfigure_size = 2
-        fig = plt.figure(figsize=(num * subfigure_size, 3 * subfigure_size))
+        fig = plt.figure(
+            figsize=(num * subfigure_size, 3 * subfigure_size)
+        )
         fig.subplots_adjust(hspace=0.05, wspace=0.05)
         for i in range(num):
             plt.subplot(3, num, i + 1)
@@ -209,11 +235,16 @@ class HBSNRecorder(BaseRecorder):
             plt.axis("off")
 
             plt.subplot(3, num, num + i + 1)
-            plt.imshow(np.linalg.norm(ground_truth_hbs_k[i], axis=0), cmap="jet")
+            plt.imshow(
+                np.linalg.norm(ground_truth_hbs_k[i], axis=0),
+                cmap="jet",
+            )
             plt.axis("off")
 
             plt.subplot(3, num, 2 * num + i + 1)
-            plt.imshow(np.linalg.norm(predict_hbs_k[i], axis=0), cmap="jet")
+            plt.imshow(
+                np.linalg.norm(predict_hbs_k[i], axis=0), cmap="jet"
+            )
             plt.axis("off")
 
         self.add_figure(f"result/{prefix}", fig, total_iteration)
@@ -222,17 +253,34 @@ class HBSNRecorder(BaseRecorder):
 
 class CocoHBSNRecorder(BaseRecorder):
     def __init__(
-        self, config: RecorderConfig, train_size, test_size, total_epoches, batch_size
+        self,
+        config: RecorderConfig,
+        train_size,
+        test_size,
+        total_epoches,
+        batch_size,
     ):
-        super().__init__(config, train_size, test_size, total_epoches, batch_size)
+        super().__init__(
+            config, train_size, test_size, total_epoches, batch_size
+        )
 
         self.train_iou = torch.zeros(self.train_size)
         self.test_iou = torch.zeros(self.test_size)
         self.train_dice = torch.zeros(self.train_size)
         self.test_dice = torch.zeros(self.test_size)
 
-    def add_output(self, epoch, iteration, input_data, predict, is_train=True, num=10):
-        prefix, _, total_iteration, _ = self._get_info(epoch, iteration, is_train)
+    def add_output(
+        self,
+        epoch,
+        iteration,
+        input_data,
+        predict,
+        is_train=True,
+        num=10,
+    ):
+        prefix, _, total_iteration, _ = self._get_info(
+            epoch, iteration, is_train
+        )
         k, num = get_random_index(num, self.batch_size)
 
         img, mask = input_data
@@ -245,7 +293,9 @@ class CocoHBSNRecorder(BaseRecorder):
         predict_hbs_k = predict_hbs[k].detach().cpu().numpy()
 
         subfigure_size = 2
-        fig = plt.figure(figsize=(num * subfigure_size, 5 * subfigure_size))
+        fig = plt.figure(
+            figsize=(num * subfigure_size, 5 * subfigure_size)
+        )
         fig.subplots_adjust(hspace=0.05, wspace=0.05)
         for i in range(num):
             plt.subplot(5, num, i + 1)
@@ -261,7 +311,9 @@ class CocoHBSNRecorder(BaseRecorder):
             plt.axis("off")
 
             plt.subplot(5, num, 3 * num + i + 1)
-            plt.imshow(np.linalg.norm(predict_hbs_k[i], axis=0), cmap="jet")
+            plt.imshow(
+                np.linalg.norm(predict_hbs_k[i], axis=0), cmap="jet"
+            )
             plt.axis("off")
 
             plt.subplot(5, num, 4 * num + i + 1)
