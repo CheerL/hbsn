@@ -2,5 +2,5 @@ try:
     import torchvision
 
     torchvision.disable_beta_transforms_warning()
-except ImportError:
+except (ImportError, AttributeError):
     pass
