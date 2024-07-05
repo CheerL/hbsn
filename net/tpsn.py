@@ -6,6 +6,67 @@ import torch.nn.functional as F
 
 from net.seg_hbsn_net import SegHBSNNet
 
+imsize = [512,512]
+pad_size = 5 # set it to be [0,0] if no padding is needed.
+
+def PADDEN_IMAGE(img):
+    '''
+        INPUT:      img-        B,C,H,W
+        OUTPUT:     padded_img- B,C,H+2p,W+2p
+    '''
+    return F.pad(img,[pad_size]*4)
+def UNPAD_IMAGE(pad_img):
+    '''
+        INPUT:      padded_img- B,C,H+2p,W+2p
+        OUTPUT:     img-        B,C,H,W
+    '''
+    return pad_img[:,:,pad_size:-pad_size,pad_size:-pad_size]
+
+class BCLossFunc(torch.nn.Module):
+    def __init__(self, size):
+        super(BCLossFunc, self).__init__()
+        self.hx1 = torch.tensor(2.0/size[0])
+        self.hx2 = torch.tensor(2.0/size[1])
+    def forward(self, mapping):
+        u_SE,v_SE = mapping[:,1:, 1:, 0:1], mapping[:,1:, 1:, 1:2]
+        u_NE,v_NE = mapping[:,0:-1,1:,0:1], mapping[:,0:-1,1:,1:2]
+        u_SW,v_SW = mapping[:,1:,0:-1,0:1], mapping[:,1:,0:-1,1:2]
+        u_NW,v_NW = mapping[:,0:-1, 0:-1, 0:1], mapping[:,0:-1, 0:-1,1:2]
+        # forward FDM
+        u_x1f = (u_SE-u_SW)/ self.hx1
+        u_x2f = (u_SE-u_NE)/ self.hx2
+        v_x1f = (v_SE-v_SW)/ self.hx1
+        v_x2f = (v_SE-v_NE)/ self.hx2
+        numerator0 = (u_x1f**2 + v_x1f**2 - v_x2f**2 - u_x2f**2)**2 + (2*u_x2f*u_x1f + 2*v_x1f*v_x2f)**2
+        dedomenator0 = ((u_x1f+v_x2f)**2 + (v_x1f-u_x2f)**2)**2
+        mu_square0 = numerator0/dedomenator0
+        # backward FDM
+        u_x1b = (u_NE-u_NW)/ self.hx1
+        u_x2b = (u_SW-u_NW)/ self.hx2
+        v_x1b = (v_NE-v_NW)/ self.hx1
+        v_x2b = (v_SW-v_NW)/ self.hx2              
+        numerator1 = (u_x1b**2 + v_x1b**2 - v_x2b**2 - u_x2b**2)**2 + (2*u_x2b*u_x1b + 2*v_x1b*v_x2b)**2
+        dedomenator1 = ((u_x1b+v_x2b)**2 + (v_x1b-u_x2b)**2)**2
+        mu_square1 = numerator1/dedomenator1
+        
+        return (torch.exp(mu_square0+mu_square1)-1).mean()
+
+
+class LAPLossFunc(torch.nn.Module):
+    def __init__(self, size):
+        super(LAPLossFunc, self).__init__()
+        kernel = torch.tensor([[0.,  1., 0.],
+                               [1., -4., 1.],
+                               [0.,  1., 0.]]).unsqueeze(0).unsqueeze(0)
+        self.weight = torch.nn.Parameter(data=kernel, requires_grad=False)
+        self.hx1 = torch.tensor(2.0/size[0])
+        self.hx2 = torch.tensor(2.0/size[1])
+    def forward(self, x):
+        x1 = x[:, :, :, 0]
+        x2 = x[:, :, :, 1]
+        x1 = F.conv2d(x1.unsqueeze(1), self.weight, padding=0) / (self.hx1)
+        x2 = F.conv2d(x2.unsqueeze(1), self.weight, padding=0) / (self.hx2)
+        return (torch.cat([x1, x2], dim=1) ** 2).mean()
 
 class TPSN(SegHBSNNet):
     def build_model(self):
@@ -16,33 +77,49 @@ class TPSN(SegHBSNNet):
             activation="sigmoid",
         )
 
+        # The below 3 lines are for making identity grid
+        theta = torch.tensor([[[1, 0, 0], [0, 1, 0]]], dtype=torch.float)
+        grid_identity = F.affine_grid(theta, (1, 2, imsize[0]+2*pad_size, imsize[1]+2*pad_size))[0]
+        self.grid_identity = grid_identity.permute((2, 0, 1))
+
+        # The below 2 lines are for making trival template mask
+        mask_temp = torch.ones([1,1] + imsize)
+        self.mask_simple = PADDEN_IMAGE(mask_temp)
+
+        # define QC and LAP loss
+        self.qc_loss = BCLossFunc([imsize[0]+2*pad_size, imsize[1]+2*pad_size])
+        self.qc_loss_rate = 0.01
+        self.lap_loss = LAPLossFunc([imsize[0]+2*pad_size, imsize[1]+2*pad_size])
+        self.lap_loss_rate = 0.0001
+
     def model_forward(self, img: torch.Tensor) -> torch.Tensor:
-        predict_mask = self.model(img)
-        return predict_mask
+        padded_img = PADDEN_IMAGE(img)
+        padded_mask = self.mask_simple
+        predict_pad_vector = self.model(padded_img)
+        predict_pad_mapping = self.grid_padded_identity + predict_pad_vector
+        predict_pad_mask = F.grid_sample(padded_mask, predict_pad_mapping.permute(0,2,3,1), mode='bilinear',
+                                     padding_mode='border', align_corners=True)
+        return predict_pad_mask, predict_pad_mapping
 
-    # @property
-    # def fixable_layers(self):
-    #     return nn.ModuleList([
-    #         super().fixable_layers,
-    #         self.model.encoder
-    #     ])
-
-    # @property
-    # def uninitializable_layers(self):
-    #     return nn.ModuleList([
-    #         super().uninitializable_layers,
-    #         self.model
-    #     ])
+    def forward(self, img: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        '''
+            Rewrite because model_forward() need to output 3 torch.tensor for loss computation
+        '''
+        predict_pad_mask, predict_pad_mapping = self.model_forward(img)
+        # predict_mask = self.binarize_mask(predict_mask)
+        predict_mask = UNPAD_IMAGE(predict_pad_mask)
+        hbs = self.hbsn(self.binarize_mask(predict_mask))
+        return predict_mask, hbs, predict_pad_mapping
 
     def loss(
         self,
-        predict: Tuple[torch.Tensor, torch.Tensor],
+        predict: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
         ground_truth: torch.Tensor,
     ) -> Tuple[
         Dict[str, torch.Tensor],
         Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
     ]:
-        predict_mask, predict_hbs = predict
+        predict_mask, predict_hbs, predict_pad_mapping = predict
         mse_loss = F.mse_loss(predict_mask, ground_truth)
         f1, iou = self.get_metrics(
             self.binarize_mask(predict_mask), ground_truth
@@ -57,11 +134,16 @@ class TPSN(SegHBSNNet):
             predict_hbs, ground_truth_hbs
         )
 
+        qc_loss = self.qc_loss(predict_pad_mapping)
+        lap_loss = self.lap_loss(predict_pad_mapping)
+
         loss = (
             mse_loss
             + self.config.dice_rate * dice_loss
             + self.config.iou_rate * iou_loss
             + self.hbs_loss_rate * hbs_loss_dict["loss"]
+            + self.qc_loss_rate * qc_loss
+            + self.lap_loss_rate * lap_loss
         )
 
         loss_dict = {
@@ -70,6 +152,8 @@ class TPSN(SegHBSNNet):
             "dice": f1,
             "iou": iou,
             "hbs_loss": hbs_loss_dict["hbs_loss"],
+            "qc_loss": qc_loss,
+            "lap_loss": lap_loss,
         }
         return loss_dict, (
             predict_mask,
