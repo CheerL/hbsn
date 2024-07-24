@@ -9,7 +9,7 @@ from net.deeplab import DeepLab
 from net.hbsn import HBSNet, HBSNetConfig
 from net.maskrcnn import MaskRCNN, MaskRCNNConfig
 from net.seg_hbsn_net import SegHBSNNetConfig
-from net.tpsn import TPSN
+from net.tpsn.tpsn import TPSN
 from net.unetpp import UnetPP
 from recorder import CocoHBSNRecorder, HBSNRecorder, RecorderConfig
 

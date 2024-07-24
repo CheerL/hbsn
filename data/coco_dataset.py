@@ -80,7 +80,7 @@ class CocoDataset(BaseDataset):
                 if len(self.coco.getAnnIds(imgIds=img_id, catIds=self.cat_ids))
                 == 1
             ]
-
+        print(self.img_ids)
         # load imgs
         img_data = self.coco.loadImgs(self.img_ids)
         self.anns = [
@@ -163,6 +163,7 @@ class CocoDataset(BaseDataset):
         return len(self.files)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+        idx = 0
         anns = self.anns[idx]
 
         mask = torch.LongTensor(

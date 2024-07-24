@@ -115,7 +115,7 @@ class BaseRecorder(SummaryWriter):
                 device=net.config.device,
                 dtype=net.config.dtype,
             )
-            self.add_graph(net, empty_input)
+            # self.add_graph(net, empty_input)
 
     def add_loss(
         self,
