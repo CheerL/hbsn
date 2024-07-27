@@ -1,39 +1,6 @@
 from torch.utils.data import DataLoader, Dataset, random_split
 
-from config import BaseConfig
 from data.transform_subset import TransformSubset
-
-
-class BaseDatasetConfig(BaseConfig):
-    data_dir = ""
-    test_data_dir = ""
-    is_augment = False
-    augment_rotation = 180
-    augment_scale = [0.8, 1.2]
-    augment_translate = [0.1, 0.1]
-    is_soft_label = True
-
-    @property
-    def augment(self):
-        return (
-            (
-                self.augment_rotation,
-                self.augment_scale,
-                self.augment_translate,
-            )
-            if self.is_augment
-            else False
-        )
-
-    @property
-    def _except_keys(self):
-        return super()._except_keys + [
-            "is_augment",
-            "augment_rotation",
-            "augment_scale",
-            "augment_translate",
-        ]
-
 
 class BaseDataset(Dataset):
     augment_transform = None

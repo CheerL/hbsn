@@ -21,14 +21,10 @@ from torchvision.models.detection.transform import (
 )
 
 from net.hbsn import HBSNet
-from net.seg_hbsn_net import SegHBSNNet, SegHBSNNetConfig
+from net.seg_hbsn_net import SegHBSNNet
+from config import MaskRCNNConfig
 
 DTYPE = torch.float32
-
-
-class MaskRCNNConfig(SegHBSNNetConfig):
-    select_num = 10
-    weight_hidden_size = 20
 
 
 class MaskRCNN(SegHBSNNet):

@@ -5,7 +5,8 @@ import scipy.io as sio
 from PIL import Image
 from torchvision.transforms import transforms
 
-from data.base_dataset import BaseDataset, BaseDatasetConfig
+from config import HBSNDatasetConfig
+from data.base import BaseDataset
 from data.custom_transform import BoundedRandomAffine, SoftLabel
 
 
@@ -19,15 +20,6 @@ def load_data(file_path):
     image = Image.open(image_path)
     hbs = sio.loadmat(hbs_path)["hbs"]
     return image, hbs
-
-
-class HBSNDatasetConfig(BaseDatasetConfig):
-    data_dir = "img/generated"
-    test_data_dir = "img/gen2"
-    augment_rotation = 180
-    augment_scale = [0.5, 2]
-    augment_translate = [0.5, 0.5]
-    masked_size = 64
 
 
 class HBSNDataset(BaseDataset):

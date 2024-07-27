@@ -1,6 +1,6 @@
 import itertools
 import os
-from typing import List, Optional, Tuple
+from typing import Tuple
 
 import numpy as np
 import torch
@@ -8,7 +8,7 @@ from pycocotools.coco import COCO
 from torchvision import io
 from torchvision.transforms import transforms
 
-from data.base_dataset import BaseDataset, BaseDatasetConfig
+from data.base import BaseDataset
 from data.custom_transform import (
     BoundedRandomCrop,
     RandomFlip,
@@ -16,24 +16,7 @@ from data.custom_transform import (
     ResizeMax,
     ToTensor,
 )
-
-
-class CocoDatasetConfig(BaseDatasetConfig):
-    data_dir: str = "coco/train2017"
-    test_data_dir: str = "coco/val2017"
-    annotation_path: str = "coco/annotations/instances_train2017.json"
-    test_annotation_path: str = "coco/annotations/instances_val2017.json"
-    height: int = 256
-    width: int = 256
-    img_ids: Optional[List[int]] = []
-    cat_ids: Optional[List[int]] = []  # [16]
-    connected: bool = False
-    single_instance: bool = False
-    resize_rate: float = 1.5
-    min_area: float = 500
-    augment_rotation: float = 30
-    augment_scale: List[float] = [0.8, 1.2]
-    augment_translate: List[float] = [0.1, 0.1]
+from config import CocoDatasetConfig
 
 
 class CocoDataset(BaseDataset):
@@ -80,7 +63,6 @@ class CocoDataset(BaseDataset):
                 if len(self.coco.getAnnIds(imgIds=img_id, catIds=self.cat_ids))
                 == 1
             ]
-        print(self.img_ids)
         # load imgs
         img_data = self.coco.loadImgs(self.img_ids)
         self.anns = [
@@ -115,7 +97,6 @@ class CocoDataset(BaseDataset):
             ]
             # for i, is_filter in enumerate(filter_list):
             #     if not is_filter:
-            #         print(f"Image {self.files[i]}({i}) has no connected component.")
 
             self.anns = filter_func(self.anns, filter_list)
             self.img_ids = filter_func(self.img_ids, filter_list)
@@ -163,7 +144,7 @@ class CocoDataset(BaseDataset):
         return len(self.files)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        idx = 0
+        # idx = 0
         anns = self.anns[idx]
 
         mask = torch.LongTensor(

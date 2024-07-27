@@ -15,8 +15,31 @@ class DoubleConv(nn.Module):
         dtype=DTYPE,
     ):
         super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.mid_channels = mid_channels
+        
         if not mid_channels:
             mid_channels = out_channels
+
+        # self.conv1 = nn.Conv2d(
+        #         in_channels,
+        #         mid_channels,
+        #         kernel_size=3,
+        #         padding=1,
+        #         bias=False,
+        #         dtype=dtype,
+        #     )
+        # self.bn1 = nn.BatchNorm2d(mid_channels, dtype=dtype)
+        # self.conv2 = nn.Conv2d(
+        #         mid_channels,
+        #         out_channels,
+        #         kernel_size=3,
+        #         padding=1,
+        #         bias=False,
+        #         dtype=dtype,
+        #     )
+        # self.bn2 = nn.BatchNorm2d(out_channels, dtype=dtype)
         self.double_conv = nn.Sequential(
             nn.Conv2d(
                 in_channels,
@@ -42,6 +65,12 @@ class DoubleConv(nn.Module):
 
     def forward(self, x):
         return self.double_conv(x)
+        # x = self.conv1(x)
+        # x = self.bn1(x)
+        # x = torch.relu(x)
+        # x = self.conv2(x)
+        # x = self.bn2(x)
+        # x = torch.relu(x)
 
 
 class DownBlock(nn.Module):
@@ -53,6 +82,8 @@ class DownBlock(nn.Module):
             nn.MaxPool2d(2),
             DoubleConv(in_channels, out_channels, dtype=dtype),
         )
+        self.in_channels = in_channels
+        self.out_channels = out_channels
 
     def forward(self, x):
         return self.maxpool_conv(x)
@@ -73,6 +104,9 @@ class UpBlock(nn.Module):
         self.is_bilinear = bilinear
         self.dtype = dtype
         self.is_skip = skip_channels > 0
+        self.in_channels = in_channels
+        self.skip_channels = skip_channels
+        self.out_channels = out_channels
 
         if self.is_bilinear:
             self.up = nn.Sequential(
@@ -150,7 +184,7 @@ class UNet(nn.Module):
             [
                 UpBlock(
                     self.channels_up[i + 1],
-                    self.channels_down[i + 1] if self.is_skip else 0,
+                    self.channels_down[i + self.layers_down - self.layers_up] if self.is_skip else 0,
                     self.channels_up[i],
                     bilinear=self.is_bilinear,
                     dtype=dtype,

@@ -8,35 +8,14 @@ import torch
 from loguru import logger
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from config import BaseConfig
-from net.base_net import BaseNet
+from net.base import BaseNet
+from config import RecorderConfig
 
 
 def get_random_index(num, size):
     num = min(num, size)
     index = np.random.choice(size, num, replace=False)
     return index, num
-
-
-class RecorderConfig(BaseConfig):
-    """
-    If `log_dir` is set, the log will be saved in the `log_dir`
-    and the `comment` and `log_base_dir` will be ignored.
-
-    Otherwise, the log will be saved in
-    `{$log_base_dir}\{$current_time}_{$comment}`.
-
-    The second way is recommended.
-    """
-
-    log_dir = ""
-    log_base_dir = "runs"
-    comment = ""
-
-    @property
-    def _except_keys(self):
-        # only show `log_dir` in the config
-        return super()._except_keys + ["log_base_dir", "comment"]
 
 
 class BaseRecorder(SummaryWriter):
@@ -82,7 +61,6 @@ class BaseRecorder(SummaryWriter):
             os.makedirs(self.checkpoint_dir)
 
     def init_recorder(self, config, net: BaseNet | None = None):
-        # print config
         config_str_list = config.get_config_str_list()
 
         config_info = "\n\t".join(config_str_list)
@@ -108,14 +86,17 @@ class BaseRecorder(SummaryWriter):
         self.add_figure("config", fig)
 
         # add network graph in tensorboard
-        if net:
-            empty_input = torch.rand(
-                net.get_input_shape(),
-                requires_grad=False,
-                device=net.config.device,
-                dtype=net.config.dtype,
-            )
-            # self.add_graph(net, empty_input)
+        if net and self.config.is_add_graph:
+            try:
+                empty_input = torch.rand(
+                    net.get_input_shape(),
+                    requires_grad=False,
+                    device=net.config.device,
+                    dtype=net.config.dtype,
+                )
+                self.add_graph(net, empty_input)
+            except Exception as e:
+                logger.error(f"Add graph error: {e}")
 
     def add_loss(
         self,
@@ -192,7 +173,6 @@ class BaseRecorder(SummaryWriter):
         total_iteration = epoch * size + iteration
         return prefix, size, total_iteration, logger_func
 
-
 class HBSNRecorder(BaseRecorder):
     def add_output(
         self,
@@ -207,7 +187,6 @@ class HBSNRecorder(BaseRecorder):
             epoch, iteration, is_train
         )
         k, num = get_random_index(num, self.batch_size)
-        # print(k, num, output_data)
 
         img, _ = input_data
         predict_hbs, ground_truth_hbs = output_data

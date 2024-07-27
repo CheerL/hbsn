@@ -1,44 +1,13 @@
-from typing import Any, Dict, Tuple
+from typing import Dict, Tuple
 
 import torch
 from torch import Tensor
 from torch.nn import functional as F
 
-from net.base_net import BaseNet, BaseNetConfig
-from net.hbsn import HBSNet, HBSNetConfig
+from net.base import BaseNet
+from net.hbsn import HBSNet
 
-
-class SegHBSNNetConfig(BaseNetConfig):
-    dice_rate = 0.1
-    iou_rate = 0
-    hbs_loss_rate = 1.0
-    mask_scale = 10
-    hbsn_checkpoint = ""
-
-    # `is_freeze` is set to True by default
-    # since we want to freeze the inside HBSNet.
-    is_freeze = True
-
-    def __init__(
-        self,
-        config_dict: Dict[str, Any] = {},
-        hbsn_config: HBSNetConfig | None = None,
-    ):
-        super().__init__(config_dict)
-        if hbsn_config:
-            self.hbsn_config = hbsn_config
-        else:
-            self.hbsn_config = HBSNetConfig()
-
-    @property
-    def _except_keys(self):
-        return super()._except_keys + ["hbsn_config"]
-
-    def get_config(self):
-        config = super().get_config()
-        config.update(self.hbsn_config.get_config())
-        return config
-
+from config import SegHBSNNetConfig
 
 class SegHBSNNet(BaseNet):
     def __init__(self, hbsn: HBSNet, config: SegHBSNNetConfig):

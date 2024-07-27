@@ -4,33 +4,10 @@ import torch
 import torch.nn.functional as F
 from torch import Tensor
 
-from net.base_net import BaseNet, BaseNetConfig
+from net.base import BaseNet
 from net.stn import STN
 from net.unet import UNet
-
-
-class HBSNetConfig(BaseNetConfig):
-    stn_rate = 0.1
-    grad_rate = 0.0
-
-    stn_mode = 3
-    # stn_mode: 0 - no stn,
-    #           1 - pre stn
-    #           2 - post stn
-    #           3 - both stn
-
-    radius = 50
-    channels_down = [8, 8, 16, 32, 64, 128]
-    channels_up = [8, 16, 32, 64, 128]
-    is_skip = True
-
-    def __init__(self, config_dict: dict = {}):
-        super().__init__(config_dict)
-        self._output_rate = 2 ** (
-            len(self.channels_up) - len(self.channels_down)
-        )
-        self.output_height = int(self.height * self._output_rate)
-        self.output_width = int(self.width * self._output_rate)
+from config import HBSNetConfig
 
 
 class HBSNet(BaseNet):

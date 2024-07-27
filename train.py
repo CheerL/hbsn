@@ -14,7 +14,7 @@ from factory import (
     net_factory,
     recorder_factory,
 )
-from net.base_net import BaseNet
+from net.base import BaseNet
 from recorder import BaseRecorder
 
 RANDOM_SEED = 960717
@@ -60,6 +60,31 @@ def epoch_run(
                 )
         recorder.add_epoch_loss(epoch, is_train)
 
+def initialization(net: BaseNet, recorder: BaseRecorder, config: Config):
+    '''
+    Initialize the network and recorder according to the configuration.
+    Then initialize the optimizer and scheduler.
+    
+    Returns:
+        optimizer: torch.optim.Adam
+        scheduler: torch.optim.lr_scheduler.MultiStepLR
+    '''
+    net.initialize()
+    recorder.init_recorder(config, net)
+
+    param_dict = net.get_param_dict(config.run_config.lr)
+    optimizer = torch.optim.Adam(
+        param_dict,
+        lr=config.run_config.lr,
+        weight_decay=config.run_config.weight_norm,
+        betas=(config.run_config.moments, 0.999),
+    )
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(
+        optimizer,
+        milestones=config.run_config.lr_decay_steps,
+        gamma=config.run_config.lr_decay_rate,
+    )
+    return optimizer, scheduler
 
 def save_checkpoint(
     net: BaseNet,
@@ -92,25 +117,6 @@ def save_checkpoint(
 
     if epoch % CHECKPOINT_INTERVAL == 0:
         _save_checkpoint(False)
-
-
-def initialization(net: BaseNet, recorder: BaseRecorder, config: Config):
-    net.initialize()
-    recorder.init_recorder(config, net)
-
-    param_dict = net.get_param_dict(config.run_config.lr)
-    optimizer = torch.optim.Adam(
-        param_dict,
-        lr=config.run_config.lr,
-        weight_decay=config.run_config.weight_norm,
-        betas=(config.run_config.moments, 0.999),
-    )
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(
-        optimizer,
-        milestones=config.run_config.lr_decay_steps,
-        gamma=config.run_config.lr_decay_rate,
-    )
-    return optimizer, scheduler
 
 
 def load_checkpoint(

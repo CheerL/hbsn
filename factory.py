@@ -9,33 +9,59 @@ from net.deeplab import DeepLab
 from net.hbsn import HBSNet, HBSNetConfig
 from net.maskrcnn import MaskRCNN, MaskRCNNConfig
 from net.seg_hbsn_net import SegHBSNNetConfig
-from net.tpsn.tpsn import TPSN
+from net.tpsn import TPSN, TPSNConfig
 from net.unetpp import UnetPP
 from recorder import CocoHBSNRecorder, HBSNRecorder, RecorderConfig
 
+TYPE_DICT = {
+    "hbsn": (
+        HBSNet,
+        HBSNetConfig,
+        HBSNDataset,
+        HBSNDatasetConfig,
+        HBSNRecorder,
+    ),
+    "maskrcnn": (
+        MaskRCNN,
+        MaskRCNNConfig,
+        CocoDataset,
+        CocoDatasetConfig,
+        CocoHBSNRecorder,
+    ),
+    "deeplab": (
+        DeepLab,
+        SegHBSNNetConfig,
+        CocoDataset,
+        CocoDatasetConfig,
+        CocoHBSNRecorder,
+    ),
+    "unetpp": (
+        UnetPP,
+        SegHBSNNetConfig,
+        CocoDataset,
+        CocoDatasetConfig,
+        CocoHBSNRecorder,
+    ),
+    "tpsn": (
+        TPSN,
+        TPSNConfig,
+        CocoDataset,
+        CocoDatasetConfig,
+        CocoHBSNRecorder,
+    ),
+}
+
 
 def type_check(type_: str):
-    assert type_ in [
-        "hbsn",
-        "maskrcnn",
-        "deeplab",
-        "unetpp",
-        "tpsn",
-    ], "Invalid `type_`"
+    assert type_ in TYPE_DICT, "Invalid `type_`"
 
 
 def config_factory(type_: str, config_dict: Dict[str, Any]) -> Config:
     type_check(type_)
-    if type_ == "hbsn":
-        net_config = HBSNetConfig(config_dict)
-        dataset_config = HBSNDatasetConfig(config_dict)
-    else:
-        dataset_config = CocoDatasetConfig(config_dict)
-        if type_ == "maskrcnn":
-            net_config = MaskRCNNConfig(config_dict)
-        else:
-            net_config = SegHBSNNetConfig(config_dict)
+    _, NetConfig, _, DatasetConfig, _ = TYPE_DICT[type_]
 
+    net_config = NetConfig(config_dict)
+    dataset_config = DatasetConfig(config_dict)
     recorder_config = RecorderConfig(config_dict)
     run_config = RunConfig(config_dict)
 
@@ -44,34 +70,11 @@ def config_factory(type_: str, config_dict: Dict[str, Any]) -> Config:
 
 def net_factory(type_: str, config: Config):
     type_check(type_)
-    if type_ == "hbsn":
-        assert isinstance(
-            config.net_config, HBSNetConfig
-        ), "HBSNetConfig required"
-        net = HBSNet.factory(config.net_config)
-        config.recorder_config.log_base_dir = "runs/hbsn"
-    elif type_ == "maskrcnn":
-        assert isinstance(
-            config.net_config, MaskRCNNConfig
-        ), "MaskRCNNConfig required"
-        net = MaskRCNN.factory(config.net_config)
-        config.recorder_config.log_base_dir = "runs/maskrcnn"
-    elif type_ == "deeplab":
-        assert isinstance(
-            config.net_config, SegHBSNNetConfig
-        ), "SegHBSNNetConfig required"
-        net = DeepLab.factory(config.net_config)
-        config.recorder_config.log_base_dir = "runs/deeplab"
-    elif type_ == "unetpp":
-        assert isinstance(
-            config.net_config, SegHBSNNetConfig
-        ), "SegHBSNNetConfig required"
-        net = UnetPP.factory(config.net_config)
-        config.recorder_config.log_base_dir = "runs/unetpp"
-    elif type_ == "tpsn":
-        net = TPSN.factory(config.net_config)
-        config.recorder_config.log_base_dir = "runs/tpsn"
-
+    Net, NetConfig, _, _, _ = TYPE_DICT[type_]
+    assert isinstance(
+        config.net_config, NetConfig
+    ), f"{NetConfig.__name__} is required"
+    net = Net.factory(config.net_config)
     return net
 
 
@@ -79,29 +82,13 @@ def dataset_factory(
     type_: str, config: Config
 ) -> Tuple[DataLoader, DataLoader]:
     type_check(type_)
-    if type_ == "hbsn":
-        assert isinstance(
-            config.dataset_config, HBSNDatasetConfig
-        ), "HBSNDatasetConfig required"
-        dataset = HBSNDataset(config.dataset_config)
-        if config.dataset_config.test_data_dir:
-            test_dataset = HBSNDataset(config.dataset_config, is_test=True)
-        else:
-            test_dataset = None
-    else:
-        assert isinstance(
-            config.dataset_config, CocoDatasetConfig
-        ), "CocoDatasetConfig required"
-        dataset = CocoDataset(config.dataset_config)
-        if (
-            config.dataset_config.test_data_dir
-            and config.dataset_config.test_annotation_path
-        ):
-            test_dataset = CocoDataset(config.dataset_config, is_test=True)
-        else:
-            test_dataset = None
-
-    if test_dataset:
+    _, _, Dataset, DatasetConfig, _ = TYPE_DICT[type_]
+    assert isinstance(
+        config.dataset_config, DatasetConfig
+    ), f"{DatasetConfig.__name__} is required"
+    dataset = Dataset(config.dataset_config)
+    if config.dataset_config.test_data_dir:
+        test_dataset = Dataset(config.dataset_config, is_test=True)
         train_dataloader, _ = dataset.get_dataloader(
             batch_size=config.run_config.batch_size, split_rate=1
         )
@@ -109,6 +96,7 @@ def dataset_factory(
             batch_size=config.run_config.batch_size, split_rate=0
         )
     else:
+        test_dataset = None
         train_dataloader, test_dataloader = dataset.get_dataloader(
             batch_size=config.run_config.batch_size
         )
@@ -122,21 +110,14 @@ def recorder_factory(
     type_: str, config: Config, train_size: int, test_size: int
 ):
     type_check(type_)
-    if type_ == "hbsn":
-        recorder = HBSNRecorder(
-            config.recorder_config,
-            train_size,
-            test_size,
-            config.run_config.total_epoches,
-            config.run_config.batch_size,
-        )
-    else:
-        recorder = CocoHBSNRecorder(
-            config.recorder_config,
-            train_size,
-            test_size,
-            config.run_config.total_epoches,
-            config.run_config.batch_size,
-        )
+    _, _, _, _, Recorder = TYPE_DICT[type_]
+    config.recorder_config.log_base_dir = f"runs/{type_}"
+    recorder = Recorder(
+        config.recorder_config,
+        train_size,
+        test_size,
+        config.run_config.total_epoches,
+        config.run_config.batch_size,
+    )
 
     return recorder

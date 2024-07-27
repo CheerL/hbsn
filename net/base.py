@@ -3,34 +3,7 @@ from typing import Dict, Tuple
 import torch
 import torch.nn as nn
 
-from config import BaseConfig
-
-
-class BaseNetConfig(BaseConfig):
-    device = "cpu"
-    dtype = torch.float32
-    height = 256
-    width = 256
-    input_channels = 1
-    output_channels = 2
-    load_strict = True
-
-    # If `is_freeze` is True, the `fixable_layers` will be freezed
-    # and only the other layers will be trained
-    #
-    # Otherwise, `fixable_layers` will be trained with
-    # a smaller lr = lr * finetune_rate
-    is_freeze = False
-    finetune_rate = 1
-
-    @property
-    def finetune(self):
-        return "freeze" if self.is_freeze else self.finetune_rate
-
-    @property
-    def _except_keys(self):
-        return super()._except_keys + ["is_freeze", "finetune_rate"]
-
+from config import BaseNetConfig
 
 class BaseNet(nn.Module):
     def __init__(self, config: BaseNetConfig):
@@ -98,7 +71,6 @@ class BaseNet(nn.Module):
     def load(self, path):
         checkpoint = torch.load(path, map_location=self.config.device)
         checkpoint = self._handle_checkpoint(checkpoint)
-        # print(self.load_strict)
         self.load_state_dict(checkpoint["state_dict"], self.config.load_strict)
         epoch = checkpoint["epoch"]
         best_epoch = checkpoint["best_epoch"]
@@ -141,5 +113,4 @@ class BaseNet(nn.Module):
                     "initial_lr": lr * self.config.finetune_rate,
                 }
             )
-        # print(len(param_dict))
         return param_dict
