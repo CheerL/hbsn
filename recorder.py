@@ -6,10 +6,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from loguru import logger
+from matplotlib.collections import LineCollection
 from torch.utils.tensorboard.writer import SummaryWriter
 
-from net.base import BaseNet
 from config import RecorderConfig
+from net.base import BaseNet
 
 
 def get_random_index(num, size):
@@ -173,6 +174,7 @@ class BaseRecorder(SummaryWriter):
         total_iteration = epoch * size + iteration
         return prefix, size, total_iteration, logger_func
 
+
 class HBSNRecorder(BaseRecorder):
     def add_output(
         self,
@@ -308,4 +310,63 @@ class CocoHBSNRecorder(BaseRecorder):
 
         self.add_scalar(f"iou/{prefix}_epoch", iou, epoch)
         self.add_scalar(f"dice/{prefix}_epoch", dice, epoch)
+        self.flush()
+
+
+class TPSNRecorder(CocoHBSNRecorder):
+    def add_output(
+        self, epoch, iteration, input_data, output_data, is_train=True, num=10
+    ):
+        prefix, _, total_iteration, _ = self._get_info(
+            epoch, iteration, is_train
+        )
+        k, num = get_random_index(num, self.batch_size)
+
+        img, mask = input_data
+        # predict_mask, predict_hbs, hbs = output_data
+        predict_mask, predict_hbs, hbs, predict_pad_mapping = output_data
+
+        img_k = img[k].detach().cpu().numpy().transpose(0, 2, 3, 1)
+        mask_k = mask[k].detach().cpu().numpy()
+        predict_mask_k = predict_mask[k].detach().cpu().numpy()
+        hbs_k = hbs[k].detach().cpu().numpy()
+        predict_hbs_k = predict_hbs[k].detach().cpu().numpy()
+        mapping = predict_pad_mapping[k,:,::8,::8].detach().cpu().numpy()
+
+        n = 6
+        subfigure_size = 2
+        fig = plt.figure(figsize=(num * subfigure_size, n * subfigure_size), dpi=200)
+        fig.subplots_adjust(hspace=0.05, wspace=0.05)
+        for i in range(num):
+            plt.subplot(n, num, i + 1)
+            plt.imshow(img_k[i])
+            plt.axis("off")
+
+            plt.subplot(n, num, num + i + 1)
+            plt.imshow(predict_mask_k[i, 0], cmap="gray")
+            plt.axis("off")
+
+            plt.subplot(n, num, 2 * num + i + 1)
+            plt.imshow(mask_k[i, 0], cmap="gray")
+            plt.axis("off")
+
+            plt.subplot(n, num, 3 * num + i + 1)
+            plt.imshow(np.linalg.norm(predict_hbs_k[i], axis=0), cmap="jet")
+            plt.axis("off")
+
+            plt.subplot(n, num, 4 * num + i + 1)
+            plt.imshow(np.linalg.norm(hbs_k[i], axis=0), cmap="jet")
+            plt.axis("off")
+
+            plt.subplot(n, num, 5 * num + i + 1)
+            plt.gca().add_collection(
+                LineCollection(mapping[i, :, :, :].transpose(1, 2, 0), color="r",linewidths=0.5)
+            )
+            plt.gca().add_collection(
+                LineCollection(mapping[i, :, :, :].transpose(2, 1, 0), color="r",linewidths=0.5)
+            )
+            plt.gca().axis("equal")
+            plt.axis("off")
+
+        self.add_figure(f"result/{prefix}", fig, total_iteration)
         self.flush()

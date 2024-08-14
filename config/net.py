@@ -61,6 +61,7 @@ class SegHBSNNetConfig(BaseNetConfig):
     hbs_loss_rate = 1.0
     mask_scale = 10
     hbsn_checkpoint = ""
+    input_channels = 3
 
     # `is_freeze` is set to True by default
     # since we want to freeze the inside HBSNet.
@@ -93,5 +94,6 @@ class MaskRCNNConfig(SegHBSNNetConfig):
 
 
 class TPSNConfig(SegHBSNNetConfig):
+    mse_rate = 1
     qc_loss_rate: float = 0.01
     lap_loss_rate: float = 0.0001

@@ -11,7 +11,12 @@ from net.maskrcnn import MaskRCNN, MaskRCNNConfig
 from net.seg_hbsn_net import SegHBSNNetConfig
 from net.tpsn import TPSN, TPSNConfig
 from net.unetpp import UnetPP
-from recorder import CocoHBSNRecorder, HBSNRecorder, RecorderConfig
+from recorder import (
+    CocoHBSNRecorder,
+    HBSNRecorder,
+    RecorderConfig,
+    TPSNRecorder,
+)
 
 TYPE_DICT = {
     "hbsn": (
@@ -47,7 +52,7 @@ TYPE_DICT = {
         TPSNConfig,
         CocoDataset,
         CocoDatasetConfig,
-        CocoHBSNRecorder,
+        TPSNRecorder,
     ),
 }
 

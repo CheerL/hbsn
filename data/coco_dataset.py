@@ -54,6 +54,8 @@ class CocoDataset(BaseDataset):
             )
         else:
             self.img_ids = self.config.img_ids
+            
+        # print(self.img_ids)
 
         # single instance
         if self.config.single_instance:
@@ -144,7 +146,7 @@ class CocoDataset(BaseDataset):
         return len(self.files)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
-        # idx = 0
+        idx = 0
         anns = self.anns[idx]
 
         mask = torch.LongTensor(

@@ -124,6 +124,8 @@ class STN(nn.Module):
                 ],
                 dim=1,
             ).reshape(-1, 2, 3)
+            
+        # TODO: change align_corners=False
         grid = F.affine_grid(p, x.size(), align_corners=False)
         x = F.grid_sample(x, grid, align_corners=False)
         return x, theta

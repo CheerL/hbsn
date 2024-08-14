@@ -18,7 +18,7 @@ from net.base import BaseNet
 from recorder import BaseRecorder
 
 RANDOM_SEED = 960717
-IMAGE_INTERVAL = 100
+IMAGE_INTERVAL = 20
 CHECKPOINT_INTERVAL = 5
 
 

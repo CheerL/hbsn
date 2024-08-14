@@ -1,4 +1,4 @@
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import torch
 from torch import Tensor
@@ -27,14 +27,20 @@ class SegHBSNNet(BaseNet):
     def build_model(self):
         raise NotImplementedError("build_model not implemented")
 
-    def model_forward(self, img: Tensor) -> Tensor:
+    def model_forward(self, img: Tensor) -> Tensor | List[Tensor]:
         raise NotImplementedError("model_forward not implemented")
 
-    def forward(self, img: Tensor) -> Tuple[Tensor, Tensor]:
-        predict_mask = self.model_forward(img)
-        # predict_mask = self.binarize_mask(predict_mask)
-        hbs = self.hbsn(self.binarize_mask(predict_mask))
-        return predict_mask, hbs
+    def forward(self, img: Tensor) -> Tuple[Tensor, Tensor] | Tuple[Tensor, Tensor, List[Tensor]]:
+        results = self.model_forward(img)
+        if isinstance(results, Tensor):
+            predict_mask = results
+            hbs = self.hbsn(self.binarize_mask(predict_mask))
+            return predict_mask, hbs
+        else:
+            predict_mask = results[0]
+            hbs = self.hbsn(self.binarize_mask(predict_mask))
+            others = results[1:]
+            return predict_mask, hbs, others
 
     def binarize_mask(self, mask: Tensor):
         binarized_mask = torch.sigmoid(self.config.mask_scale * (mask - 0.5))

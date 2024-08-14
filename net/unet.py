@@ -155,6 +155,7 @@ class UNet(nn.Module):
         is_bilinear=True,
         dtype=DTYPE,
         is_skip=True,
+        is_sigmoid=False,
     ):
         super().__init__()
         self.dtype = dtype
@@ -162,6 +163,7 @@ class UNet(nn.Module):
         self.n_classes = n_classes
         self.is_bilinear = is_bilinear
         self.is_skip = is_skip
+        self.is_sigmoid = is_sigmoid
 
         self.channels_down = channels_down
         self.channels_up = channels_up
@@ -217,4 +219,10 @@ class UNet(nn.Module):
         x = self.encode(x)
         x = self.decode(x)
         x = self.outc(x)
+        if self.is_sigmoid:
+            x = torch.sigmoid(x)
         return x
+    
+    def zero_initalization(self):
+        self.outc.weight.data.zero_()
+        self.outc.bias.data.zero_()
