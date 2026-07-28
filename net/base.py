@@ -69,7 +69,7 @@ class BaseNet(nn.Module):
         return checkpoint
 
     def load(self, path):
-        checkpoint = torch.load(path, map_location=self.config.device)
+        checkpoint = torch.load(path, map_location=self.config.device, weights_only=False)
         checkpoint = self._handle_checkpoint(checkpoint)
         self.load_state_dict(checkpoint["state_dict"], self.config.load_strict)
         epoch = checkpoint["epoch"]
@@ -83,7 +83,7 @@ class BaseNet(nn.Module):
 
     @staticmethod
     def load_model(path, device="cpu"):
-        checkpoint = torch.load(path, map_location=device)
+        checkpoint = torch.load(path, map_location=device, weights_only=False)
         config = checkpoint["config"]
         epoch = checkpoint["epoch"]
         best_epoch = checkpoint["best_epoch"]
