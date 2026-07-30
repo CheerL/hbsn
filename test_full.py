@@ -109,9 +109,9 @@ for checkpoint in os.listdir(checkpoint_dir):
 
 
 # deeplab with hbsn
-# runs/deeplab/May23_21-02-42_hbs0.05_all/checkpoints/epoch_195.pth [0.78288734 0.704551  ]
+# runs/deeplab/May24_12-58-07_hbs0.05_all_newhbsn/checkpoints/epoch_195.pth []
 type_ = 'deeplab'
-checkpoint_dir = 'runs/deeplab/May23_21-02-42_hbs0.05_all/checkpoints'
+checkpoint_dir = 'runs/deeplab/May24_12-58-07_hbs0.05_all_newhbsn/checkpoints'
 for checkpoint in os.listdir(checkpoint_dir):
     if checkpoint.endswith('.pth'):
         checkpoint_path = os.path.join(checkpoint_dir, checkpoint)
@@ -130,11 +130,8 @@ checkpoint_dir = 'runs/deeplab/May15_11-02-15_hbs0_all_c/checkpoints'
 for checkpoint in os.listdir(checkpoint_dir):
     if checkpoint.endswith('.pth'):
         checkpoint_path = os.path.join(checkpoint_dir, checkpoint)
-        try:
-            mean_metrics = test_checkpoint(type_, checkpoint_path, config_dict)
-            print(checkpoint_path, mean_metrics)
-        except Exception as e:
-            print(f'Skipping {checkpoint_path}: {e}')
+        mean_metrics = test_checkpoint(type_, checkpoint_path, config_dict)
+        print(checkpoint_path, mean_metrics)
 
 
 # In[ ]:
@@ -142,12 +139,8 @@ for checkpoint in os.listdir(checkpoint_dir):
 
 unet_hbsn = load_net('unetpp', 'runs/unetpp/May17_10-17-34_hbs0.05_all_c/checkpoints/epoch_350.pth', config_dict)
 unet = load_net('unetpp', 'runs/unetpp/May14_19-52-45_hbs0_all/checkpoints/best.pth', config_dict)
-deeplab_hbsn = load_net('deeplab', 'runs/deeplab/May23_21-02-42_hbs0.05_all/checkpoints/epoch_195.pth', config_dict)
-try:
-    deeplab = load_net('deeplab', 'runs/deeplab/May15_11-02-15_hbs0_all_c/checkpoints/best.pth', config_dict)
-except Exception as e:
-    print(f'Could not load deeplab without HBSN: {e}')
-    deeplab = None
+deeplab_hbsn = load_net('deeplab', 'runs/deeplab/May24_12-58-07_hbs0.05_all_newhbsn/checkpoints/epoch_195.pth', config_dict)
+deeplab = load_net('deeplab', 'runs/deeplab/May15_11-02-15_hbs0_all_c/checkpoints/best.pth', config_dict)
 
 
 # In[ ]:
@@ -445,4 +438,10 @@ for i, idx in enumerate(sorted_indices):
 
     # if count >= 50:
     #     break
+
+import sys
+print(f"\n{'='*50}", file=sys.stderr)
+print(f"TEST COMPLETE: All checkpoints loaded, {num_samples} samples evaluated.", file=sys.stderr)
+print(f"{'='*50}", file=sys.stderr)
+sys.stderr.flush()
 
