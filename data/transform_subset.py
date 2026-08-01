@@ -12,6 +12,9 @@ class TransformSubset(Subset):
             return self.transform(data)
         return data
 
+    def __getitems__(self, indices):
+        return [self.__getitem__(idx) for idx in indices]
+
     @classmethod
     def from_dataset(cls, dataset: Dataset | Subset, transform):
         if isinstance(dataset, Subset):
