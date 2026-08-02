@@ -14,7 +14,6 @@ coco
 *.npy
 
 # hydra 运行输出目录
-outputs/
 
 # hydra 运行输出目录
 outputs/
