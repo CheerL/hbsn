@@ -1,7 +1,7 @@
 # HBSN — Harmonic Beltrami Signature Network
 
 论文配套代码库（PyTorch）。目录原为 `src`，2026-08 激进现代化重写后为
-`Python/`（git 仓库根）：flat-layout 包 `hbsn/` + hydra 配置 + pyproject。
+`python/`（git 仓库根）：flat-layout 包 `hbsn/` + hydra 配置 + pyproject。
 
 ## 快速开始
 

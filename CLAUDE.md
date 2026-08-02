@@ -1,7 +1,7 @@
 # HBSN 项目地图（Claude 速览）
 
 研究项目：Harmonic Beltrami Signature Network（论文在 `../latex/`，独立 git 仓库）。
-本目录 `Python/` 是代码仓库根（原 `src`，2026-08 重写）。
+本目录 `python/` 是代码仓库根（原 `src`，2026-08 重写）。
 
 ## 结构
 
@@ -50,7 +50,5 @@ python -m pytest
 
 ## 仓库状态
 
-- `master`：Phase A/B/C 后的旧代码基线（可回滚）；`rewrite`：重写后的新代码。
-- 论文证据：12 个旧 ckpt 已迁移到 `runs/migrated/`（原文件只读 + tar 备份在
-  `/home/nnb/projects/HBSN/.backup/ckpt-2026-08-02.tar.gz`）。
-- `.venv_old`：旧 venv（Phase A 修复后代码可用），Phase E 验证通过后可删。
+- `master`：重写后的新代码（rewrite 已合入）。
+- 论文证据：12 个旧 ckpt 已迁移到 `runs/migrated/`（原文件只读）。
