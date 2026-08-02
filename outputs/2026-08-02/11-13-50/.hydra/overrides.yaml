@@ -1,6 +1,0 @@
-- model=hbsn
-- run.total_epoches=1
-- run.batch_size=64
-- net.device=cuda:0
-- recorder.is_add_graph=true
-- dataset.num_workers=1
