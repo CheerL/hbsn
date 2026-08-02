@@ -11,13 +11,28 @@ net/dataset 配置优先取 checkpoint 内存档（含 hbsn_checkpoint 路径）
 import argparse
 import glob
 import sys
+from dataclasses import fields
 
 import numpy as np
 import torch
 from omegaconf import OmegaConf
 
+from hbsn.config.schemas import HBSNetSchema
 from hbsn.nets.base import torch_dtype
 from hbsn.registry import get_spec
+
+
+def filter_known(schema_cls, cfg_dict: dict) -> dict:
+    """迁移 ckpt 的 config 可能带旧字段（如 hbsn_version）——按 schema 字段过滤。"""
+    known = {f.name for f in fields(schema_cls)}
+    filtered = {}
+    for key, value in cfg_dict.items():
+        if key not in known:
+            continue
+        if key == "hbsn_config" and isinstance(value, dict):
+            value = filter_known(HBSNetSchema, value)
+        filtered[key] = value
+    return filtered
 
 
 def evaluate(model: str, checkpoint_path: str, sets: list[str] | None = None, **overrides) -> tuple[float, float]:
@@ -26,11 +41,12 @@ def evaluate(model: str, checkpoint_path: str, sets: list[str] | None = None, **
     ckpt_config = ckpt.get("config", {})
 
     net_cfg = OmegaConf.merge(
-        OmegaConf.structured(spec.net_schema), OmegaConf.create(ckpt_config.get("net", {}))
+        OmegaConf.structured(spec.net_schema),
+        OmegaConf.create(filter_known(spec.net_schema, ckpt_config.get("net", {}))),
     )
     dataset_cfg = OmegaConf.merge(
         OmegaConf.structured(spec.dataset_schema),
-        OmegaConf.create(ckpt_config.get("dataset", {})),
+        OmegaConf.create(filter_known(spec.dataset_schema, ckpt_config.get("dataset", {}))),
     )
     for key, value in overrides.items():
         if value is not None and key in net_cfg:
@@ -86,6 +102,7 @@ def main():
     parser.add_argument("--checkpoint", required=True, help="checkpoint 路径或 glob（含 runs/migrated/...）")
     parser.add_argument("--data-dir", help="覆盖 dataset.data_dir")
     parser.add_argument("--annotation-path", help="覆盖 dataset.annotation_path")
+    parser.add_argument("--device", help="覆盖 net.device（旧 ckpt 可能无 device 或指向不存在的 GPU）")
     parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
                         help="任意配置覆盖，可重复（如 --set connected=true --set cat_ids=[16]）")
     args = parser.parse_args()
@@ -94,6 +111,7 @@ def main():
         f1, iou = evaluate(
             args.model, path, sets=args.set,
             data_dir=args.data_dir, annotation_path=args.annotation_path,
+            device=args.device,
         )
         print(f"{path} [F1 {f1:.6f} | IoU {iou:.6f}]")
 
