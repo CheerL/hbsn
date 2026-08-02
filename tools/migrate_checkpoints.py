@@ -17,7 +17,6 @@ optimizer 状态丢弃（重写后参数顺序变化，续训语义不可保）�
 import argparse
 import glob
 import os
-import shutil
 import sys
 
 import torch
@@ -26,12 +25,16 @@ from hbsn._legacy import pickle_shim
 
 
 def detect_type(state_dict: dict, config) -> str:
-    """按 state_dict 键集 + config 属性推断旧 checkpoint 类型。"""
+    """按 state_dict 键集 + config 属性推断旧 checkpoint 类型。
+
+    config 可能是完整 Config（属性在 net_config 上）或裸 net config。
+    """
+    net_cfg = getattr(config, "net_config", None) or config
     if any(k.startswith("hbsn.") for k in state_dict):
         # seg 类：config 区分 tpsn/maskrcnn，键集区分 deeplab/unetpp
-        if hasattr(config, "qc_loss_rate"):
+        if hasattr(net_cfg, "qc_loss_rate"):
             return "tpsn"
-        if hasattr(config, "select_num"):
+        if hasattr(net_cfg, "select_num"):
             return "maskrcnn"
         if any(k.startswith("model.encoder.") for k in state_dict):
             return "unetpp"
@@ -81,30 +84,85 @@ def rewrite_hbsn_checkpoint_path(config_dict: dict, out_dir: str) -> dict:
     return config_dict
 
 
-def migrate_one(src_path: str, out_dir: str, dry_run: bool = False) -> str:
+# 更早布局（May17 时代）的扁平 config：net+dataset+run 字段混在一个类里。
+# dict 值 = 新结构里的字段名（改名），恒等映射也显式写出。
+FLAT_DATASET_KEYS = {
+    "coco_annotation": "annotation_path",
+    "coco_root": "data_dir",
+    "augment_rotation": "augment_rotation",
+    "augment_scale": "augment_scale",
+    "augment_translate": "augment_translate",
+    "cat_ids": "cat_ids",
+    "img_ids": "img_ids",
+    "resize_rate": "resize_rate",
+    "min_area": "min_area",
+    "connected": "connected",
+    "single_instance": "single_instance",
+    "is_augment": "is_augment",
+}
+FLAT_RUN_KEYS = {
+    "batch_size", "lr", "lr_decay_rate", "lr_decay_steps", "moments",
+    "weight_norm", "total_epoches", "version", "checkpoint_path",
+    "checkpoint_dir", "load",
+}
+FLAT_RECORDER_KEYS = {"log_dir", "log_base_dir", "comment"}
+
+
+def flat_config_to_sections(obj) -> dict:
+    """扁平旧 config → 新四段结构（net/dataset/recorder/run）；未识别字段归 net。"""
+    sections = {"net": {}, "dataset": {}, "recorder": {}, "run": {}}
+    for key, value in vars(obj).items():
+        if key.startswith("_"):
+            continue
+        value = obj_to_dict(value)
+        if key in FLAT_DATASET_KEYS:
+            target, key = "dataset", FLAT_DATASET_KEYS[key]
+        elif key in FLAT_RUN_KEYS:
+            target = "run"
+        elif key in FLAT_RECORDER_KEYS:
+            target = "recorder"
+        else:
+            target = "net"
+        if key == "data_dir" and isinstance(value, str):
+            value = value.rstrip("/")
+        sections[target][key] = value
+    return sections
+
+
+def migrate_one(src_path: str, out_dir: str, dry_run: bool = False) -> str | None:
     pickle_shim.install()
     ckpt = torch.load(src_path, map_location="cpu", weights_only=False)
     old_config = ckpt.get("config")
 
+    if isinstance(old_config, dict) and "net" in old_config:
+        print(f"跳过（已是新格式）: {src_path}")
+        return None
+
     type_ = detect_type(ckpt["state_dict"], old_config)
     state_dict, dropped = map_state_dict(ckpt["state_dict"], type_)
 
-    # 输出目录：<out_dir>/<type>/<原目录名>/<原文件名>
-    rel_dir = os.path.basename(os.path.dirname(src_path))
-    out_path = os.path.join(out_dir, type_, rel_dir, os.path.basename(src_path))
+    # 输出目录：<out_dir>/<type>/<运行目录名>/checkpoints/<原文件名>（镜像原结构，
+    # hbsn_checkpoint 路径重写依赖此层级）
+    rel_dir = os.path.basename(os.path.dirname(os.path.dirname(src_path)))
+    out_path = os.path.join(out_dir, type_, rel_dir, "checkpoints", os.path.basename(src_path))
 
     if dry_run:
         print(f"[dry-run] {src_path} -> {out_path} ({type_}, "
               f"{len(state_dict)} 键保留, {len(dropped)} 键丢弃)")
         return out_path
 
-    new_config = {
-        "net": obj_to_dict(old_config.net_config),
-        "dataset": obj_to_dict(old_config.dataset_config),
-        "recorder": obj_to_dict(old_config.recorder_config),
-        "run": obj_to_dict(old_config.run_config),
-        "legacy": {"type": type_, "source": src_path},
-    }
+    if old_config and hasattr(old_config, "net_config"):
+        new_config = {
+            "net": obj_to_dict(old_config.net_config),
+            "dataset": obj_to_dict(old_config.dataset_config),
+            "recorder": obj_to_dict(old_config.recorder_config),
+            "run": obj_to_dict(old_config.run_config),
+        }
+    elif old_config and hasattr(old_config, "__dict__"):
+        new_config = flat_config_to_sections(old_config)  # 扁平旧 config（May17 时代）
+    else:  # 无 config 存档的旧 ckpt（save(config={}) 默认值）
+        new_config = {"net": {}, "dataset": {}, "recorder": {}, "run": {}}
+    new_config["legacy"] = {"type": type_, "source": src_path}
     new_config = rewrite_hbsn_checkpoint_path(new_config, out_dir)
 
     new_ckpt = {
@@ -136,13 +194,9 @@ def main():
         return 1
     print(f"发现 {len(paths)} 个 checkpoint，输出到 {args.out_dir}")
 
-    if not args.dry_run and not os.path.exists(args.out_dir):
-        # 迁移前备份原文件（唯一副本保险）
-        backup = os.path.join(args.out_dir + ".backup", os.path.basename(args.out_dir))
-        os.makedirs(backup, exist_ok=True)
-        for p in paths:
-            shutil.copy2(p, os.path.join(backup, os.path.basename(p)))
-        print(f"原文件备份到 {backup}")
+    if not args.dry_run:
+        # 原文件只读不动；请自行确保已有备份（如 tar 打包）——本工具不复制
+        print("提示：迁移不修改原文件；请确认已备份（tar 打包）")
 
     for path in paths:
         migrate_one(path, args.out_dir, dry_run=args.dry_run)
