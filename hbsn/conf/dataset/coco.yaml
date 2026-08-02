@@ -1,0 +1,20 @@
+# COCO 分割数据集共享默认值（本机 train2017 为空，默认指向 val2017）
+data_dir: coco/val2017
+test_data_dir: ""
+annotation_path: coco/annotations/instances_val2017.json
+test_annotation_path: ""
+height: 256
+width: 256
+img_ids: []
+cat_ids: []
+connected: false
+single_instance: false
+resize_rate: 1.5
+min_area: 500
+is_augment: false
+augment_rotation: 30
+augment_scale: [0.8, 1.2]
+augment_translate: [0.1, 0.1]
+is_soft_label: true
+pin_memory: false
+num_workers: 4

@@ -1,0 +1,15 @@
+# 分割类网络共享默认值（SegNetSchema 全字段）
+device: cpu
+dtype: float32
+height: 256
+width: 256
+input_channels: 3
+output_channels: 1
+load_strict: true
+is_freeze: true
+finetune_rate: 1
+dice_rate: 0.1
+iou_rate: 0
+hbs_loss_rate: 1.0
+mask_scale: 10
+hbsn_checkpoint: ""

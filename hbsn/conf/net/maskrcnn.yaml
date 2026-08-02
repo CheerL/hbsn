@@ -1,0 +1,5 @@
+defaults:
+  - seg
+
+select_num: 10
+weight_hidden_size: 20

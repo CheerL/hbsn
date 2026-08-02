@@ -1,0 +1,6 @@
+defaults:
+  - seg
+
+mse_rate: 1
+qc_loss_rate: 0.01
+lap_loss_rate: 0.0001

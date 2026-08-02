@@ -1,0 +1,13 @@
+# 顶层配置：model 选择组决定 net/dataset 配对（hbsn↔hbsn 数据，其余↔coco 数据）
+# 用法：python -m hbsn.train model=deeplab net.stn_mode=3 run.total_epoches=100
+defaults:
+  - model: hbsn
+  - net: ${model}
+  - dataset: ${model}
+  - recorder: default
+  - run: default
+  - _self_
+
+hydra:
+  job:
+    chdir: false  # 不切 cwd，保持 img/、coco/ 相对路径可用

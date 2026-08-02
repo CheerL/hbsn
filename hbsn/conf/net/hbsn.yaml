@@ -1,0 +1,17 @@
+# HBSNet 配置默认值（完整字段；schema 负责类型校验）
+device: cpu
+dtype: float32
+height: 256
+width: 256
+input_channels: 1
+output_channels: 2
+load_strict: true
+is_freeze: false
+finetune_rate: 1
+stn_rate: 0.1
+grad_rate: 0.0
+stn_mode: 3
+radius: 50
+channels_down: [8, 8, 16, 32, 64, 128]
+channels_up: [8, 16, 32, 64, 128]
+is_skip: true

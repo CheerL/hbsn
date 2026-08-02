@@ -12,3 +12,9 @@ coco
 # 数据格式：.mat 备份与 .npy 均不跟踪（img/ 已整体排除，防御性冗余）
 *.mat
 *.npy
+
+# hydra 运行输出目录
+outputs/
+
+# hydra 运行输出目录
+outputs/

@@ -1,0 +1,62 @@
+model:
+  hbsn: null
+net:
+  device: cuda:0
+  dtype: float32
+  height: 256
+  width: 256
+  input_channels: 1
+  output_channels: 2
+  load_strict: true
+  is_freeze: false
+  finetune_rate: 1
+  stn_rate: 0.1
+  grad_rate: 0.0
+  stn_mode: 3
+  radius: 50
+  channels_down:
+  - 8
+  - 8
+  - 16
+  - 32
+  - 64
+  - 128
+  channels_up:
+  - 8
+  - 16
+  - 32
+  - 64
+  - 128
+  is_skip: true
+dataset:
+  data_dir: img/generated
+  test_data_dir: img/gen2
+  masked_size: 64
+  is_augment: false
+  augment_rotation: 180
+  augment_scale:
+  - 0.5
+  - 2
+  augment_translate:
+  - 0.5
+  - 0.5
+  is_soft_label: true
+  pin_memory: false
+  num_workers: 1
+recorder:
+  log_dir: ''
+  log_base_dir: runs
+  comment: ''
+  is_add_graph: true
+run:
+  checkpoint_path: ''
+  version: '0.0'
+  total_epoches: 1
+  batch_size: 64
+  weight_norm: 1.0e-05
+  moments: 0.9
+  lr: 0.0001
+  lr_decay_rate: 0.5
+  lr_decay_steps:
+  - 50
+  - 100

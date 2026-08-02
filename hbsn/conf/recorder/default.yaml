@@ -1,0 +1,5 @@
+# 记录器默认值
+log_dir: ""
+log_base_dir: runs
+comment: ""
+is_add_graph: false
