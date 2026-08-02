@@ -87,7 +87,8 @@ def evaluate(model: str, checkpoint_path: str, sets: list[str] | None = None, **
             img = img.to(net.config.device, dtype=torch_dtype(net.config))
             mask = mask.to(net.config.device, dtype=torch_dtype(net.config))
 
-            predict_mask, _ = net(img)
+            # 模型返回 (predict_mask, hbs[, others])——tpsn 等返回 3 元组
+            predict_mask = net(img)[0]
             hard = net.get_hard_mask(predict_mask)
             f1, iou = net.get_metrics(hard, mask)
             results.append(torch.stack([f1, iou], dim=1).cpu().numpy())
