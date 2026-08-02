@@ -75,7 +75,7 @@ class MaskRCNN(SegHBSNNet):
         detections = self.roi_heads(features, proposals, images.image_sizes)
         detections = self.postprocess(detections, images.image_sizes)
 
-        masks = [x["masks"][: self.select_num].squeeze(1) for x in detections]
+        masks = [x["masks"][: self.config.select_num].squeeze(1) for x in detections]
         masks = [
             F.pad(
                 x,
@@ -84,12 +84,11 @@ class MaskRCNN(SegHBSNNet):
             for x in masks
         ]
         masks = torch.stack(masks)
-        if str(masks.device) != str(self.device):
-            masks = masks.to(self.config.device, dtype=self.config.dtype)
+        masks = masks.to(self.config.device, dtype=self.config.dtype)
 
         weight = [
             torch.stack([x["labels"].float(), x["scores"]], dim=1)[
-                : self.select_num
+                : self.config.select_num
             ]
             for x in detections
         ]
@@ -98,8 +97,7 @@ class MaskRCNN(SegHBSNNet):
             for x in weight
         ]
         weight = torch.stack(weight)
-        if str(weight.device) != str(self.device):
-            weight = weight.to(self.config.device, dtype=self.config.dtype)
+        weight = weight.to(self.config.device, dtype=self.config.dtype)
 
         weight = self.weight_layer(weight)
         masks = self.mask_conv(masks * weight.unsqueeze(3))

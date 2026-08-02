@@ -37,8 +37,8 @@ class HBSNet(BaseNet):
             torch.arange(self.config.output_height),
             indexing="ij",
         )
-        x = (x - self.config.output_height / 2) / r
-        y = (y - self.config.output_width / 2) / r
+        x = (x - self.config.output_width / 2) / r
+        y = (y - self.config.output_height / 2) / r
         mask = (x**2 + y**2) <= 1
         mask.requires_grad = False
         mask = mask.to(self.config.device)
@@ -62,7 +62,7 @@ class HBSNet(BaseNet):
             double_stn_predict, double_theta = self.post_stn(predict)
             stn_loss = F.mse_loss(double_stn_predict, predict, reduction="mean")
         else:
-            stn_loss = Tensor(0.0)
+            stn_loss = predict.new_zeros(())
 
         output_data: Tuple[Tensor, Tensor] = (predict, ground_truth)
         predict_grad = torch.cat(torch.gradient(predict, dim=(2, 3)), dim=1)

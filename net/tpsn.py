@@ -33,8 +33,9 @@ def unpad_image(pad_img):
 class BCLossFunc(torch.nn.Module):
     def __init__(self, size):
         super(BCLossFunc, self).__init__()
-        self.hx1 = torch.tensor(2.0 / size[0])
-        self.hx2 = torch.tensor(2.0 / size[1])
+        # non-persistent buffers: moved by .to(device), never in state_dict
+        self.register_buffer("hx1", torch.tensor(2.0 / size[0]), persistent=False)
+        self.register_buffer("hx2", torch.tensor(2.0 / size[1]), persistent=False)
 
     def forward(self, mapping):
         eps = 1e-8
@@ -80,8 +81,8 @@ class LAPLossFunc(torch.nn.Module):
             .unsqueeze(0)
         )
         self.weight = torch.nn.Parameter(data=kernel, requires_grad=False)
-        self.hx1 = torch.tensor(2.0 / size[0])
-        self.hx2 = torch.tensor(2.0 / size[1])
+        self.register_buffer("hx1", torch.tensor(2.0 / size[0]), persistent=False)
+        self.register_buffer("hx2", torch.tensor(2.0 / size[1]), persistent=False)
 
     def forward(self, x):
         x1 = x[:, 0, :, :]

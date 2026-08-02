@@ -93,6 +93,7 @@ class STN(nn.Module):
 
         if self.stn_mode == 0:
             p = loc.view(-1, 2, 3)
+            theta = p  # full affine params; unused downstream (loss uses predict only)
         else:
             if self.stn_mode == 1:
                 theta, scale, dx, dy = loc.split(1, dim=1)

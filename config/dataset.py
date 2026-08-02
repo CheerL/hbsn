@@ -11,7 +11,11 @@ class BaseDatasetConfig(BaseConfig):
     augment_scale = [0.8, 1.2]
     augment_translate = [0.1, 0.1]
     is_soft_label = True
-    pin_memory = True
+    # pin_memory=True 在 WSL2 + torch 2.13 下 CachingHostAllocator 不复用，
+    # 主进程 RSS 以 ~36MB/迭代 无界增长（本机 15GB 内存会 OOM）。
+    # 实测 pin_memory=False 时内存有界封顶。可显式改回 True 以换取传输速度。
+    pin_memory = False
+    num_workers = 4
 
     @property
     def augment(self):

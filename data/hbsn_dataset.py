@@ -1,3 +1,4 @@
+import functools
 import os
 from genericpath import exists
 
@@ -10,6 +11,7 @@ from data.base import BaseDataset
 from data.custom_transform import BoundedRandomAffine, SoftLabel
 
 
+@functools.lru_cache(maxsize=128)
 def load_data(file_path):
     image_path = file_path
     hbs_path = file_path.replace(".png", ".mat")
@@ -41,7 +43,6 @@ class HBSNDataset(BaseDataset):
                 and exists(f"{self.data_dir}/{file.replace('.png', '.mat')}")
             ]
         )
-        self.data = {}
         self.num_sample = len(self.data_list)
 
         # Base Transforms
@@ -106,11 +107,8 @@ class HBSNDataset(BaseDataset):
 
     def __getitem__(self, index):
         file_name = self.data_list[index]
-        if file_name not in self.data:
-            image, hbs = load_data(file_name)
-            self.data[file_name] = (image, hbs)
-        else:
-            image, hbs = self.data[file_name]
+        # ponytail: bounded cache on load_data; remove entirely once .npy path lands (Phase C)
+        image, hbs = load_data(file_name)
 
         if self.config.masked_size > 0:
             hbs = hbs[

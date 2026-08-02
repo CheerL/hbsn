@@ -85,7 +85,7 @@ class SegHBSNNet(BaseNet):
             mse_loss
             + self.config.dice_rate * dice_loss
             + self.config.iou_rate * iou_loss
-            + self.hbs_loss_rate * hbs_loss_dict["loss"]
+            + self.config.hbs_loss_rate * hbs_loss_dict["loss"]
         )
 
         loss_dict: Dict[str, Tensor] = {
