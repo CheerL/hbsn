@@ -119,12 +119,3 @@ def install() -> None:
         for class_name, cls in names.items():
             setattr(module, class_name, cls)
         sys.modules[module_name] = module
-
-
-def install() -> None:
-    """在 torch.load 之前调用。"""
-    for module_name, names in LEGACY_MODULES.items():
-        module = types.ModuleType(module_name)
-        for class_name, cls in names.items():
-            setattr(module, class_name, cls)
-        sys.modules[module_name] = module

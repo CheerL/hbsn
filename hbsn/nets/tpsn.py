@@ -2,12 +2,10 @@
 
 state_dict 键：model.Net.* / lap_loss.weight / hbsn.*。
 """
-from typing import Dict, Tuple
 
 import torch
 import torch.nn.functional as F
 
-from hbsn.nets.hbsn import HBSNet
 from hbsn.nets.segmentation import SegHBSNNet
 from hbsn.nets.unet import UNet2D as UNet
 
@@ -129,9 +127,9 @@ class TPSN(SegHBSNNet):
 
     def loss(
         self,
-        predict: Tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+        predict: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
         ground_truth: torch.Tensor,
-    ) -> Tuple[Dict[str, torch.Tensor], Tuple[torch.Tensor, ...]]:
+    ) -> tuple[dict[str, torch.Tensor], tuple[torch.Tensor, ...]]:
         predict_mask, predict_hbs, (predict_pad_mask, predict_pad_mapping) = predict
         mse_loss = F.mse_loss(predict_pad_mask, pad_image(ground_truth))
         f1, iou = self.get_metrics(self.binarize_mask(predict_mask), ground_truth)
@@ -152,7 +150,7 @@ class TPSN(SegHBSNNet):
             raise ValueError("QC loss is infinite")
         elif lap_loss == torch.inf:
             raise ValueError("LAP loss is infinite")
-        elif qc_loss == torch.nan or lap_loss == torch.nan:
+        elif torch.isnan(qc_loss) or torch.isnan(lap_loss):
             raise ValueError("QC or LAP loss is nan")
 
         loss = (
@@ -182,4 +180,4 @@ class TPSN(SegHBSNNet):
 
     def initialize(self):
         super().initialize()
-        self.model.zero_initalization()
+        self.model.zero_initialization()
