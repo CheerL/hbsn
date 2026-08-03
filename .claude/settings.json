@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "//": "项目级 Claude Code 设置（python/ 为 git 仓库根）。常用命令白名单——即使在全局 bypass 模式下也显式声明，便于在受限环境/其他机器上直接可用。",
+  "permissions": {
+    "allow": [
+      "uv run python -m pytest",
+      "uv run python -m hbsn.train",
+      "uv run python scripts/*.py",
+      "uv run python tools/*.py",
+      "uv run ruff check",
+      "uv run ruff format",
+      "uv pip install",
+      "uv pip sync",
+      "uv venv",
+      "uv run python -c *",
+      "git add",
+      "git commit",
+      "git push",
+      "git pull",
+      "git status",
+      "git diff",
+      "git log",
+      "git branch",
+      "git checkout"
+    ],
+    "deny": []
+  }
+}
