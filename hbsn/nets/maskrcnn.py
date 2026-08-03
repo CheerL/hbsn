@@ -129,7 +129,7 @@ class MaskRCNN(SegHBSNNet):
 
             labels = [r["labels"] for r in result]
             masks_probs = maskrcnn_inference(mask_logits, labels)
-            for mask_prob, r in zip(masks_probs, result):
+            for mask_prob, r in zip(masks_probs, result, strict=True):
                 r["masks"] = mask_prob
 
         if (
@@ -152,7 +152,7 @@ class MaskRCNN(SegHBSNNet):
             keypoints_probs, kp_scores = keypointrcnn_inference(
                 keypoint_logits, keypoint_proposals
             )
-            for keypoint_prob, kps, r in zip(keypoints_probs, kp_scores, result):
+            for keypoint_prob, kps, r in zip(keypoints_probs, kp_scores, result, strict=True):
                 r["keypoints"] = keypoint_prob
                 r["keypoints_scores"] = kps
 
@@ -163,7 +163,7 @@ class MaskRCNN(SegHBSNNet):
         result: list[dict[str, torch.Tensor]],
         image_shapes: list[tuple[int, int]],
     ) -> list[dict[str, torch.Tensor]]:
-        for i, (pred, im_s) in enumerate(zip(result, image_shapes)):
+        for i, (pred, im_s) in enumerate(zip(result, image_shapes, strict=True)):
             o_im_s = (self.config.height, self.config.width)
             boxes = pred["boxes"]
             boxes = resize_boxes(boxes, im_s, o_im_s)

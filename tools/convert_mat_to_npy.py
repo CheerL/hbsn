@@ -37,7 +37,7 @@ def convert_one(mat_path: str) -> tuple[str, str]:
         os.replace(tmp, npy_path)  # atomic publish
         digest = hashlib.sha256(npy_path.read_bytes()).hexdigest()
         return str(mat_path), digest
-    except Exception as e:  # noqa: BLE001 - one corrupt file must not kill the batch
+    except Exception as e:  # one corrupt file must not kill the batch
         print(f"ERROR {mat_path}: {e}", flush=True)
         return str(mat_path), "ERROR"
 

@@ -79,15 +79,14 @@ class CocoDataset(BaseDataset):
                 len(anns) > 0 and anns[0]["area"] > self.config.min_area
                 for anns in self.anns
             ]
-            self.anns = [a for a, keep in zip(self.anns, filter_list) if keep]
-            self.img_ids = [i for i, keep in zip(self.img_ids, filter_list) if keep]
-            self.files = [f for f, keep in zip(self.files, filter_list) if keep]
+            self.anns = [a for a, keep in zip(self.anns, filter_list, strict=True) if keep]
+            self.img_ids = [i for i, keep in zip(self.img_ids, filter_list, strict=True) if keep]
+            self.files = [f for f, keep in zip(self.files, filter_list, strict=True) if keep]
 
         self.transform = Compose(self._transform_list())
         if self.config.is_augment and not is_test:
             self.augment_transform = Compose(
-                [ToTensor(), RandomFlip(), RandomRotation(self.config.augment_rotation, expand=True)]
-                + self._transform_list()[1:]
+                [ToTensor(), RandomFlip(), RandomRotation(self.config.augment_rotation, expand=True), *self._transform_list()[1:]]
             )
 
         logger.info(f"Dataset contains {len(self)} images")

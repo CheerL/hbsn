@@ -96,7 +96,7 @@ class Recorder(SummaryWriter):
                     dtype=torch_dtype(net.config),
                 )
                 self.add_graph(net, empty_input)
-            except Exception as e:  # noqa: BLE001 - add_graph 非关键路径，吞所有异常
+            except Exception as e:  # add_graph 非关键路径，吞所有异常
                 logger.error(f"Add graph error: {e}")
 
     def add_loss(self, epoch, iteration, loss_dict, is_train=True):
