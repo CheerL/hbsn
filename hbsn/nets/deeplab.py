@@ -1,6 +1,6 @@
 """DeepLabV3(ResNet50) + mask_conv 分割头。state_dict 键：model.* / mask_conv.*。"""
 import torch
-import torch.nn as nn
+from torch import nn
 from torchvision.models.segmentation import (
     DeepLabV3_ResNet50_Weights,
     deeplabv3_resnet50,

@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Dataset, Subset, random_split
 
-RANDOM_SEED = 960717  # 与 train.RANDOM_SEED 保持一致
+RANDOM_SEED = 960717  # train.py 从这里 import，保证 split/worker/全局种子一致
 
 
 def worker_init_fn(worker_id: int) -> None:

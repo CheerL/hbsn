@@ -1,8 +1,7 @@
 """BaseNet：统一的 save/load/initialize/参数分组逻辑。"""
-from typing import Dict, Tuple
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 
 def torch_dtype(config) -> torch.dtype:
@@ -34,7 +33,7 @@ class BaseNet(nn.Module):
 
     def loss(
         self, predict, ground_truth
-    ) -> Tuple[Dict[str, torch.Tensor], Tuple[torch.Tensor, ...]]:
+    ) -> tuple[dict[str, torch.Tensor], tuple[torch.Tensor, ...]]:
         raise NotImplementedError()
 
     def initialize(self):

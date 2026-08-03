@@ -2,7 +2,6 @@
 
 state_dict 键：pre_stn.* / post_stn.* / backbone.*（mask 为非持久 buffer，不入键）。
 """
-from typing import Dict, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
@@ -18,8 +17,8 @@ class HBSNet(BaseNet):
         self,
         config,
         backbone: UNet,
-        pre_stn: Optional[STN] = None,
-        post_stn: Optional[STN] = None,
+        pre_stn: STN | None = None,
+        post_stn: STN | None = None,
     ):
         super().__init__(config)
         self.pre_stn = pre_stn
@@ -54,7 +53,7 @@ class HBSNet(BaseNet):
 
     def loss(
         self, predict: Tensor, ground_truth: Tensor, is_mask=True
-    ) -> Tuple[Dict[str, Tensor], Tuple[Tensor, Tensor]]:
+    ) -> tuple[dict[str, Tensor], tuple[Tensor, Tensor]]:
         if self.post_stn:
             ground_truth, _ = self.post_stn(ground_truth)
             double_stn_predict, _ = self.post_stn(predict)
@@ -62,7 +61,7 @@ class HBSNet(BaseNet):
         else:
             stn_loss = predict.new_zeros(())
 
-        output_data: Tuple[Tensor, Tensor] = (predict, ground_truth)
+        output_data: tuple[Tensor, Tensor] = (predict, ground_truth)
         predict_grad = torch.cat(torch.gradient(predict, dim=(2, 3)), dim=1)
         ground_truth_grad = torch.cat(torch.gradient(ground_truth, dim=(2, 3)), dim=1)
 
@@ -80,7 +79,7 @@ class HBSNet(BaseNet):
             + self.config.stn_rate * stn_loss
             + self.config.grad_rate * grad_loss
         )
-        loss_dict: Dict[str, Tensor] = {
+        loss_dict: dict[str, Tensor] = {
             "loss": loss,
             "hbs_loss": hbs_loss,
             "stn_loss": stn_loss,

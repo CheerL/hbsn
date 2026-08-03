@@ -3,7 +3,7 @@
 手抄了 torchvision 0.28 的内部推理链（rpn/roi_heads/postprocess）——
 升级 torchvision 前必须核对，state_dict 键：model.* / weight_layer.* / mask_conv.*。
 """
-from typing import Dict, List, OrderedDict, Tuple
+from collections import OrderedDict
 
 import torch
 from torch import nn
@@ -76,7 +76,7 @@ class MaskRCNN(SegHBSNNet):
         masks = self.mask_conv(masks * weight.unsqueeze(3))
         return masks
 
-    def rpn(self, images, features: Dict[str, torch.Tensor]) -> List[torch.Tensor]:
+    def rpn(self, images, features: dict[str, torch.Tensor]) -> list[torch.Tensor]:
         features = list(features.values())
         objectness, pred_bbox_deltas = self.model.rpn.head(features)
         anchors = self.model.rpn.anchor_generator(images, features)
@@ -101,15 +101,15 @@ class MaskRCNN(SegHBSNNet):
 
     def roi_heads(
         self,
-        features: Dict[str, torch.Tensor],
-        proposals: List[torch.Tensor],
-        image_shapes: List[Tuple[int, int]],
+        features: dict[str, torch.Tensor],
+        proposals: list[torch.Tensor],
+        image_shapes: list[tuple[int, int]],
     ):
         box_features = self.model.roi_heads.box_roi_pool(features, proposals, image_shapes)
         box_features = self.model.roi_heads.box_head(box_features)
         class_logits, box_regression = self.model.roi_heads.box_predictor(box_features)
 
-        result: List[Dict[str, torch.Tensor]] = []
+        result: list[dict[str, torch.Tensor]] = []
         boxes, scores, labels = self.model.roi_heads.postprocess_detections(
             class_logits, box_regression, proposals, image_shapes
         )
@@ -125,7 +125,7 @@ class MaskRCNN(SegHBSNNet):
                 mask_features = self.model.roi_heads.mask_head(mask_features)
                 mask_logits = self.model.roi_heads.mask_predictor(mask_features)
             else:
-                raise Exception("Expected mask_roi_pool to be not None")
+                raise ValueError("Expected mask_roi_pool to be not None")
 
             labels = [r["labels"] for r in result]
             masks_probs = maskrcnn_inference(mask_logits, labels)
@@ -160,9 +160,9 @@ class MaskRCNN(SegHBSNNet):
 
     def postprocess(
         self,
-        result: List[Dict[str, torch.Tensor]],
-        image_shapes: List[Tuple[int, int]],
-    ) -> List[Dict[str, torch.Tensor]]:
+        result: list[dict[str, torch.Tensor]],
+        image_shapes: list[tuple[int, int]],
+    ) -> list[dict[str, torch.Tensor]]:
         for i, (pred, im_s) in enumerate(zip(result, image_shapes)):
             o_im_s = (self.config.height, self.config.width)
             boxes = pred["boxes"]

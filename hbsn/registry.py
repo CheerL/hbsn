@@ -1,6 +1,5 @@
 """模型注册表：net/schema/dataset 三元组（取代旧 factory.py 的四合一 TYPE_DICT）。"""
 from dataclasses import dataclass
-from typing import Type
 
 from hbsn.config.schemas import (
     CocoDatasetSchema,
@@ -22,10 +21,10 @@ from hbsn.nets.unetpp import UnetPP
 @dataclass(frozen=True)
 class ModelSpec:
     name: str
-    net: Type
-    net_schema: Type
-    dataset: Type
-    dataset_schema: Type
+    net: type
+    net_schema: type
+    dataset: type
+    dataset_schema: type
 
 
 MODEL_REGISTRY: dict[str, ModelSpec] = {

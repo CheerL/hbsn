@@ -4,7 +4,7 @@
 有效区间内的数值行为与原实现一致。
 """
 import random
-from typing import Any, Dict
+from typing import Any
 
 import torch
 from torch import Tensor
@@ -46,8 +46,8 @@ class BoundedRandomAffine(transforms.RandomAffine):
             scaled_max_dis = scale * max_dis
             max_dx = min(float(self.translate[0] * width), width / 2 - scaled_max_dis)
             max_dy = min(float(self.translate[1] * height), height / 2 - scaled_max_dis)
-            tx = int(round(torch.empty(1).uniform_(-max_dx, max_dx).item()))
-            ty = int(round(torch.empty(1).uniform_(-max_dy, max_dy).item()))
+            tx = round(torch.empty(1).uniform_(-max_dx, max_dx).item())
+            ty = round(torch.empty(1).uniform_(-max_dy, max_dy).item())
             translations = (tx, ty)
         else:
             translations = (0, 0)
@@ -106,7 +106,7 @@ class SoftLabel(Transform):
 
 
 class BoundedRandomCrop(transforms.RandomCrop):
-    def get_params(self, mask) -> Dict[str, Any]:
+    def get_params(self, mask) -> dict[str, Any]:
         cropped_height, cropped_width = self.size
 
         _, mask_y, mask_x = torch.where(mask > 0.5)
@@ -114,12 +114,12 @@ class BoundedRandomCrop(transforms.RandomCrop):
             # 空 mask：退化为随机裁剪（原实现 torch.where 空张量 .min() 崩溃）
             top = int(torch.randint(0, max(1, mask.shape[-2] - cropped_height + 1), size=()))
             left = int(torch.randint(0, max(1, mask.shape[-1] - cropped_width + 1), size=()))
-            return dict(
-                needs_crop=True, top=top, left=left,
-                height=cropped_height, width=cropped_width,
-                needs_pad=False, padding=[0, 0, 0, 0],
-                needs_resize=False, resize_size=None,
-            )
+            return {
+                "needs_crop": True, "top": top, "left": left,
+                "height": cropped_height, "width": cropped_width,
+                "needs_pad": False, "padding": [0, 0, 0, 0],
+                "needs_resize": False, "resize_size": None,
+            }
 
         mask_width_min = mask_x.min().item()
         mask_width_max = mask_x.max().item()
@@ -208,17 +208,17 @@ class BoundedRandomCrop(transforms.RandomCrop):
             if padded_width > cropped_width
             else (False, 0)
         )
-        return dict(
-            needs_crop=needs_vert_crop or needs_horz_crop,
-            top=top,
-            left=left,
-            height=cropped_height,
-            width=cropped_width,
-            needs_pad=needs_pad,
-            padding=padding,
-            needs_resize=needs_resize,
-            resize_size=resize_size,
-        )
+        return {
+            "needs_crop": needs_vert_crop or needs_horz_crop,
+            "top": top,
+            "left": left,
+            "height": cropped_height,
+            "width": cropped_width,
+            "needs_pad": needs_pad,
+            "padding": padding,
+            "needs_resize": needs_resize,
+            "resize_size": resize_size,
+        }
 
     def forward(self, inpt) -> Any:
         image, mask = inpt

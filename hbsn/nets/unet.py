@@ -8,8 +8,7 @@ ConvBlock/DownConv，仅避免与 UNet 版同名冲突）。
 """
 
 import torch
-import torch.nn as nn
-
+from torch import nn
 
 # ---------------------------------------------------------------- UNet 版（带 BN）
 
@@ -184,12 +183,12 @@ class OutConv(nn.Module):
         self.conv = nn.Conv2d(in_channels, out_channels, kernel_size=1)
         self.conv.weight.data.zero_()
         self.conv.bias.data.zero_()
-        self.acit = nn.Sigmoid() if is_seg else None
+        self.activation = nn.Sigmoid() if is_seg else None
 
     def forward(self, x):
         x = self.conv(x)
-        if self.acit is not None:
-            x = self.acit(x)
+        if self.activation is not None:
+            x = self.activation(x)
         return x
 
 
@@ -219,6 +218,6 @@ class UNet2D(nn.Module):
     def forward(self, x):
         return self.Net(x)
 
-    def zero_initalization(self):
+    def zero_initialization(self):
         self.Net[-2].conv.weight.data.zero_()
         self.Net[-2].conv.bias.data.zero_()

@@ -70,7 +70,7 @@ class HBSNDataset(BaseDataset):
             image, hbs = self[0]
             image, hbs = self.transform((image, hbs))
             C_image, H_image, W_image = image.shape
-            C_hbs, H_hbs, W_hbs = hbs.shape
+            C_hbs, _, _ = hbs.shape
             assert C_image == 1, "Image channel should be 1"
             assert C_hbs == 2, "HBS channel should be 2"
 

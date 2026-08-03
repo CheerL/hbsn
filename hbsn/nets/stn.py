@@ -1,7 +1,7 @@
 """空间变换网络（STN）。state_dict 键：localization/fc_loc1/fc_loc2/fc_loc。"""
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 
 class STN(nn.Module):

@@ -1,10 +1,10 @@
 """CocoDataset：COCO 分割数据（图片 + 实例掩码）。"""
 import functools
 import os
-from typing import Tuple
 
 import numpy as np
 import torch
+from loguru import logger
 from pycocotools.coco import COCO
 from torchvision import io
 from torchvision.transforms import Compose
@@ -33,7 +33,7 @@ class CocoDataset(BaseDataset):
             raise FileNotFoundError("Test data directory or annotation path not found")
 
         self.coco: COCO = COCO(self.annotation_path)
-        print(f"Loading {self.annotation_path}...")
+        logger.info(f"Loading {self.annotation_path}...")
 
         # cat ids
         self.cat_ids = (
@@ -90,12 +90,12 @@ class CocoDataset(BaseDataset):
                 + self._transform_list()[1:]
             )
 
-        print(f"Dataset contains {len(self)} images")
+        logger.info(f"Dataset contains {len(self)} images")
 
     def __len__(self) -> int:
         return len(self.files)
 
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor]:
+    def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor]:
         # annToMask 结果按 img_id 缓存（有界，掩码构建与 anns 内容一一对应）
         ann_ids = tuple(sorted(ann["id"] for ann in self.anns[idx]))
         mask = self._anns_to_mask(self.coco, ann_ids).unsqueeze(0)
@@ -107,7 +107,7 @@ class CocoDataset(BaseDataset):
 
     @staticmethod
     @functools.lru_cache(maxsize=512)
-    def _anns_to_mask(coco: COCO, ann_ids: Tuple[int, ...]) -> torch.Tensor:
+    def _anns_to_mask(coco: COCO, ann_ids: tuple[int, ...]) -> torch.Tensor:
         anns = [coco.loadAnns([ann_id])[0] for ann_id in ann_ids]
         return torch.LongTensor(np.max(np.stack([coco.annToMask(ann) for ann in anns]), axis=0))
 

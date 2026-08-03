@@ -18,12 +18,6 @@ class BaseNetSchema:
     is_freeze: bool = False
     finetune_rate: float = 1
 
-    @property
-    def torch_dtype(self):
-        import torch
-
-        return getattr(torch, self.dtype)
-
 
 @dataclass
 class HBSNetSchema(BaseNetSchema):
@@ -34,16 +28,6 @@ class HBSNetSchema(BaseNetSchema):
     channels_down: list = field(default_factory=lambda: [8, 8, 16, 32, 64, 128])
     channels_up: list = field(default_factory=lambda: [8, 16, 32, 64, 128])
     is_skip: bool = True
-
-    @property
-    def output_height(self) -> int:
-        rate = 2 ** (len(self.channels_up) - len(self.channels_down))
-        return int(self.height * rate)
-
-    @property
-    def output_width(self) -> int:
-        rate = 2 ** (len(self.channels_up) - len(self.channels_down))
-        return int(self.width * rate)
 
 
 @dataclass

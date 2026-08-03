@@ -2,7 +2,6 @@
 
 state_dict 键：hbsn.*（子网）+ 各子类 model.* / mask_conv.* / weight_layer.*。
 """
-from typing import Dict, List, Tuple
 
 import torch
 from torch import Tensor
@@ -17,7 +16,7 @@ def net_config_from_checkpoint(checkpoint) -> dict:
     旧格式为 pickle 的 Config 对象（含 net_config 属性）。"""
     cfg = checkpoint.get("config")
     if isinstance(cfg, dict):
-        return cfg["net"] if "net" in cfg else cfg
+        return cfg.get("net", cfg)
     return cfg.net_config
 
 
@@ -31,10 +30,10 @@ class SegHBSNNet(BaseNet):
     def build_model(self):
         raise NotImplementedError("build_model not implemented")
 
-    def model_forward(self, img: Tensor) -> Tensor | List[Tensor]:
+    def model_forward(self, img: Tensor) -> Tensor | list[Tensor]:
         raise NotImplementedError("model_forward not implemented")
 
-    def forward(self, img: Tensor) -> Tuple[Tensor, Tensor] | Tuple[Tensor, Tensor, List[Tensor]]:
+    def forward(self, img: Tensor) -> tuple[Tensor, Tensor] | tuple[Tensor, Tensor, list[Tensor]]:
         results = self.model_forward(img)
         if isinstance(results, Tensor):
             predict_mask = results
@@ -62,8 +61,8 @@ class SegHBSNNet(BaseNet):
         return f1, iou
 
     def loss(
-        self, predict: Tuple[Tensor, Tensor], ground_truth: Tensor
-    ) -> Tuple[Dict[str, Tensor], Tuple[Tensor, Tensor, Tensor]]:
+        self, predict: tuple[Tensor, Tensor], ground_truth: Tensor
+    ) -> tuple[dict[str, Tensor], tuple[Tensor, Tensor, Tensor]]:
         predict_mask, predict_hbs = predict
         mse_loss = F.mse_loss(predict_mask, ground_truth)
         f1, iou = self.get_metrics(self.binarize_mask(predict_mask), ground_truth)
@@ -84,14 +83,14 @@ class SegHBSNNet(BaseNet):
             + self.config.hbs_loss_rate * hbs_loss_dict["loss"]
         )
 
-        loss_dict: Dict[str, Tensor] = {
+        loss_dict: dict[str, Tensor] = {
             "loss": loss,
             "mse_loss": mse_loss,
             "dice": f1,
             "iou": iou,
             "hbs_loss": hbs_loss_dict["hbs_loss"],
         }
-        output_data: Tuple[Tensor, Tensor, Tensor] = (
+        output_data: tuple[Tensor, Tensor, Tensor] = (
             predict_mask,
             predict_hbs,
             ground_truth_hbs,
@@ -109,7 +108,7 @@ class SegHBSNNet(BaseNet):
     @classmethod
     def factory(cls, config):
         if config.hbsn_checkpoint:
-            hbsn_checkpoint, hbsn_config, _, _, _ = BaseNet.load_model(
+            hbsn_checkpoint, _, _, _, _ = BaseNet.load_model(
                 config.hbsn_checkpoint, config.device
             )
             hbsn = HBSNet.factory(net_config_from_checkpoint(hbsn_checkpoint))

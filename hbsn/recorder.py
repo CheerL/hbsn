@@ -8,7 +8,6 @@
 """
 import os
 from datetime import datetime
-from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -61,7 +60,7 @@ class Recorder(SummaryWriter):
         if self.config.log_dir:
             self.log_dir = self.config.log_dir
         else:
-            current_time = datetime.now().strftime("%b%d_%H-%M-%S")
+            current_time = datetime.now().astimezone().strftime("%b%d_%H-%M-%S")
             self.log_dir = os.path.join(self.config.log_base_dir, current_time)
             if self.config.comment:
                 self.log_dir += f"_{self.config.comment}"
@@ -71,13 +70,13 @@ class Recorder(SummaryWriter):
         if not os.path.exists(self.checkpoint_dir):
             os.makedirs(self.checkpoint_dir)
 
-    def init_recorder(self, config_dict: Dict[str, str], net=None):
+    def init_recorder(self, config_dict: dict[str, str], net=None):
         config_info = "\n\t".join(
             f"{k}: {v}" for k, v in config_dict.items()
         )
         logger.info(f"Start training with config:\n\t{config_info}")
 
-        max_width = max([len(s) for s in config_dict.keys()]) * 0.1
+        max_width = max([len(s) for s in config_dict]) * 0.1
         max_height = len(config_dict) * 0.25
         fig = plt.figure(figsize=(max_width, max_height), dpi=100)
         plt.text(
@@ -97,7 +96,7 @@ class Recorder(SummaryWriter):
                     dtype=torch_dtype(net.config),
                 )
                 self.add_graph(net, empty_input)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - add_graph 非关键路径，吞所有异常
                 logger.error(f"Add graph error: {e}")
 
     def add_loss(self, epoch, iteration, loss_dict, is_train=True):

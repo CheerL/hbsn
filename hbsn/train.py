@@ -6,7 +6,6 @@
 """
 import os
 import random
-from typing import Tuple
 
 import numpy as np
 import torch
@@ -16,16 +15,16 @@ from loguru import logger
 from omegaconf import DictConfig, OmegaConf
 
 from hbsn.config import RecorderSchema, RunSchema, validate_config
+from hbsn.data.dataset import RANDOM_SEED
 from hbsn.nets.base import BaseNet, torch_dtype
 from hbsn.recorder import Recorder
 from hbsn.registry import get_spec, resolve_model_name
 
-RANDOM_SEED = 960717
 IMAGE_INTERVAL = 20
 CHECKPOINT_INTERVAL = 5
 
 
-def run(net: BaseNet, input_data: Tuple[torch.Tensor, torch.Tensor]):
+def run(net: BaseNet, input_data: tuple[torch.Tensor, torch.Tensor]):
     img, ground_truth = input_data
     img = img.to(net.config.device, dtype=torch_dtype(net.config))
     ground_truth = ground_truth.to(net.config.device, dtype=torch_dtype(net.config))
@@ -36,8 +35,12 @@ def run(net: BaseNet, input_data: Tuple[torch.Tensor, torch.Tensor]):
 
 
 def epoch_run(net, dataloader, optimizer, recorder, epoch, is_train=True):
-    net.train() if is_train else net.eval()
-    with torch.no_grad() if not is_train else torch.enable_grad():
+    if is_train:
+        net.train()
+    else:
+        net.eval()
+
+    with torch.enable_grad() if is_train else torch.no_grad():
         for iteration, input_data in enumerate(dataloader):
             loss_dict, output_data = run(net, input_data)
             recorder.add_loss(epoch, iteration, loss_dict, is_train)

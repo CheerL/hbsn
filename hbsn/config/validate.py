@@ -1,10 +1,13 @@
 """跨字段配置校验：compose 后立即执行，配错立即报错而不是静默带病训练。"""
+import os
+
 from omegaconf import DictConfig, OmegaConf
 
 from hbsn.config.schemas import CocoDatasetSchema, HbsnDatasetSchema
 
 
-def validate_config(cfg: DictConfig, net_schema_cls, dataset_schema_cls) -> None:
+def validate_config(cfg: DictConfig, net_schema_cls, dataset_schema_cls) -> tuple:
+    """合并 + 跨字段校验，返回 (merged_net, merged_dataset)。"""
     # 类型化合并：未知 key 在 OmegaConf.structured 合并时抛 ValidationError
     merged_net = OmegaConf.merge(OmegaConf.structured(net_schema_cls), cfg.net)
     merged_dataset = OmegaConf.merge(
@@ -29,15 +32,11 @@ def validate_config(cfg: DictConfig, net_schema_cls, dataset_schema_cls) -> None
             f"输入 {net.height} 裁剪后 {net.height - 2 * dataset.masked_size}，"
             f"但网络输出 {output_height}"
         )
-        import os
-
         for d in (dataset.data_dir, dataset.test_data_dir):
             if d:
                 assert os.path.isdir(d), f"data_dir 不存在: {d}"
 
     if dataset_schema_cls is CocoDatasetSchema:
-        import os
-
         assert os.path.isfile(dataset.annotation_path), (
             f"annotation_path 不存在: {dataset.annotation_path}"
         )

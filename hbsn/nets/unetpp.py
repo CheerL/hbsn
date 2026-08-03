@@ -1,6 +1,6 @@
 """UnetPlusPlus(smp, resnet50) 分割头。state_dict 键：model.*（smp 0.3.3 键集）。"""
 import segmentation_models_pytorch as smp
-import torch.nn as nn
+from torch import nn
 
 from hbsn.nets.segmentation import SegHBSNNet
 
