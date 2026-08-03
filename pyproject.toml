@@ -26,7 +26,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6"]
+dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6"]
 
 [project.scripts]
 hbsn-train = "hbsn.train:main"
@@ -36,3 +36,5 @@ packages = ["hbsn"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# 覆盖门禁：hbsn 包 ≥80%；缺失行在 term-missing 里列出
+addopts = "--cov=hbsn --cov-report=term-missing --cov-fail-under=80"

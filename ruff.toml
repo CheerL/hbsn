@@ -1,1 +1,29 @@
+# ruff 规则：科学代码库的务实集合
+# - E/F/W: pycodestyle + pyflakes 基础
+# - I: import 排序
+# - UP: PEP585/604 类型现代化（本仓库已全部应用 list[int]/X | None）
+# - B/SIM/C4/RUF: bugbear / simplify / comprehension / ruff 专属
 line-length = 80
+target-version = "py310"
+
+[lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes（未使用变量/import）
+  "W",   # pycodestyle warnings
+  "I",   # isort
+  "UP",  # pyupgrade
+  "B",   # flake8-bugbear
+  "SIM", # flake8-simplify
+  "C4",  # unnecessary comprehensions
+  "RUF", # ruff-specific
+]
+ignore = [
+  "E501",  # 行宽由 formatter 管理（E501 与 line-length 重复）
+  "B008",  # 函数调用作为默认参数（dataclass field(default_factory=...) 合法场景）
+  "SIM108",  # 强制 if/else → 三元表达式（带注释的分支更可读，不改）
+  # 中文注释/文档字符串是常态，ambiguous-unicode 误报一切 CJK，不适用
+  "RUF001",  # ambiguous-unicode-character-string
+  "RUF002",  # ambiguous-unicode-character-docstring
+  "RUF003",  # ambiguous-unicode-character-comment
+]
