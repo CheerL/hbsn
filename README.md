@@ -47,8 +47,9 @@ python -m hbsn.train model=tpsn net.stn_mode=3 net.hbsn_checkpoint=runs/migrated
 ## 数据
 
 - `img/**/*.npy`：训练数据（float32 CHW (2,256,256)），由
-  `tools/convert_mat_to_npy.py` 从 `.mat`（float64，保留为权威备份）转换。
-  `.mat`/`.npy` 均不入 git、不随 Syncthing 同步（`.gitignore`/`.stignore`）。
+  `tools/convert_mat_to_npy.py` 从 `.mat`（float64）转换（本机 .mat 已删除，
+  远程服务器有备份）。`.npy` 为当前唯一本地数据，不入 git、不随 Syncthing
+  同步（`.gitignore`/`.stignore`）。
 - `coco/`：COCO 分割数据（本机 train2017 为空，默认配置指向 val2017）。
 - 数据生成：`tools/build_image.py`（合成形状图像）+ 旧版 MATLAB 工程（HBS 字段）。
 

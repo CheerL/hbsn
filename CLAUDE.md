@@ -33,8 +33,8 @@ tests/                15 个 pytest
    `hbsn/nets/base.py` 的 `torch_dtype()`/`output_size()` 辅助函数。
 4. **浮点等价验证**：GPU 训练轨迹不可逐位复现；以 iteration-0 一致 +
    分布一致为准（见 README「已知行为说明」）。
-5. **数据**：训练读 `.npy`（float32 CHW），`.mat` 是备份不删除；
-   `.mat`/`.npy` 都已被 git/Syncthing 排除。
+5. **数据**：训练读 `.npy`（float32 CHW）；`.mat` 源已删除（远程服务器
+   有备份），`.npy` 为唯一本地数据，均不入 git/Syncthing。
 6. 本机仅 15GB 内存：`pin_memory` 默认 false（WSL2 CachingHostAllocator
    无界增长）；DataLoader worker 内存 ~1.2GB/个。
 7. hydra 配置文件的完整默认值不可删（override 依赖 key 存在）。

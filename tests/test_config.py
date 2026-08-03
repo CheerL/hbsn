@@ -1,14 +1,15 @@
 """配置校验：未知 key 报错、跨字段约束。"""
 import pytest
 from omegaconf import OmegaConf
+from omegaconf.errors import ConfigKeyError
 
-from hbsn.config.schemas import HBSNetSchema, HbsnDatasetSchema
+from hbsn.config.schemas import HbsnDatasetSchema, HBSNetSchema
 from hbsn.config.validate import validate_config
 
 
 def test_unknown_key_raises():
     net_cfg = OmegaConf.create({"unknown_key": 1})
-    with pytest.raises(Exception):
+    with pytest.raises(ConfigKeyError):
         OmegaConf.merge(OmegaConf.structured(HBSNetSchema), net_cfg)
 
 

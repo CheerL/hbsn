@@ -1,7 +1,7 @@
 """Convert img/**/*.mat (MAT v5, single key `hbs`, float64 (H,W,2)) to float32 .npy (CHW).
 
 - Output: <same path>.npy, shape (2,H,W) float32, contiguous — the training format.
-- .mat files are NEVER deleted: they remain the authoritative backup.
+- .mat 是转换源；转换完成且确认 .npy 一致后可删除（本机已删，远程服务器有备份）。
 - Resumable: existing .npy files are skipped; writes are atomic (tmp + os.replace).
 - Manifest: <root>/manifest.json {mat_rel_path: sha256_of_npy} written after a full pass.
 
@@ -37,7 +37,7 @@ def convert_one(mat_path: str) -> tuple[str, str]:
         os.replace(tmp, npy_path)  # atomic publish
         digest = hashlib.sha256(npy_path.read_bytes()).hexdigest()
         return str(mat_path), digest
-    except Exception as e:  # one corrupt file must not kill the batch
+    except Exception as e:  # noqa: BLE001 - one corrupt file must not kill the batch
         print(f"ERROR {mat_path}: {e}", flush=True)
         return str(mat_path), "ERROR"
 

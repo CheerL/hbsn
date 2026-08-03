@@ -17,17 +17,15 @@ def test_hbsn_dataset_shapes():
     assert hbs.shape == (2, 128, 128)  # masked_size=64 裁剪后
 
 
-def test_hbsn_dataset_npy_values_match_mat():
-    """同一文件的 .npy 与 .mat（float32 转换后）逐位相等。"""
-    import scipy.io as sio
-
+def test_hbsn_dataset_npy_values():
+    """npy 数据健全性：float32、裁剪后形状、数值有限（.mat 已删除，无源对照）。"""
     cfg = HbsnDatasetSchema(data_dir="img/simple", test_data_dir="")
     dataset = HBSNDataset(cfg)
-    image, hbs = dataset[0]
-    mat_path = dataset.data_list[0].replace(".png", ".mat")
-    mat = sio.loadmat(mat_path)["hbs"].astype(np.float32).transpose(2, 0, 1)
+    _, hbs = dataset[0]
     assert hbs.dtype == np.float32
-    assert (hbs == mat[:, 64:-64, 64:-64]).all(), "npy 与 mat 值不一致"
+    assert hbs.shape == (2, 128, 128)  # masked_size=64 裁剪后
+    assert np.isfinite(hbs).all(), "npy 含 NaN/Inf"
+    assert hbs.std() > 0, "npy 全等值，疑似损坏"
 
 
 @pytest.mark.skipif(not __import__("os").path.exists("coco/annotations/instances_val2017.json"), reason="coco 数据缺失")
