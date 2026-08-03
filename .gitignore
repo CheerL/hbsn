@@ -17,3 +17,4 @@ coco
 
 # hydra 运行输出目录
 outputs/
+.coverage
