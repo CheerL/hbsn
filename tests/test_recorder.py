@@ -74,6 +74,12 @@ def test_init_recorder(tmp_path):
     r.init_recorder({"a": "1", "b": "2"})  # net=None → 跳过 add_graph
 
 
+def test_init_recorder_empty_config(tmp_path):
+    """空 config_dict：不再 max([]) 崩溃（边缘路径）。"""
+    r = make_recorder(tmp_path)
+    r.init_recorder({})
+
+
 def test_add_output_variants(tmp_path):
     """三种 output_data 结构：hbsn(2)/seg(3)/tpsn(4)，覆盖所有绘图分支。"""
     r = make_recorder(tmp_path)

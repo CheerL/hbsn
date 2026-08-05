@@ -50,6 +50,14 @@ def test_build_configs_set_bool_int_parsing():
     assert net_cfg.stn_mode == 2
 
 
+def test_build_configs_set_list_parsing():
+    """--set cat_ids=[16] 列表字面量 → json.loads 解析（review 发现：docstring 声称可用但原实现崩溃）。"""
+    spec = get_spec("deeplab")
+    _, dataset_cfg = _build_configs(spec, {}, {}, ["cat_ids=[16]", "connected=true"])
+    assert dataset_cfg.cat_ids == [16]
+    assert dataset_cfg.connected is True
+
+
 def test_build_configs_unknown_override_warns(capsys):
     spec = get_spec("hbsn")
     _build_configs(spec, {}, {"no_such_field": 1}, None)

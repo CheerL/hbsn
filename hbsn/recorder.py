@@ -6,6 +6,7 @@
 - len==3 (predict_mask, predict_hbs, gt_hbs)     → 5 行（分割型）
 - len==4 (..., predict_pad_mapping)              → 6 行 + 位移场网格（tpsn 型）
 """
+import contextlib
 import os
 from datetime import datetime
 
@@ -61,7 +62,9 @@ class Recorder(SummaryWriter):
 
         global _FILE_SINK_ID
         if _FILE_SINK_ID is not None:
-            logger.remove(_FILE_SINK_ID)
+            # sink 可能已被外部移除，陈旧 id 忽略（suppress 比 try-except-pass 简洁）
+            with contextlib.suppress(ValueError):
+                logger.remove(_FILE_SINK_ID)
         # rotation：长训练（1000 epoch）单日志文件有界；进程内单 sink（见模块级注释）
         _FILE_SINK_ID = logger.add(self.log_path, level="INFO", rotation="10 MB")
 
@@ -85,8 +88,9 @@ class Recorder(SummaryWriter):
         )
         logger.info(f"Start training with config:\n\t{config_info}")
 
-        max_width = max([len(s) for s in config_dict]) * 0.1
-        max_height = len(config_dict) * 0.25
+        # +4/+2：空 config 时 figsize 不为 0（matplotlib 存空图会崩）
+        max_width = max((len(s) for s in config_dict), default=0) * 0.1 + 4
+        max_height = len(config_dict) * 0.25 + 2
         fig = plt.figure(figsize=(max_width, max_height), dpi=100)
         plt.text(
             0.5, 0.5, config_info, ha="center", va="center",

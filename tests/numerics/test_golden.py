@@ -93,7 +93,6 @@ def test_golden_forward(name):
     golden = np.load(_load_golden(name, "output.npy"))
 
     torch.manual_seed(SEED)
-    np.random.seed(SEED)
     net = build()
     net.eval()
     x = torch.rand(*input_shape)
@@ -107,14 +106,14 @@ def test_golden_forward(name):
     ), f"{name} 前向输出漂移——重构改变了数值"
 
 
-@pytest.mark.parametrize("name", ["hbsn_stn3"])
-def test_golden_loss(name):
+def test_golden_loss():
+    """HBSNet(stn3) 全损失项逐项与 golden 比对（唯一带 loss 的确定性网络案例）。"""
+    name = "hbsn_stn3"
     build, input_shape, gt_shape = _builders()[name]
     with open(_load_golden(name, "loss.json")) as f:
         golden_losses = json.load(f)
 
     torch.manual_seed(SEED)
-    np.random.seed(SEED)
     net = build()
     net.eval()
     x = torch.rand(*input_shape)

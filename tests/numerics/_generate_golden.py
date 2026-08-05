@@ -26,8 +26,7 @@ GOLDEN_DIR = os.path.join(os.path.dirname(__file__), "golden")
 
 
 def _run_case(name, build, input_shape, loss=False, gt_shape=None):
-    torch.manual_seed(0)  # 权重初始化 + 输入生成共用同一种子
-    np.random.seed(0)
+    torch.manual_seed(0)  # 权重初始化 + 输入生成共用同一种子（numpy 未参与，不需 np.seed）
     net = build()
     net.eval()  # BN 用 running stats，保证确定性
     x = torch.rand(*input_shape)

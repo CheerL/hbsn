@@ -26,6 +26,7 @@ net/dataset 配置优先取 checkpoint 内存档，可用 --<key> 覆盖（如 -
 """
 import argparse
 import glob
+import json
 import os
 import sys
 from dataclasses import fields
@@ -79,11 +80,13 @@ def _build_configs(spec, ckpt_config: dict, overrides: dict, sets: list[str] | N
             print(f"warning: 未知覆盖 key {key}，忽略", file=sys.stderr)
     for kv in sets or []:
         key, _, value = kv.partition("=")
-        value = value.strip().lower()
+        value = value.strip()
         if value in ("true", "false"):
             value = value == "true"
         elif value.isdigit():
             value = int(value)
+        elif value.startswith(("[", "{")):
+            value = json.loads(value)  # list/dict 字面量（如 cat_ids=[16]）
         if key in net_cfg:
             net_cfg[key] = value
         elif key in dataset_cfg:
@@ -133,8 +136,8 @@ def single_image_infer(
     net = spec.net.factory(net_cfg)
     net.load_state_dict(ckpt["state_dict"], strict=False)
     net.eval()
-    device = net.config.device
-    dtype = torch_dtype(net.config)
+    # device 已由 _build_configs 强制覆盖到 net_cfg，直接用参数（不再从 net.config 重读）
+    dtype = torch_dtype(net_cfg)
 
     if os.path.isdir(image_path):
         # 目录约定：*g.png 是 GT 掩码（hbs_seg 布局），不作为输入（同旧 test.ipynb cell 7）
@@ -159,7 +162,10 @@ def single_image_infer(
         print(f"{path} -> {out_path} (mask {mask.shape})")
 
 
-def evaluate(model: str, checkpoint_path: str, sets: list[str] | None = None, **overrides) -> tuple[float, float]:
+def evaluate(
+    model: str, checkpoint_path: str, sets: list[str] | None = None,
+    max_samples: int | None = None, **overrides,
+) -> tuple[float, float]:
     spec = get_spec(model)
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
     ckpt_config = ckpt.get("config", {})
@@ -174,7 +180,9 @@ def evaluate(model: str, checkpoint_path: str, sets: list[str] | None = None, **
 
     results = []
     with torch.no_grad():
-        for img, mask in dataloader:
+        for i, (img, mask) in enumerate(dataloader):
+            if max_samples is not None and i >= max_samples:
+                break
             img = img.to(net.config.device, dtype=torch_dtype(net.config))
             mask = mask.to(net.config.device, dtype=torch_dtype(net.config))
 
@@ -332,6 +340,8 @@ def _parse_compare_entries(compare_args: list[str]) -> list[tuple[str, str, str]
         model, ckpt = parts[0], parts[1]
         base_label = parts[2] if len(parts) > 2 else model
         paths = sorted(glob.glob(ckpt))
+        if not paths:
+            print(f"warning: --compare glob '{ckpt}' 未匹配任何文件", file=sys.stderr)
         for path in paths:
             label = base_label if len(paths) == 1 else f"{base_label}:{os.path.basename(path)}"
             entries.append((model, path, label))
@@ -351,7 +361,7 @@ def main():
                         help="多模型对比模式：可重复，相邻两两一组 (base, improved)；支持 glob")
     parser.add_argument("--top-n", type=int, default=10, help="对比模式 top-N 改进样本数")
     parser.add_argument("--out-dir", default=None, help="对比模式可视化输出目录 / 单图推理掩码输出目录")
-    parser.add_argument("--max-samples", type=int, default=None, help="对比模式仅评估前 N 个样本（冒烟/快速验证）")
+    parser.add_argument("--max-samples", type=int, default=None, help="仅评估前 N 个样本（冒烟/快速验证）")
     parser.add_argument("--single-image", default=None, metavar="PATH",
                         help="单图推理：图片路径或目录（配合 --model/--checkpoint），掩码保存到 --out-dir")
     args = parser.parse_args()
@@ -392,8 +402,9 @@ def main():
     for path in sorted(glob.glob(args.checkpoint)):
         f1, iou = evaluate(
             args.model, path, sets=args.set,
+            max_samples=args.max_samples,
             data_dir=args.data_dir, annotation_path=args.annotation_path,
-            device=args.device,
+            device=args.device or "cpu",  # 旧 ckpt 存档 device 可能失效（如 cuda:2）
         )
         print(f"{path} [F1 {f1:.6f} | IoU {iou:.6f}]")
     return 0
