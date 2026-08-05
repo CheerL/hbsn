@@ -12,6 +12,9 @@ coco
 # 数据格式：.mat 备份与 .npy 均不跟踪（img/ 已整体排除，防御性冗余）
 *.mat
 *.npy
+# 但 golden 数值基准必须入库（等价性闸门依赖）——豁免 tests/numerics/golden/
+!tests/numerics/golden/
+!tests/numerics/golden/*.npy
 
 # hydra 运行输出目录
 
@@ -19,6 +22,9 @@ coco
 outputs/
 .coverage
 uv.lock
+
+# mindfs 会话工具运行时 DB（不入 git）
+.mindfs/
 
 # Claude Code 运行时产物（hooks 生成，不入 git；.claude/memory + settings.json 保留）
 .claude/accumulator.json
