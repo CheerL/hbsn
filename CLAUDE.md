@@ -18,8 +18,8 @@ hbsn/
   conf/               hydra 配置（net/dataset/run/recorder 四组 + model 选择组）
   _legacy/pickle_shim.py  旧 ckpt pickle 反序列化桩（仅迁移工具用）
 tools/                convert_mat_to_npy / migrate_checkpoints / 离线数据生成
-scripts/eval_coco.py  test_full/test_script 合一评估
-tests/                pytest 覆盖套件（test_base/test_recorder/test_train/test_transforms/test_dataset/test_nets/test_config/test_migrate）
+scripts/eval_coco.py  test_full/test_script 合一评估 + --compare 多模型对比 + --single-image 单图推理
+tests/                pytest 覆盖套件（含 test_registry/test_eval_coco/numerics 黄金测试）
 .claude/              项目脚手架（settings.json 权限白名单 + memory/ 项目记忆）
 ```
 
@@ -44,11 +44,12 @@ tests/                pytest 覆盖套件（test_base/test_recorder/test_train/t
 ## 开发流程（提交前门禁）
 
 ```bash
-uv run python -m pytest   # 必须全部 passed，覆盖 ≥80%（仓库根 cwd 下跑）
-uv run ruff check .       # 必须 All checks passed（0 error）
+uv run --extra dev python -m pytest   # 必须全部 passed，覆盖 ≥80%（--extra dev 装 pytest/ruff）
+uv run --extra dev ruff check .       # 必须 All checks passed（0 error）
 ```
 
-- pytest 必须从 `python/` 仓库根跑（测试用相对路径 `img/`、`coco/`）。
+- 测试已 hermetic：`tests/conftest.py` 合成数据，worktree/任意目录可跑；
+  coco 数据依赖测试在无数据时自动 skip（test_coco_dataset_shapes）。
 - ruff 已在 `[dev]` 依赖；ruff.toml 只设 `line-length = 80`，其余用默认规则集
   （含 PEP585/604 类型现代化 UP 系列——改类型标注时用 `list[int]`/`X | None`）。
 - 提交用 Conventional Commits（fix/refactor/chore/docs/test）。

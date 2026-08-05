@@ -19,3 +19,9 @@ coco
 outputs/
 .coverage
 uv.lock
+
+# Claude Code 运行时产物（hooks 生成，不入 git；.claude/memory + settings.json 保留）
+.claude/accumulator.json
+.claude/metrics/
+.claude/observations/
+.claude/sessions/

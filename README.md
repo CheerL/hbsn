@@ -16,7 +16,7 @@ Beltrami Signature Network），用于从带噪声的二维形变观测中学习
 - hydra/omegaconf 配置：未知 key 报错（不再静默忽略）+ 跨字段约束校验
 - 数据管线：.mat → float32 `.npy`（CHW），有界缓存 + 多 worker 透传
 - 旧 checkpoint 迁移工具（pickle 桩 + state_dict 键映射），论文指标可复现
-- 类型标注全覆盖，ruff clean，15 个 pytest
+- 类型标注全覆盖，ruff clean，106 个 pytest（含 numerics 黄金数值测试）
 
 ## 目录结构
 
@@ -35,8 +35,8 @@ python/                       # git 仓库根
 │   ├── geometry/             # geodesic welding（离线数据生成用）
 │   └── _legacy/pickle_shim.py # 旧 ckpt 反序列化桩（仅迁移工具用）
 ├── tools/                    # convert_mat_to_npy / migrate_checkpoints / 离线数据生成
-├── scripts/eval_coco.py      # test_full+test_script 合一评估
-├── tests/                    # 15 个 pytest
+├── scripts/eval_coco.py      # 合一评估 + --compare 多模型对比 + --single-image 单图推理
+├── tests/                    # 106 个 pytest（含 numerics 黄金数值测试）
 └── .claude/                  # Claude Code 脚手架（settings + memory）
 ```
 
@@ -55,8 +55,8 @@ python tools/convert_mat_to_npy.py --root img   # 从 .mat 转 .npy（幂等、�
 # 3. 训练 hbsn（1 epoch 冒烟）
 python -m hbsn.train model=hbsn run.total_epoches=1 net.device=cuda:0
 
-# 4. 测试 + lint
-python -m pytest && uv run ruff check .
+# 4. 测试 + lint（pytest/ruff 在 dev extras，需 --extra dev）
+uv run --extra dev python -m pytest && uv run --extra dev ruff check .
 ```
 
 `model` 可选：`hbsn` | `deeplab` | `unetpp` | `maskrcnn` | `tpsn`。
@@ -119,6 +119,8 @@ python tools/convert_mat_to_npy.py --root img
 - **旧 ckpt 迁移**：`python tools/migrate_checkpoints.py "runs/*/*/checkpoints/*.pth" --out-dir runs/migrated`
   （只读原文件，输出镜像原结构；hbsn.* 键按旧运行时语义丢弃）。
 - **评估**：`python scripts/eval_coco.py --model unetpp --checkpoint runs/migrated/unetpp/May17_10-17-34_hbs0.05_all_c/checkpoints/epoch_350.pth --data-dir coco/val2017 --annotation-path coco/annotations/instances_val2017.json --set connected=true --set single_instance=true`
+- **多模型逐样本对比**：`--compare MODEL:CKPT[:LABEL]` 可重复，相邻两两一组 base→improved，输出改进量统计 + top-N 图（旧 test.ipynb 逐样本分析固化）
+- **单图/目录推理**：`--single-image PATH`（文件或目录，目录跳过 `*g.png` GT），掩码保存到 `--out-dir`（旧 test.ipynb cell 7 固化）
 
 ### 论文基准（coco/val2017，connected+single_instance，batch 1）
 
@@ -129,11 +131,12 @@ python tools/convert_mat_to_npy.py --root img
 ## 测试与开发
 
 ```bash
-uv run python -m pytest   # 15 个：nets(5 模型冒烟)/config/dataset/geometry/migrate
-uv run ruff check .       # 0 error（默认规则集，含 PEP585/604）
+uv run --extra dev python -m pytest   # 106 个：nets/transforms/base/config/dataset/geometry/migrate/registry/eval_coco/numerics
+uv run --extra dev ruff check .       # 0 error（默认规则集，含 PEP585/604）
 ```
 
-- pytest **必须从仓库根 `python/`** 跑（测试用相对路径 `img/`、`coco/`）。
+- 测试已 hermetic（`tests/conftest.py` 合成数据），worktree/任意目录可跑；
+  coco 数据依赖测试在无数据时自动 skip。
 - 提交用 Conventional Commits；提交前保证 pytest 全绿 + ruff clean。
 
 ## 已知行为说明（有意保留的旧语义）
@@ -149,7 +152,7 @@ uv run ruff check .       # 0 error（默认规则集，含 PEP585/604）
 
 | 症状 | 原因 / 处理 |
 |---|---|
-| pytest 报 FileNotFoundError（img/、coco/） | 从仓库根 `python/` 跑；或数据未准备（见「数据准备」） |
+| pytest 报 FileNotFoundError（img/、coco/） | 已修复：conftest 合成数据；coco 数据依赖测试无数据时自动 skip |
 | 训练 OOM / RSS 无界增长 | `pin_memory` 保持 false；减 `num_workers` 或 batch_size |
 | 未知 key 报错 | hydra override 的 key 必须在对应 yaml/schema 中存在 |
 | 加载迁移 ckpt 报 strict 错误 | 旧 ckpt 的 config 可能缺新字段，用 `eval_coco --set`/schema 过滤 |

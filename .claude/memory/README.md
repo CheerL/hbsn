@@ -19,6 +19,8 @@ metadata:
 
 - [syncthing-stignore-bidirectional](syncthing-stignore-bidirectional.md) — .stignore 不随 Syncthing 同步，两边必须手动镜像
 - [syncthing-deletable-prefix](syncthing-deletable-prefix.md) — Syncthing (?d) 前缀用法（尾斜杠、顺序、遍历边界）
+- [uv-extra-dev](uv-extra-dev.md) — uv run 默认不装 extras，pytest/ruff 需 uv run --extra dev
+- [eval-coco-legacy-device](eval-coco-legacy-device.md) — 迁移 ckpt 存档 device 可能失效（cuda:2），评估需强制覆盖
 
 ## 约定
 
@@ -31,7 +33,7 @@ metadata:
 ## 常用相关命令
 
 ```bash
-uv run python -m pytest          # 测试
-uv run ruff check .              # lint
-uv run python -m hbsn.train ...  # 训练
+uv run --extra dev python -m pytest   # 测试（--extra dev 装 pytest/ruff，见 uv-extra-dev）
+uv run --extra dev ruff check .       # lint
+uv run python -m hbsn.train ...       # 训练（主依赖即可）
 ```
