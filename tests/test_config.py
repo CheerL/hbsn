@@ -13,8 +13,13 @@ def test_unknown_key_raises():
         OmegaConf.merge(OmegaConf.structured(HBSNetSchema), net_cfg)
 
 
-def test_valid_merge():
-    cfg = OmegaConf.create({"net": {"stn_mode": 3, "device": "cpu"}, "dataset": {"masked_size": 64}})
+def test_valid_merge(hbsn_data_dir):
+    # validate_config 对 HbsnDatasetSchema 断言 data_dir 存在——用合成目录（hermetic）
+    train_dir, test_dir = hbsn_data_dir
+    cfg = OmegaConf.create({
+        "net": {"stn_mode": 3, "device": "cpu"},
+        "dataset": {"masked_size": 64, "data_dir": train_dir, "test_data_dir": test_dir},
+    })
     merged_net, merged_dataset = validate_config(cfg, HBSNetSchema, HbsnDatasetSchema)
     assert merged_net.stn_mode == 3
     assert merged_dataset.masked_size == 64

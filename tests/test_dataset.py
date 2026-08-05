@@ -10,15 +10,18 @@ from hbsn.data.hbsn import HBSNDataset
 
 
 @pytest.fixture
-def simple_dataset():
-    """img/simple：小数据集，num_workers=0 避免多进程开销。"""
-    cfg = HbsnDatasetSchema(data_dir="img/simple", test_data_dir="", num_workers=0)
+def simple_dataset(hbsn_data_dir):
+    """合成数据小数据集，num_workers=0 避免多进程开销（hermetic，不依赖真实 img/）。"""
+    train_dir, _ = hbsn_data_dir
+    cfg = HbsnDatasetSchema(data_dir=train_dir, test_data_dir="", num_workers=0)
     return HBSNDataset(cfg)
 
 
-def test_hbsn_dataset_shapes():
-    cfg = HbsnDatasetSchema(data_dir="img/generated", test_data_dir="img/gen2")
-    dataset = HBSNDataset(cfg, is_test=True)  # gen2 只有 1.5k 样本，加载快
+def test_hbsn_dataset_shapes(hbsn_data_dir):
+    """合成数据：train/test 双目录加载，形状与 masked_size 裁剪后一致。"""
+    train_dir, test_dir = hbsn_data_dir
+    cfg = HbsnDatasetSchema(data_dir=train_dir, test_data_dir=test_dir)
+    dataset = HBSNDataset(cfg, is_test=True)  # is_test=True → 读 test_data_dir
     assert len(dataset) > 0
     image, hbs = dataset[0]
     image, hbs = dataset.transform((image, hbs))
@@ -26,9 +29,10 @@ def test_hbsn_dataset_shapes():
     assert hbs.shape == (2, 128, 128)  # masked_size=64 裁剪后
 
 
-def test_hbsn_dataset_npy_values():
+def test_hbsn_dataset_npy_values(hbsn_data_dir):
     """npy 数据健全性：float32、裁剪后形状、数值有限（.mat 已删除，无源对照）。"""
-    cfg = HbsnDatasetSchema(data_dir="img/simple", test_data_dir="")
+    train_dir, _ = hbsn_data_dir
+    cfg = HbsnDatasetSchema(data_dir=train_dir, test_data_dir="")
     dataset = HBSNDataset(cfg)
     _, hbs = dataset[0]
     assert hbs.dtype == np.float32
