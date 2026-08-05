@@ -149,13 +149,22 @@ class BoundedRandomCrop(transforms.RandomCrop):
             needs_resize = False
             resize_size = None
 
+        # 规范化 padding 到 (left, top, right, bottom)（torchvision 语义）：
+        # int → 四周相同；2 元组 → (left/right, top/bottom)；4 元组 → (left, top, right, bottom)。
+        # 旧实现假定 4 元组按 (l,r,t,b) 且非对称值会错位——对称值不暴露该缺陷。
+        pad_left = pad_top = pad_right = pad_bottom = 0
         padded_height, padded_width = mask.shape[-2:]
         if self.padding is not None:
-            pad_left, pad_right, pad_top, pad_bottom = self.padding
+            if isinstance(self.padding, int):
+                pad_left = pad_right = pad_top = pad_bottom = self.padding
+            elif len(self.padding) == 2:
+                pad_lr, pad_tb = self.padding
+                pad_left = pad_right = pad_lr
+                pad_top = pad_bottom = pad_tb
+            else:  # 4 元组 (left, top, right, bottom)
+                pad_left, pad_top, pad_right, pad_bottom = self.padding
             padded_height += pad_top + pad_bottom
             padded_width += pad_left + pad_right
-        else:
-            pad_left = pad_right = pad_top = pad_bottom = 0
 
         if self.pad_if_needed:
             if padded_height < cropped_height:

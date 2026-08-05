@@ -169,6 +169,41 @@ def test_crop_explicit_padding():
     assert out_mask.shape == (1, 16, 16)
 
 
+def test_crop_int_padding():
+    """int padding（torchvision 合法）：四周同样 pad，不再崩溃。"""
+    t = BoundedRandomCrop((16, 16), padding=4)
+    img, mask = _pair(shape=(1, 32, 32))
+    params = t.get_params(mask)
+    assert params["needs_pad"] is True
+    assert params["padding"] == [4, 4, 4, 4]  # (left, top, right, bottom)
+    out_img, _ = t((img, mask))
+    assert out_img.shape == (1, 16, 16)
+
+
+def test_crop_tuple2_padding():
+    """2 元组 padding：(left/right, top/bottom)。"""
+    t = BoundedRandomCrop((16, 16), padding=(4, 2))
+    mask = torch.zeros(1, 32, 32)
+    mask[:, 8:24, 8:24] = 1.0
+    params = t.get_params(mask)
+    assert params["padding"] == [4, 2, 4, 2]  # (l,t,r,b)：左右 4、上下 2
+    assert params["needs_pad"] is True
+
+
+def test_crop_asymmetric_padding_order():
+    """非对称 4 元组按 torchvision 语义 (left, top, right, bottom) 处理（非对称值验证顺序）。"""
+    t = BoundedRandomCrop((16, 16), padding=(1, 2, 3, 4))
+    mask = torch.zeros(1, 32, 32)
+    mask[:, 8:24, 8:24] = 1.0
+    params = t.get_params(mask)
+    # padded_width = 32 + left1 + right3 = 36；padded_height = 32 + top2 + bottom4 = 38
+    assert params["padding"] == [1, 2, 3, 4]
+    img = torch.rand(1, 32, 32)
+    out_img, out_mask = t((img, mask))
+    assert out_img.shape == (1, 16, 16)
+    assert out_mask.shape == (1, 16, 16)
+
+
 # ------------------------------------------------------------- BoundedRandomAffine
 
 
