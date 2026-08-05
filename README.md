@@ -124,9 +124,15 @@ python tools/convert_mat_to_npy.py --root img
 
 ### 论文基准（coco/val2017，connected+single_instance，batch 1）
 
-| 模型 | checkpoint | F1 | IoU | 来源 |
+迁移后复现（`eval_coco` 单模型模式）；差值与 test.ipynb 记录在随机裁剪 run-to-run
+方差内（BoundedRandomCrop 每次 run 不同，~0.005）。
+
+| 模型 | checkpoint | F1 | IoU | test.ipynb 记录 (F1/IoU) |
 |---|---|---|---|---|
-| unetpp（hbsn 0.05） | May17_10-17-34/epoch_350.pth | 0.7831 → **0.7820** | 0.7110 → **0.7098** | test_full.py 记录 vs 迁移后复现 |
+| unetpp（hbsn 0.05） | May17_10-17-34/epoch_350.pth | 0.7864 | 0.7130 | 0.7831 / 0.7110 |
+| unetpp（no hbsn） | May14_19-52-45/best.pth | 0.7785 | 0.7057 | 0.7795 / 0.7048 |
+| deeplab（hbsn 0.05） | May23_21-02-42/epoch_195.pth | 0.7819 | 0.7049 | 0.7829 / 0.7046 |
+| deeplab（no hbsn） | May15_11-02-15/best.pth | 0.7588 | 0.6817 | 0.7665 / 0.6876 |
 
 ## 测试与开发
 
