@@ -50,6 +50,9 @@ class STN(nn.Module):
         )
 
         def get_loc_output_size(s):
+            # 沿 localization 链逐层推算输出尺寸：conv 减 (k-1)，池化按 ceil 模式
+            # (s + stride - kernel) // stride；链为 conv1(k=7) → pool(k=2,s=4) →
+            # conv2(k=5) → pool(k=2,s=4)。128×128 输入 → 2×2，256×256 → 7×7。
             s = s - (loc_conv1_kernel_size - 1)
             s = (s + (loc_maxpool_stride - loc_maxpool_kernel_size)) // loc_maxpool_stride
             s = s - (loc_conv2_kernel_size - 1)

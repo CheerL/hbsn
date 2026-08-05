@@ -19,8 +19,13 @@ from torch.utils.tensorboard.writer import SummaryWriter
 from hbsn.config.schemas import RecorderSchema
 from hbsn.nets.base import torch_dtype
 
+# 进程内至多一个文件 sink：训练每个进程只建一个 Recorder，新实例替换旧 sink，
+# 防止测试/长会话里 loguru 全局 sink 无界累积（每个 sink 持有一个文件句柄）。
+_FILE_SINK_ID: int | None = None
+
 
 def get_random_index(num, size):
+    """从 [0, size) 无放回抽 num 个索引；num > size 时截断。"""
     num = min(num, size)
     index = np.random.choice(size, num, replace=False)
     return index, num
@@ -54,7 +59,11 @@ class Recorder(SummaryWriter):
         self.best_epoch = -1
         self.best_loss = 1e10
 
-        logger.add(self.log_path, level="INFO")
+        global _FILE_SINK_ID
+        if _FILE_SINK_ID is not None:
+            logger.remove(_FILE_SINK_ID)
+        # rotation：长训练（1000 epoch）单日志文件有界；进程内单 sink（见模块级注释）
+        _FILE_SINK_ID = logger.add(self.log_path, level="INFO", rotation="10 MB")
 
     def set_log_dir(self):
         if self.config.log_dir:
@@ -216,9 +225,10 @@ class Recorder(SummaryWriter):
         return False
 
     def _get_info(self, epoch, iteration=0, is_train=True):
+        # Test 前缀已区分训练/验证，日志级别统一 info（warning 是错误语义，非故意高亮）
         if is_train:
             prefix, size, logger_func = "Train", self.train_size, logger.info
         else:
-            prefix, size, logger_func = "Test", self.test_size, logger.warning
+            prefix, size, logger_func = "Test", self.test_size, logger.info
         total_iteration = epoch * size + iteration
         return prefix, size, total_iteration, logger_func

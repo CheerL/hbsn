@@ -1,7 +1,11 @@
 """eval_coco 纯逻辑测试：filter_known / _build_configs / _parse_compare_entries（无需数据）。"""
 from hbsn.config.schemas import HBSNetSchema, SegNetSchema
 from hbsn.registry import get_spec
-from scripts.eval_coco import _build_configs, _parse_compare_entries, filter_known
+from scripts.eval_coco import (
+    _build_configs,
+    _parse_compare_entries,
+    filter_known,
+)
 
 
 def test_filter_known_drops_unknown():

@@ -25,6 +25,7 @@ CHECKPOINT_INTERVAL = 5
 
 
 def run(net: BaseNet, input_data: tuple[torch.Tensor, torch.Tensor]):
+    """单 batch 前向 + loss：把数据搬上设备，返回 (loss_dict, output_data)。"""
     img, ground_truth = input_data
     img = img.to(net.config.device, dtype=torch_dtype(net.config))
     ground_truth = ground_truth.to(net.config.device, dtype=torch_dtype(net.config))
@@ -35,6 +36,7 @@ def run(net: BaseNet, input_data: tuple[torch.Tensor, torch.Tensor]):
 
 
 def epoch_run(net, dataloader, optimizer, recorder, epoch, is_train=True):
+    """跑一个 epoch：train 开梯度反向传播，test 关梯度；每 IMAGE_INTERVAL 存一次结果图。"""
     if is_train:
         net.train()
     else:
@@ -89,7 +91,7 @@ def save_checkpoint(net, recorder, run_cfg, config_dict, optimizer, epoch):
             config_dict,
             optimizer,
         )
-        logger.warning(f"Model saved at epoch {epoch} to {checkpoint_path}")
+        logger.info(f"Model saved at epoch {epoch} to {checkpoint_path}")
 
     is_best = recorder.update_best(epoch)
     if is_best:

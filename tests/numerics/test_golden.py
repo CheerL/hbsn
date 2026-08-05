@@ -110,7 +110,8 @@ def test_golden_forward(name):
 @pytest.mark.parametrize("name", ["hbsn_stn3"])
 def test_golden_loss(name):
     build, input_shape, gt_shape = _builders()[name]
-    golden_losses = json.load(open(_load_golden(name, "loss.json")))
+    with open(_load_golden(name, "loss.json")) as f:
+        golden_losses = json.load(f)
 
     torch.manual_seed(SEED)
     np.random.seed(SEED)
@@ -130,7 +131,8 @@ def test_golden_loss(name):
 @pytest.mark.parametrize("name", sorted(_loss_module_cases()))
 def test_golden_loss_module(name):
     module, mapping = _loss_module_cases()[name]
-    golden = json.load(open(_load_golden(name, "loss.json")))[name]
+    with open(_load_golden(name, "loss.json")) as f:
+        golden = json.load(f)[name]
     with torch.no_grad():
         value = module(mapping).item()
     assert value == pytest.approx(golden, rel=1e-5), (

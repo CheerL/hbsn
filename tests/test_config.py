@@ -3,7 +3,11 @@ import pytest
 from omegaconf import OmegaConf
 from omegaconf.errors import ConfigKeyError
 
-from hbsn.config.schemas import CocoDatasetSchema, HbsnDatasetSchema, HBSNetSchema
+from hbsn.config.schemas import (
+    CocoDatasetSchema,
+    HbsnDatasetSchema,
+    HBSNetSchema,
+)
 from hbsn.config.validate import validate_config
 
 

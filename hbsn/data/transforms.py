@@ -186,6 +186,8 @@ class BoundedRandomCrop(transforms.RandomCrop):
                 return lo
             return int(torch.randint(lo, hi, size=()))
 
+        # top 的合法区间 = [mask_height_max - crop_h + pad_top, mask_height_min + pad_top]：
+        # 保证裁剪窗口下沿 ≥ mask 上沿、上沿 ≤ mask 下沿 → 裁剪后 mask 必完整落入窗口
         needs_vert_crop, top = (
             (
                 True,
