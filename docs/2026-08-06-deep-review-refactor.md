@@ -118,6 +118,8 @@ worktree 失败根因：`tests/test_config.py::test_valid_merge` 与
 | B | `f6e5074` | 补分支覆盖单测（61→82） | 全量 82 passed |
 | 补功能 | `359febb` | eval_coco `--compare` 多模型逐样本对比 + 改进量统计 + top-N 图；黄金数值测试（`tests/numerics/`） | 单模型模式复现笔记本指标；compare 冒烟通过；golden 10 passed |
 | C+D | `02727c9` | 日志优化 + 注释 + click 声明 | ruff + pytest 全绿 |
+| 补功能2 | `0330a52` | eval_coco `--single-image` 单图/目录推理（cell 7 固化） | 冒烟通过 + 单测 |
+| 修复 | `0f0c2b5` | `BoundedRandomCrop` padding 崩溃 + 非对称顺序错位 | 单测覆盖 int/2元组/4元组 |
 
 **终局验收**：
 - [x] `ruff check .` 全过
@@ -133,5 +135,8 @@ worktree 失败根因：`tests/test_config.py::test_valid_merge` 与
 **遗留（刻意不做）**：
 - `train.main()` 入口整体测试（hydra 装饰，测组成函数已足够）
 - 分割模型（deeplab/unetpp/maskrcnn）黄金测试（依赖预训练权重，冒烟已覆盖）
-- `BoundedRandomCrop` 显式 int padding 传参（torchvision 合法但本代码库 4 元组假设；
-  当前调用方只用 pad_if_needed，无实际触发路径）
+
+**test.ipynb cell 7 处置（用户追加确认，2026-08-06）**：
+- cell 7 hbs_seg 单图推理已拆入 `eval_coco --single-image`（0330a52），远程 notebook 不删
+- `BoundedRandomCrop` padding 崩溃已修复（0f0c2b5）
+- build_image/image_generator/click 完整保留（用户明确决定）
