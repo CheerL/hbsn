@@ -110,3 +110,39 @@ def test_initialize_xavier():
     assert net.conv.weight.abs().sum() > 0  # xavier 非零
     # uninitializable 为空 → conv 全部被初始化
     assert not torch.allclose(net.conv.weight, torch.zeros_like(net.conv.weight))
+
+
+class DummyNetUninit(DummyNet):
+    """uninitializable_layers 非空：initialize 应跳过该层。"""
+
+    @property
+    def uninitializable_layers(self):
+        return self.fix
+
+
+def test_initialize_skips_uninitializable():
+    net = DummyNetUninit(make_cfg())
+    net.conv.weight.data.fill_(0.0)
+    net.fix.weight.data.fill_(0.123)  # 预设值，initialize 后应保持
+    net.initialize()
+    # fix 被跳过：权重不变
+    assert torch.allclose(net.fix.weight, torch.full_like(net.fix.weight, 0.123))
+    # conv 仍被 xavier 初始化
+    assert net.conv.weight.abs().sum() > 0
+
+
+class DummyNetNoFix(DummyNet):
+    """fixable_layers 为空 + is_freeze=True：get_param_dict 不应崩。"""
+
+    @property
+    def fixable_layers(self):
+        return nn.Module()
+
+
+def test_get_param_dict_freeze_empty_fixable():
+    cfg = make_cfg(is_freeze=True)
+    cfg.finetune_rate = 0.1
+    net = DummyNetNoFix(cfg)
+    param_dict = net.get_param_dict(1e-3)
+    assert len(param_dict) == 1  # 无 fixable → 只有 main 分组
+    assert param_dict[0]["initial_lr"] == 1e-3

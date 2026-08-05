@@ -115,6 +115,18 @@ def test_save_checkpoint_interval(tmp_path):
     assert any(os.path.basename(p) == "epoch_5.pth" for p in net._saved)
 
 
+def test_save_checkpoint_neither_best_nor_interval(tmp_path):
+    """既非 best 也非 CHECKPOINT_INTERVAL 整数倍 → 不存盘。"""
+    net = FakeNet()
+    recorder = MagicMock()
+    recorder.checkpoint_dir = str(tmp_path)
+    recorder.best_epoch = 0
+    recorder.best_loss = 0.1
+    recorder.update_best.return_value = False
+    train.save_checkpoint(net, recorder, SimpleNamespace(), {"net": {}}, None, 1)
+    assert net._saved == []
+
+
 def test_load_checkpoint_missing(tmp_path):
     net = FakeNet()
     recorder = MagicMock()

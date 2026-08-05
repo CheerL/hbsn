@@ -50,6 +50,22 @@ def test_soft_label_rescale_range():
     assert out.max() == 1.0
 
 
+def test_soft_label_positive_branch(monkeypatch):
+    """强制 new_min ≥ 0（正分支）：掩码内外分别重标定，输出有限且 ≠ 输入。"""
+    # 先建真实随机输入（含 mask 内外像素），再 patch torch.rand 只影响新 min/max
+    x = torch.rand(1, 16, 16)
+    # new_min=(rand-0.5)*0.4：rand=0.9 → 0.16 ≥ 0；new_max=1-rand*0.2=0.82
+    monkeypatch.setattr(
+        "hbsn.data.transforms.torch.rand",
+        lambda *a, **k: torch.full(a, 0.9, **k),
+    )
+    t = SoftLabel()
+    out = t(x)
+    assert out.shape == x.shape
+    assert torch.isfinite(out).all()
+    assert not torch.equal(out, x)  # 重标定确实发生
+
+
 # ------------------------------------------------------------- ResizeMax / ToTensor
 
 
@@ -140,6 +156,17 @@ def test_crop_needs_pad():
     mask[:, 2:8, 2:8] = 1.0
     out_img, _ = t((img, mask))
     assert out_img.shape == (1, 16, 16)
+
+
+def test_crop_explicit_padding():
+    """显式 4 元组 padding：get_params 的 needs_pad 分支。"""
+    t = BoundedRandomCrop((16, 16), padding=(2, 2, 2, 2))
+    img, mask = _pair(shape=(1, 32, 32))
+    params = t.get_params(mask)
+    assert params["needs_pad"] is True
+    out_img, out_mask = t((img, mask))
+    assert out_img.shape == (1, 16, 16)
+    assert out_mask.shape == (1, 16, 16)
 
 
 # ------------------------------------------------------------- BoundedRandomAffine

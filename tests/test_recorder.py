@@ -23,6 +23,8 @@ def test_get_random_index():
     assert n == 3 and len(idx) == 3
     idx, n = get_random_index(20, 5)  # num > size → 截断
     assert n == 5 and len(idx) == 5
+    idx, n = get_random_index(0, 10)  # num=0 → 空
+    assert n == 0 and len(idx) == 0
 
 
 def test_add_loss_train_test(tmp_path):
@@ -56,6 +58,15 @@ def test_update_best(tmp_path):
     r.test_loss[1] = torch.tensor(0.7)  # mean 0.7 > 0.5 → 不更新
     assert r.update_best(1) is False
     assert r.best_epoch == 0
+
+
+def test_add_epoch_loss_empty_metrics(tmp_path):
+    """iou/dice 槽全 0 → 均值为 0，走不 add_scalar 分支，不应崩。"""
+    r = make_recorder(tmp_path)
+    r.train_loss[0] = torch.tensor(0.5)
+    r.train_loss[1] = torch.tensor(0.7)
+    r.add_epoch_loss(0, is_train=True)  # iou/dice 全 0 → 不 add_scalar
+    r.add_epoch_loss(0, is_train=False)
 
 
 def test_init_recorder(tmp_path):
