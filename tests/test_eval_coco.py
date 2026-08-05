@@ -1,9 +1,14 @@
-"""eval_coco 纯逻辑测试：filter_known / _build_configs / _parse_compare_entries（无需数据）。"""
+"""eval_coco 纯逻辑测试：filter_known / _build_configs / _parse_compare_entries / _prepare_input（无需数据）。"""
+from types import SimpleNamespace
+
+import torch
+
 from hbsn.config.schemas import HBSNetSchema, SegNetSchema
 from hbsn.registry import get_spec
 from scripts.eval_coco import (
     _build_configs,
     _parse_compare_entries,
+    _prepare_input,
     filter_known,
 )
 
@@ -56,3 +61,43 @@ def test_parse_compare_entries(tmp_path):
     ckpt.write_bytes(b"x")
     entries = _parse_compare_entries([f"unetpp:{ckpt}:unet"])
     assert entries == [("unetpp", str(ckpt), "unet")]
+
+
+# ------------------------------------------------------------- _prepare_input
+
+
+def _cfg(in_ch=3, h=256, w=256):
+    return SimpleNamespace(input_channels=in_ch, height=h, width=w)
+
+
+def test_prepare_input_grayscale_to_rgb():
+    """灰度 (1,64,64) uint8 → 模型要 RGB → (1,3,256,256) float32 [0,1]。"""
+    img = torch.randint(0, 256, (1, 64, 64), dtype=torch.uint8)
+    out = _prepare_input(img, _cfg(in_ch=3))
+    assert out.shape == (1, 3, 256, 256)
+    assert out.dtype == torch.float32
+    assert out.min() >= 0.0 and out.max() <= 1.0
+    assert torch.equal(out[:, 0], out[:, 1])  # 灰度复制三通道
+
+
+def test_prepare_input_rgb_to_grayscale():
+    """RGB (3,64,64) uint8 → 模型要 1 通道 → (1,1,256,256)。"""
+    img = torch.randint(0, 256, (3, 64, 64), dtype=torch.uint8)
+    out = _prepare_input(img, _cfg(in_ch=1))
+    assert out.shape == (1, 1, 256, 256)
+    assert out.dtype == torch.float32
+
+
+def test_prepare_input_resizes_and_normalizes():
+    """resize 到网络输入尺寸 + 归一化 [0,1]。"""
+    img = torch.full((3, 64, 64), 128, dtype=torch.uint8)
+    out = _prepare_input(img, _cfg(in_ch=3, h=32, w=32))
+    assert out.shape == (1, 3, 32, 32)
+    assert torch.allclose(out, torch.full_like(out, 128 / 255.0), atol=1e-6)
+
+
+def test_prepare_input_rgba_drops_alpha():
+    """RGBA (4,64,64) → 丢弃 alpha → 适配 3 通道，避免 repeat 后 12 通道。"""
+    img = torch.randint(0, 256, (4, 64, 64), dtype=torch.uint8)
+    out = _prepare_input(img, _cfg(in_ch=3))
+    assert out.shape == (1, 3, 256, 256)

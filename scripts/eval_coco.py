@@ -15,6 +15,11 @@
         --set single_instance=true --set connected=true \
         --top-n 10 --out-dir outputs/analysis
 
+单图推理（旧 test.ipynb cell 7 的固化，hbs_seg 等单图/目录 → 硬掩码 PNG）：
+    python scripts/eval_coco.py --model unetpp \
+        --checkpoint runs/migrated/unetpp/May17_10-17-34_hbs0.05_all_c/checkpoints/epoch_350.pth \
+        --single-image img/hbs_seg --out-dir outputs/single_image
+
 net/dataset 配置优先取 checkpoint 内存档，可用 --<key> 覆盖（如 --data-dir）。
 对比模式即旧 test.ipynb 逐样本分析功能的固化：每模型逐样本 IoU、成对改进量
 统计（mean/median/正改进比例）、top-N 改进样本可视化。
@@ -29,6 +34,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from omegaconf import OmegaConf
+from torchvision import io
+from torchvision.transforms import functional as F
 
 from hbsn.config.schemas import HBSNetSchema
 from hbsn.nets.base import torch_dtype
@@ -87,6 +94,69 @@ def _build_configs(spec, ckpt_config: dict, overrides: dict, sets: list[str] | N
     if "hbsn_checkpoint" in net_cfg:
         net_cfg.hbsn_checkpoint = ""
     return net_cfg, dataset_cfg
+
+
+def _prepare_input(img, net_cfg):
+    """单图预处理：通道适配 + resize 到网络输入尺寸 + 归一化 [0,1]。
+
+    img 为 torchvision.io.read_image 的 uint8 tensor (C,H,W)（或等价输入）。
+    返回 (1, input_channels, height, width) float32 tensor。
+    """
+    img = img.float() / 255.0
+    if img.shape[0] == 4:  # RGBA → 丢弃 alpha（PNG 常见）
+        img = img[:3]
+    in_ch = net_cfg.input_channels
+    if img.shape[0] != in_ch:
+        if in_ch == 3:  # 模型要 RGB：灰度图复制三通道
+            img = img.repeat(3, 1, 1)
+        else:  # 模型要灰度：RGB 取亮度均值
+            img = img.mean(dim=0, keepdim=True)
+    img = F.resize(img, size=[net_cfg.height, net_cfg.width], antialias=True)
+    return img.unsqueeze(0)
+
+
+def single_image_infer(
+    model: str,
+    checkpoint_path: str,
+    image_path: str,
+    out_dir: str,
+    device: str = "cpu",
+    sets: list[str] | None = None,
+) -> None:
+    """单图/目录推理（旧 test.ipynb cell 7 的固化）：读图 → 前向 → 硬掩码 → 保存 PNG。
+
+    image_path 为文件则处理单图，为目录则遍历目录下所有图片。
+    """
+    spec = get_spec(model)
+    ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
+    net_cfg, _ = _build_configs(spec, ckpt.get("config", {}), {"device": device}, sets)
+    net = spec.net.factory(net_cfg)
+    net.load_state_dict(ckpt["state_dict"], strict=False)
+    net.eval()
+    device = net.config.device
+    dtype = torch_dtype(net.config)
+
+    if os.path.isdir(image_path):
+        # 目录约定：*g.png 是 GT 掩码（hbs_seg 布局），不作为输入（同旧 test.ipynb cell 7）
+        images = [
+            p for p in sorted(glob.glob(os.path.join(image_path, "*")))
+            if os.path.isfile(p) and not p.lower().endswith("g.png")
+        ]
+    else:
+        images = [image_path]
+    os.makedirs(out_dir, exist_ok=True)
+
+    for path in images:
+        img = io.read_image(path)
+        inp = _prepare_input(img, net_cfg).to(device, dtype=dtype)
+        with torch.no_grad():
+            predict_mask = net(inp)[0]
+            hard = net.get_hard_mask(predict_mask)
+        mask = hard[0, 0].float().cpu().numpy()
+        stem = os.path.splitext(os.path.basename(path))[0]
+        out_path = os.path.join(out_dir, f"{stem}_mask.png")
+        plt.imsave(out_path, mask, cmap="gray")
+        print(f"{path} -> {out_path} (mask {mask.shape})")
 
 
 def evaluate(model: str, checkpoint_path: str, sets: list[str] | None = None, **overrides) -> tuple[float, float]:
@@ -280,8 +350,10 @@ def main():
     parser.add_argument("--compare", action="append", default=[], metavar="MODEL:CKPT[:LABEL]",
                         help="多模型对比模式：可重复，相邻两两一组 (base, improved)；支持 glob")
     parser.add_argument("--top-n", type=int, default=10, help="对比模式 top-N 改进样本数")
-    parser.add_argument("--out-dir", default=None, help="对比模式可视化输出目录")
+    parser.add_argument("--out-dir", default=None, help="对比模式可视化输出目录 / 单图推理掩码输出目录")
     parser.add_argument("--max-samples", type=int, default=None, help="对比模式仅评估前 N 个样本（冒烟/快速验证）")
+    parser.add_argument("--single-image", default=None, metavar="PATH",
+                        help="单图推理：图片路径或目录（配合 --model/--checkpoint），掩码保存到 --out-dir")
     args = parser.parse_args()
 
     if args.compare:
@@ -301,6 +373,16 @@ def main():
             sets=args.set,
             device=args.device or "cpu",
             max_samples=args.max_samples,
+        )
+        return 0
+
+    if args.single_image:
+        if not args.model or not args.checkpoint:
+            parser.error("--single-image 需要 --model 与 --checkpoint")
+        single_image_infer(
+            args.model, args.checkpoint, args.single_image,
+            out_dir=args.out_dir or "outputs/single_image",
+            device=args.device or "cpu", sets=args.set,
         )
         return 0
 
