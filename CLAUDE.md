@@ -19,7 +19,7 @@ hbsn/
   _legacy/pickle_shim.py  旧 ckpt pickle 反序列化桩（仅迁移工具用）
 tools/                convert_mat_to_npy / migrate_checkpoints / 离线数据生成
 scripts/eval_coco.py  test_full/test_script 合一评估
-tests/                15 个 pytest（test_nets/test_config/test_dataset/test_geometry/test_migrate）
+tests/                pytest 覆盖套件（test_base/test_recorder/test_train/test_transforms/test_dataset/test_nets/test_config/test_migrate）
 .claude/              项目脚手架（settings.json 权限白名单 + memory/ 项目记忆）
 ```
 
@@ -44,7 +44,7 @@ tests/                15 个 pytest（test_nets/test_config/test_dataset/test_ge
 ## 开发流程（提交前门禁）
 
 ```bash
-uv run python -m pytest   # 必须 15 passed（仓库根 cwd 下跑）
+uv run python -m pytest   # 必须全部 passed，覆盖 ≥80%（仓库根 cwd 下跑）
 uv run ruff check .       # 必须 All checks passed（0 error）
 ```
 
