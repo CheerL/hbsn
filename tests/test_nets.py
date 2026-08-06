@@ -1,6 +1,11 @@
 """5 种模型 CPU 前向 + loss 冒烟：形状正确、loss 有限。"""
+
+from types import SimpleNamespace
+
 import pytest
 import torch
+import torch.nn as nn
+from omegaconf import OmegaConf
 
 from hbsn.config.schemas import (
     HBSNetSchema,
@@ -9,6 +14,7 @@ from hbsn.config.schemas import (
     TpsnNetSchema,
 )
 from hbsn.nets.hbsn import HBSNet
+from hbsn.nets.segmentation import SegHBSNNet, net_config_from_checkpoint
 from hbsn.nets.stn import STN
 from hbsn.nets.tpsn import BCLossFunc, LAPLossFunc
 from hbsn.registry import MODEL_REGISTRY
@@ -50,7 +56,9 @@ def test_stn_forward_modes(stn_mode):
     out, theta = stn(x)
     assert out.shape == x.shape
     # mode 0 → 全仿射 (B,2,3)；mode 1 → (B,1)；mode 2 → 旋转 (B,)
-    expected_theta = (2, 2, 3) if stn_mode == 0 else (2, 1) if stn_mode == 1 else (2,)
+    expected_theta = (
+        (2, 2, 3) if stn_mode == 0 else (2, 1) if stn_mode == 1 else (2,)
+    )
     assert theta.shape == expected_theta
 
 
@@ -101,3 +109,81 @@ def test_tpsn_bc_lap_loss_finite():
     assert torch.isfinite(qc)
     assert torch.isfinite(lap)
     assert qc > 0
+
+
+# ------------------------------------------------------------- Seg 骨架分支
+
+
+class DummySeg(SegHBSNNet):
+    """最小 SegHBSNNet 子类：不覆盖 fixable/uninitializable，测基类属性与 factory。"""
+
+    def build_model(self):
+        self.model = nn.Identity()
+
+    def model_forward(self, img):
+        return self.model(img)
+
+
+@pytest.mark.parametrize("model", ["deeplab", "unetpp"])
+def test_seg_net_initialize_param_dict(model):
+    """initialize/get_param_dict 走 fixable/uninitializable 属性（deeplab 23/27、unetpp 22/26）。"""
+    torch.manual_seed(0)
+    spec = MODEL_REGISTRY[model]
+    net = spec.net.factory(spec.net_schema())
+    net.initialize()
+    param_dict = net.get_param_dict(1e-3)
+    assert len(param_dict) >= 1
+
+
+def test_net_config_from_checkpoint_branches():
+    """新格式 dict（含 net 节）与旧格式 Config 对象（net_config 属性）双分支。"""
+    assert net_config_from_checkpoint(
+        {"config": {"net": {"a": 1}}, "epoch": 0}
+    ) == {"a": 1}
+    ckpt = {"config": SimpleNamespace(net_config={"x": 2})}
+    assert net_config_from_checkpoint(ckpt) == {"x": 2}
+
+
+def test_seg_hbsn_net_base_branches():
+    """get_hard_mask 硬阈值 + 基类 fixable/uninitializable 返回内嵌 hbsn。"""
+    torch.manual_seed(0)
+    hbsn = HBSNet.factory(HBSNetSchema())
+    net = DummySeg(hbsn, SegNetSchema())
+    mask = net.get_hard_mask(torch.tensor([[[[0.3, 0.5, 0.7]]]]))
+    assert mask.tolist() == [[[[0, 0, 1]]]]
+    assert net.fixable_layers is hbsn
+    assert net.uninitializable_layers is hbsn
+
+
+def test_seg_hbsn_net_abstract_raises():
+    """build_model / model_forward 未实现 → NotImplementedError（基类约束）。"""
+
+    class BareBuild(SegHBSNNet):
+        pass
+
+    with pytest.raises(NotImplementedError):
+        BareBuild(HBSNet.factory(HBSNetSchema()), SegNetSchema())
+
+    class BareForward(SegHBSNNet):
+        def build_model(self):
+            self.model = nn.Identity()
+
+    net = BareForward(HBSNet.factory(HBSNetSchema()), SegNetSchema())
+    with pytest.raises(NotImplementedError):
+        net.model_forward(torch.rand(1, 1, 8, 8))
+
+
+def test_seg_factory_from_hbsn_checkpoint(tmp_path):
+    """factory 的 hbsn_checkpoint 分支：从独立 hbsn ckpt 重建内嵌子网。"""
+    torch.manual_seed(0)
+    src = HBSNet.factory(HBSNetSchema())
+    path = tmp_path / "hbsn.pth"
+    src.save(
+        str(path),
+        epoch=0,
+        best_epoch=-1,
+        best_loss=1.0,
+        config={"net": OmegaConf.structured(HBSNetSchema())},
+    )
+    net = DummySeg.factory(SegNetSchema(hbsn_checkpoint=str(path)))
+    assert isinstance(net.hbsn, HBSNet)

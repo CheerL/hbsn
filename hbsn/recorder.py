@@ -6,6 +6,7 @@
 - len==3 (predict_mask, predict_hbs, gt_hbs)     → 5 行（分割型）
 - len==4 (..., predict_pad_mapping)              → 6 行 + 位移场网格（tpsn 型）
 """
+
 import contextlib
 import os
 from datetime import datetime
@@ -66,7 +67,9 @@ class Recorder(SummaryWriter):
             with contextlib.suppress(ValueError):
                 logger.remove(_FILE_SINK_ID)
         # rotation：长训练（1000 epoch）单日志文件有界；进程内单 sink（见模块级注释）
-        _FILE_SINK_ID = logger.add(self.log_path, level="INFO", rotation="10 MB")
+        _FILE_SINK_ID = logger.add(
+            self.log_path, level="INFO", rotation="10 MB"
+        )
 
     def set_log_dir(self):
         if self.config.log_dir:
@@ -83,9 +86,7 @@ class Recorder(SummaryWriter):
             os.makedirs(self.checkpoint_dir)
 
     def init_recorder(self, config_dict: dict[str, str], net=None):
-        config_info = "\n\t".join(
-            f"{k}: {v}" for k, v in config_dict.items()
-        )
+        config_info = "\n\t".join(f"{k}: {v}" for k, v in config_dict.items())
         logger.info(f"Start training with config:\n\t{config_info}")
 
         # +4/+2：空 config 时 figsize 不为 0（matplotlib 存空图会崩）
@@ -93,8 +94,13 @@ class Recorder(SummaryWriter):
         max_height = len(config_dict) * 0.25 + 2
         fig = plt.figure(figsize=(max_width, max_height), dpi=100)
         plt.text(
-            0.5, 0.5, config_info, ha="center", va="center",
-            multialignment="left", fontsize=12,
+            0.5,
+            0.5,
+            config_info,
+            ha="center",
+            va="center",
+            multialignment="left",
+            fontsize=12,
         )
         plt.axis("off")
         self.add_figure("config", fig)
@@ -135,25 +141,37 @@ class Recorder(SummaryWriter):
                 self.test_dice[iteration] = loss_dict["dice"]
 
         for loss_name, loss_value in loss_dict.items():
-            self.add_scalar(f"{loss_name}/{prefix}", loss_value, total_iteration)
+            self.add_scalar(
+                f"{loss_name}/{prefix}", loss_value, total_iteration
+            )
         self.flush()
 
         loss_info = ", ".join(
             f"{name}={value:.4f}" for name, value in loss_dict.items()
         )
-        logger_func(f"{prefix}: epoch={epoch}/{self.total_epoches}, iteration={iteration}/{size}, {loss_info}")
+        logger_func(
+            f"{prefix}: epoch={epoch}/{self.total_epoches}, iteration={iteration}/{size}, {loss_info}"
+        )
 
     def add_epoch_loss(self, epoch, is_train=True):
         prefix, _, _, logger_func = self._get_info(epoch, is_train=is_train)
 
         if is_train:
             loss = self.train_loss.mean().item()
-            iou = self.train_iou.mean().item() if self.train_iou.numel() else 0.0
-            dice = self.train_dice.mean().item() if self.train_dice.numel() else 0.0
+            iou = (
+                self.train_iou.mean().item() if self.train_iou.numel() else 0.0
+            )
+            dice = (
+                self.train_dice.mean().item()
+                if self.train_dice.numel()
+                else 0.0
+            )
         else:
             loss = self.test_loss.mean().item()
             iou = self.test_iou.mean().item() if self.test_iou.numel() else 0.0
-            dice = self.test_dice.mean().item() if self.test_dice.numel() else 0.0
+            dice = (
+                self.test_dice.mean().item() if self.test_dice.numel() else 0.0
+            )
 
         self.add_scalar(f"loss/{prefix}_epoch", loss, epoch)
         if iou:
@@ -162,51 +180,79 @@ class Recorder(SummaryWriter):
             self.add_scalar(f"dice/{prefix}_epoch", dice, epoch)
         self.flush()
 
-        logger_func(f"{prefix} epoch total: epoch={epoch}/{self.total_epoches}, total loss={loss}")
+        logger_func(
+            f"{prefix} epoch total: epoch={epoch}/{self.total_epoches}, total loss={loss}"
+        )
 
-    def add_output(self, epoch, iteration, input_data, output_data, is_train=True, num=10):
-        prefix, _, total_iteration, _ = self._get_info(epoch, iteration, is_train)
+    def add_output(
+        self, epoch, iteration, input_data, output_data, is_train=True, num=10
+    ):
+        prefix, _, total_iteration, _ = self._get_info(
+            epoch, iteration, is_train
+        )
         k, num = get_random_index(num, self.batch_size)
 
+        # input_data[0][k] 恒为 (num,C,H,W)（k 是索引数组，保 batch 维）；HBSN 单通道
+        # 亦走此路径 → (num,H,W,1)。旧的 ndim==3 分支（k 为标量时的设想）实际不可达。
         img = input_data[0][k].detach().cpu().numpy()
-        if img.ndim == 3:  # HBSN 型灰度图 (B,1,H,W)
-            img_k = img[:, 0]
-        else:  # COCO 型 RGB (B,3,H,W)
-            img_k = img.transpose(0, 2, 3, 1)
+        img_k = img.transpose(0, 2, 3, 1)
 
         if len(output_data) == 2:  # hbsn
             predict_hbs, ground_truth_hbs = output_data
-            n_rows, panels = 3, [("img", img_k), ("gt_hbs", ground_truth_hbs), ("pred_hbs", predict_hbs)]
+            n_rows, panels = (
+                3,
+                [
+                    ("img", img_k),
+                    ("gt_hbs", ground_truth_hbs),
+                    ("pred_hbs", predict_hbs),
+                ],
+            )
         elif len(output_data) == 4:  # tpsn（含位移场网格）
-            predict_mask, predict_hbs, ground_truth_hbs, predict_pad_mapping = output_data
+            predict_mask, predict_hbs, ground_truth_hbs, predict_pad_mapping = (
+                output_data
+            )
             panels = [
-                ("img", img_k), ("pred_mask", predict_mask), ("gt_mask", input_data[1]),
-                ("pred_hbs", predict_hbs), ("gt_hbs", ground_truth_hbs),
+                ("img", img_k),
+                ("pred_mask", predict_mask),
+                ("gt_mask", input_data[1]),
+                ("pred_hbs", predict_hbs),
+                ("gt_hbs", ground_truth_hbs),
                 ("mapping", predict_pad_mapping),
             ]
             n_rows = 6
         else:  # seg
             predict_mask, predict_hbs, ground_truth_hbs = output_data
             panels = [
-                ("img", img_k), ("pred_mask", predict_mask), ("gt_mask", input_data[1]),
-                ("pred_hbs", predict_hbs), ("gt_hbs", ground_truth_hbs),
+                ("img", img_k),
+                ("pred_mask", predict_mask),
+                ("gt_mask", input_data[1]),
+                ("pred_hbs", predict_hbs),
+                ("gt_hbs", ground_truth_hbs),
             ]
             n_rows = 5
 
-        fig = plt.figure(figsize=(num * 2, n_rows * 2), dpi=100 if n_rows == 3 else 200)
+        fig = plt.figure(
+            figsize=(num * 2, n_rows * 2), dpi=100 if n_rows == 3 else 200
+        )
         fig.subplots_adjust(hspace=0.05, wspace=0.05)
         for row, (name, data) in enumerate(panels):
             for i in range(num):
                 plt.subplot(n_rows, num, row * num + i + 1)
                 if name == "img":
-                    plt.imshow(data[i], cmap="gray" if data[i].ndim == 2 else None)
+                    plt.imshow(
+                        data[i], cmap="gray" if data[i].ndim == 2 else None
+                    )
                 elif name == "mapping":
                     m = data[i, :, ::8, ::8].cpu().numpy()
                     plt.gca().add_collection(
-                        LineCollection(m.transpose(1, 2, 0), color="r", linewidths=0.5)
+                        LineCollection(
+                            m.transpose(1, 2, 0), color="r", linewidths=0.5
+                        )
                     )
                     plt.gca().add_collection(
-                        LineCollection(m.transpose(2, 1, 0), color="r", linewidths=0.5)
+                        LineCollection(
+                            m.transpose(2, 1, 0), color="r", linewidths=0.5
+                        )
                     )
                     plt.gca().axis("equal")
                 else:
@@ -214,7 +260,9 @@ class Recorder(SummaryWriter):
                     if arr.ndim == 3:
                         plt.imshow(np.linalg.norm(arr, axis=0), cmap="jet")
                     else:
-                        plt.imshow(arr[0], cmap="gray")
+                        plt.imshow(
+                            arr, cmap="gray"
+                        )  # 2D 面板（无通道维）直接显示
                 plt.axis("off")
         self.add_figure(f"result/{prefix}", fig, total_iteration)
         plt.close(fig)  # 防 matplotlib 全局 registry 累积

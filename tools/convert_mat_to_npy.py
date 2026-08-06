@@ -7,6 +7,7 @@
 
 Usage: python tools/convert_mat_to_npy.py [--root img] [--workers 8]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -19,6 +20,7 @@ from pathlib import Path
 
 import numpy as np
 import scipy.io as sio
+from loguru import logger
 
 
 def convert_one(mat_path: str) -> tuple[str, str]:
@@ -38,20 +40,22 @@ def convert_one(mat_path: str) -> tuple[str, str]:
         digest = hashlib.sha256(npy_path.read_bytes()).hexdigest()
         return str(mat_path), digest
     except Exception as e:  # one corrupt file must not kill the batch
-        print(f"ERROR {mat_path}: {e}", flush=True)
+        logger.error(f"{mat_path}: {e}")
         return str(mat_path), "ERROR"
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--root", default="img", help="root dir to scan for *.mat")
+    parser.add_argument(
+        "--root", default="img", help="root dir to scan for *.mat"
+    )
     parser.add_argument("--workers", type=int, default=8)
     args = parser.parse_args()
 
     root = Path(args.root).resolve()
     mats = sorted(root.rglob("*.mat"))
     if not mats:
-        print(f"No .mat files under {root}")
+        logger.error(f"No .mat files under {root}")
         return 1
 
     manifest: dict[str, str] = {}
@@ -66,11 +70,17 @@ def main() -> int:
                 manifest[path] = digest
                 converted += 1
             if i % 1000 == 0 or i == len(mats):
-                print(f"progress {i}/{len(mats)} (converted={converted}, errors={errors})", flush=True)
+                logger.info(
+                    f"progress {i}/{len(mats)} (converted={converted}, errors={errors})"
+                )
 
     manifest_path = root / "manifest.json"
-    manifest_path.write_text(json.dumps(manifest, indent=1, sort_keys=True) + "\n")
-    print(f"done: {converted} converted, {len(mats) - converted} skipped, {errors} errors; manifest -> {manifest_path}")
+    manifest_path.write_text(
+        json.dumps(manifest, indent=1, sort_keys=True) + "\n"
+    )
+    logger.info(
+        f"done: {converted} converted, {len(mats) - converted} skipped, {errors} errors; manifest -> {manifest_path}"
+    )
     return 1 if errors else 0
 
 

@@ -1,6 +1,8 @@
 """BaseNet 通用逻辑：torch_dtype/output_size 辅助 + save/load/initialize/参数分组。"""
+
 from types import SimpleNamespace
 
+import pytest
 import torch
 import torch.nn as nn
 
@@ -59,7 +61,14 @@ def test_output_size():
 def test_save_load_roundtrip(tmp_path):
     net = DummyNet(make_cfg())
     path = tmp_path / "ckpt.pth"
-    net.save(str(path), epoch=1, best_epoch=0, best_loss=0.5, config={"x": 1}, optimizer=None)
+    net.save(
+        str(path),
+        epoch=1,
+        best_epoch=0,
+        best_loss=0.5,
+        config={"x": 1},
+        optimizer=None,
+    )
 
     net2 = DummyNet(make_cfg())
     epoch, best_epoch, best_loss, optimizer = net2.load(str(path))
@@ -109,7 +118,9 @@ def test_initialize_xavier():
     net.initialize()
     assert net.conv.weight.abs().sum() > 0  # xavier 非零
     # uninitializable 为空 → conv 全部被初始化
-    assert not torch.allclose(net.conv.weight, torch.zeros_like(net.conv.weight))
+    assert not torch.allclose(
+        net.conv.weight, torch.zeros_like(net.conv.weight)
+    )
 
 
 class DummyNetUninit(DummyNet):
@@ -126,7 +137,9 @@ def test_initialize_skips_uninitializable():
     net.fix.weight.data.fill_(0.123)  # 预设值，initialize 后应保持
     net.initialize()
     # fix 被跳过：权重不变
-    assert torch.allclose(net.fix.weight, torch.full_like(net.fix.weight, 0.123))
+    assert torch.allclose(
+        net.fix.weight, torch.full_like(net.fix.weight, 0.123)
+    )
     # conv 仍被 xavier 初始化
     assert net.conv.weight.abs().sum() > 0
 
@@ -146,3 +159,20 @@ def test_get_param_dict_freeze_empty_fixable():
     param_dict = net.get_param_dict(1e-3)
     assert len(param_dict) == 1  # 无 fixable → 只有 main 分组
     assert param_dict[0]["initial_lr"] == 1e-3
+
+
+def test_base_defaults_and_abstracts():
+    """BaseNet 基类默认属性（空 Module）+ forward/loss 抽象抛错。"""
+    net = BaseNet(make_cfg())
+    assert isinstance(net.fixable_layers, nn.Module)
+    assert isinstance(net.uninitializable_layers, nn.Module)
+    with pytest.raises(NotImplementedError):
+        net.forward(torch.rand(1, 1, 8, 8))
+    with pytest.raises(NotImplementedError):
+        net.loss(None, None)
+
+
+def test_get_input_shape():
+    net = BaseNet(make_cfg())
+    assert net.get_input_shape() == (1, 1, 256, 256)
+    assert net.get_input_shape(batch_size=4) == (4, 1, 256, 256)

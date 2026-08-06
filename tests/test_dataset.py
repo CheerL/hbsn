@@ -1,4 +1,7 @@
 """数据集冒烟：hbsn 读 .npy（真实数据 1 样本）、coco 读掩码、get_dataloader 分支。"""
+
+import json
+
 import numpy as np
 import pytest
 from torch.utils.data import Subset
@@ -41,7 +44,10 @@ def test_hbsn_dataset_npy_values(hbsn_data_dir):
     assert hbs.std() > 0, "npy 全等值，疑似损坏"
 
 
-@pytest.mark.skipif(not __import__("os").path.exists("coco/annotations/instances_val2017.json"), reason="coco 数据缺失")
+@pytest.mark.skipif(
+    not __import__("os").path.exists("coco/annotations/instances_val2017.json"),
+    reason="coco 数据缺失",
+)
 def test_coco_dataset_shapes():
     cfg = CocoDatasetSchema(
         data_dir="coco/val2017",
@@ -60,19 +66,25 @@ def test_coco_dataset_shapes():
 
 
 def test_get_dataloader_split_rate_1(simple_dataset):
-    train_dl, test_dl = simple_dataset.get_dataloader(batch_size=2, split_rate=1)
+    train_dl, test_dl = simple_dataset.get_dataloader(
+        batch_size=2, split_rate=1
+    )
     assert train_dl is not None and test_dl is None
     batch = next(iter(train_dl))
     assert batch[0].shape[0] <= 2
 
 
 def test_get_dataloader_split_rate_0(simple_dataset):
-    train_dl, test_dl = simple_dataset.get_dataloader(batch_size=2, split_rate=0)
+    train_dl, test_dl = simple_dataset.get_dataloader(
+        batch_size=2, split_rate=0
+    )
     assert train_dl is None and test_dl is not None
 
 
 def test_get_dataloader_split(simple_dataset):
-    train_dl, test_dl = simple_dataset.get_dataloader(batch_size=2, split_rate=0.8)
+    train_dl, test_dl = simple_dataset.get_dataloader(
+        batch_size=2, split_rate=0.8
+    )
     assert train_dl is not None and test_dl is not None
     assert len(train_dl.dataset) + len(test_dl.dataset) == len(simple_dataset)
 
@@ -119,3 +131,96 @@ def test_transform_subset_batch(simple_dataset):
     ts = TransformSubset.from_dataset(simple_dataset, transform=lambda x: x)
     batch = ts.__getitems__([0, 1])  # DataLoader 的批量 API 路径
     assert len(batch) == 2
+
+
+# ------------------------------------------------------------- HBSNDataset 分支
+
+
+def test_hbsn_dataset_is_test_no_test_dir_raises(hbsn_data_dir):
+    """is_test=True 但未配 test_data_dir → FileNotFoundError（hbsn.py 21）。"""
+    train_dir, _ = hbsn_data_dir
+    cfg = HbsnDatasetSchema(data_dir=train_dir, test_data_dir="")
+    with pytest.raises(FileNotFoundError):
+        HBSNDataset(cfg, is_test=True)
+
+
+def test_hbsn_dataset_augment(hbsn_data_dir):
+    """is_augment=True → 构建 augment_transform（hbsn.py 51-60）。"""
+    train_dir, _ = hbsn_data_dir
+    cfg = HbsnDatasetSchema(
+        data_dir=train_dir, test_data_dir="", is_augment=True
+    )
+    ds = HBSNDataset(cfg)
+    assert ds.augment_transform is not None
+    assert len(ds) == 3
+
+
+# ------------------------------------------------------------- CocoDataset 分支
+
+
+def _write_minimal_coco(tmp_path) -> str:
+    """最小合法 COCO 标注 json（无图无标注，仅一个类别），供 CocoDataset 构造。"""
+    ann = tmp_path / "instances.json"
+    ann.write_text(
+        json.dumps(
+            {
+                "images": [],
+                "annotations": [],
+                "categories": [
+                    {"id": 1, "name": "obj", "supercategory": "obj"}
+                ],
+            }
+        )
+    )
+    return str(ann)
+
+
+def test_coco_dataset_is_test_branches(tmp_path):
+    """is_test=True 用 test_data_dir/test_annotation_path（29-31）；无 test 字段则抛错（33）。"""
+    ann = _write_minimal_coco(tmp_path)
+    cfg = CocoDatasetSchema(
+        data_dir=str(tmp_path),
+        annotation_path=ann,
+        test_data_dir=str(tmp_path),
+        test_annotation_path=ann,
+    )
+    ds = CocoDataset(cfg, is_test=True)
+    assert ds.annotation_path == ann
+    assert len(ds) == 0  # json 无图
+
+    cfg2 = CocoDatasetSchema(
+        data_dir=str(tmp_path),
+        annotation_path=ann,
+        test_data_dir="",
+        test_annotation_path="",
+    )
+    with pytest.raises(FileNotFoundError):
+        CocoDataset(cfg2, is_test=True)
+
+
+def test_coco_dataset_img_ids_and_augment(tmp_path):
+    """img_ids 直接指定（53）+ is_augment 建 augment_transform（88）。"""
+    ann = tmp_path / "instances.json"
+    ann.write_text(
+        json.dumps(
+            {
+                # 带一张 id=1 的图（loadImgs 对不存在 id 抛 KeyError）
+                "images": [
+                    {"id": 1, "file_name": "a.jpg", "width": 16, "height": 16}
+                ],
+                "annotations": [],
+                "categories": [
+                    {"id": 1, "name": "obj", "supercategory": "obj"}
+                ],
+            }
+        )
+    )
+    cfg = CocoDatasetSchema(
+        data_dir=str(tmp_path),
+        annotation_path=str(ann),
+        img_ids=[1],
+        is_augment=True,
+    )
+    ds = CocoDataset(cfg)
+    assert len(ds) == 1
+    assert ds.augment_transform is not None

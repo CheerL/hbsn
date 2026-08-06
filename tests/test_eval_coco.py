@@ -1,4 +1,5 @@
 """eval_coco 纯逻辑测试：filter_known / _build_configs / _parse_compare_entries / _prepare_input（无需数据）。"""
+
 from types import SimpleNamespace
 
 import torch
@@ -30,7 +31,10 @@ def test_build_configs_clears_hbsn_checkpoint():
     """deeplab 的 SegNetSchema 有 hbsn_checkpoint 字段 → 清空防路径失效。"""
     spec = get_spec("deeplab")
     net_cfg, _ = _build_configs(
-        spec, {"net": {"hbsn_checkpoint": "runs/old.pth"}}, {"device": "cpu"}, None
+        spec,
+        {"net": {"hbsn_checkpoint": "runs/old.pth"}},
+        {"device": "cpu"},
+        None,
     )
     assert net_cfg.hbsn_checkpoint == ""
 
@@ -53,15 +57,25 @@ def test_build_configs_set_bool_int_parsing():
 def test_build_configs_set_list_parsing():
     """--set cat_ids=[16] 列表字面量 → json.loads 解析（review 发现：docstring 声称可用但原实现崩溃）。"""
     spec = get_spec("deeplab")
-    _, dataset_cfg = _build_configs(spec, {}, {}, ["cat_ids=[16]", "connected=true"])
+    _, dataset_cfg = _build_configs(
+        spec, {}, {}, ["cat_ids=[16]", "connected=true"]
+    )
     assert dataset_cfg.cat_ids == [16]
     assert dataset_cfg.connected is True
 
 
-def test_build_configs_unknown_override_warns(capsys):
-    spec = get_spec("hbsn")
-    _build_configs(spec, {}, {"no_such_field": 1}, None)
-    assert "未知覆盖" in capsys.readouterr().err
+def test_build_configs_unknown_override_warns():
+    """loguru 默认 sink 绑定原始 stderr，capsys 捕获不到——临时 sink 拦截 warning。"""
+    from loguru import logger
+
+    records = []
+    sink_id = logger.add(records.append, level="WARNING")
+    try:
+        spec = get_spec("hbsn")
+        _build_configs(spec, {}, {"no_such_field": 1}, None)
+    finally:
+        logger.remove(sink_id)
+    assert any("未知覆盖" in str(r) for r in records)
 
 
 def test_parse_compare_entries(tmp_path):

@@ -24,6 +24,7 @@ net/dataset 配置优先取 checkpoint 内存档，可用 --<key> 覆盖（如 -
 对比模式即旧 test.ipynb 逐样本分析功能的固化：每模型逐样本 IoU、成对改进量
 统计（mean/median/正改进比例）、top-N 改进样本可视化。
 """
+
 import argparse
 import glob
 import json
@@ -34,6 +35,7 @@ from dataclasses import fields
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from loguru import logger
 from omegaconf import OmegaConf
 from torchvision import io
 from torchvision.transforms import functional as F
@@ -56,7 +58,9 @@ def filter_known(schema_cls, cfg_dict: dict) -> dict:
     return filtered
 
 
-def _build_configs(spec, ckpt_config: dict, overrides: dict, sets: list[str] | None):
+def _build_configs(
+    spec, ckpt_config: dict, overrides: dict, sets: list[str] | None
+):
     """从 checkpoint 存档 config + 命令行覆盖构建 (net_cfg, dataset_cfg)。
 
     overrides 为 {字段名: 值}（None 跳过），sets 为 "--set KEY=VALUE" 列表。
@@ -65,11 +69,15 @@ def _build_configs(spec, ckpt_config: dict, overrides: dict, sets: list[str] | N
     """
     net_cfg = OmegaConf.merge(
         OmegaConf.structured(spec.net_schema),
-        OmegaConf.create(filter_known(spec.net_schema, ckpt_config.get("net", {}))),
+        OmegaConf.create(
+            filter_known(spec.net_schema, ckpt_config.get("net", {}))
+        ),
     )
     dataset_cfg = OmegaConf.merge(
         OmegaConf.structured(spec.dataset_schema),
-        OmegaConf.create(filter_known(spec.dataset_schema, ckpt_config.get("dataset", {}))),
+        OmegaConf.create(
+            filter_known(spec.dataset_schema, ckpt_config.get("dataset", {}))
+        ),
     )
     for key, value in overrides.items():
         if value is not None and key in net_cfg:
@@ -77,7 +85,7 @@ def _build_configs(spec, ckpt_config: dict, overrides: dict, sets: list[str] | N
         elif value is not None and key in dataset_cfg:
             dataset_cfg[key] = value
         elif value is not None:
-            print(f"warning: 未知覆盖 key {key}，忽略", file=sys.stderr)
+            logger.warning(f"未知覆盖 key {key}，忽略")
     for kv in sets or []:
         key, _, value = kv.partition("=")
         value = value.strip()
@@ -92,7 +100,7 @@ def _build_configs(spec, ckpt_config: dict, overrides: dict, sets: list[str] | N
         elif key in dataset_cfg:
             dataset_cfg[key] = value
         else:
-            print(f"warning: 未知覆盖 key {key}，忽略", file=sys.stderr)
+            logger.warning(f"未知覆盖 key {key}，忽略")
 
     if "hbsn_checkpoint" in net_cfg:
         net_cfg.hbsn_checkpoint = ""
@@ -132,7 +140,9 @@ def single_image_infer(
     """
     spec = get_spec(model)
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
-    net_cfg, _ = _build_configs(spec, ckpt.get("config", {}), {"device": device}, sets)
+    net_cfg, _ = _build_configs(
+        spec, ckpt.get("config", {}), {"device": device}, sets
+    )
     net = spec.net.factory(net_cfg)
     net.load_state_dict(ckpt["state_dict"], strict=False)
     net.eval()
@@ -142,7 +152,8 @@ def single_image_infer(
     if os.path.isdir(image_path):
         # 目录约定：*g.png 是 GT 掩码（hbs_seg 布局），不作为输入（同旧 test.ipynb cell 7）
         images = [
-            p for p in sorted(glob.glob(os.path.join(image_path, "*")))
+            p
+            for p in sorted(glob.glob(os.path.join(image_path, "*")))
             if os.path.isfile(p) and not p.lower().endswith("g.png")
         ]
     else:
@@ -159,12 +170,15 @@ def single_image_infer(
         stem = os.path.splitext(os.path.basename(path))[0]
         out_path = os.path.join(out_dir, f"{stem}_mask.png")
         plt.imsave(out_path, mask, cmap="gray")
-        print(f"{path} -> {out_path} (mask {mask.shape})")
+        logger.info(f"{path} -> {out_path} (mask {mask.shape})")
 
 
 def evaluate(
-    model: str, checkpoint_path: str, sets: list[str] | None = None,
-    max_samples: int | None = None, **overrides,
+    model: str,
+    checkpoint_path: str,
+    sets: list[str] | None = None,
+    max_samples: int | None = None,
+    **overrides,
 ) -> tuple[float, float]:
     spec = get_spec(model)
     ckpt = torch.load(checkpoint_path, map_location="cpu", weights_only=False)
@@ -176,7 +190,9 @@ def evaluate(
     net.eval()
 
     dataset = spec.dataset(dataset_cfg)
-    _, dataloader = dataset.get_dataloader(batch_size=1, split_rate=0, drop_last=True)
+    _, dataloader = dataset.get_dataloader(
+        batch_size=1, split_rate=0, drop_last=True
+    )
 
     results = []
     with torch.no_grad():
@@ -202,7 +218,9 @@ def _load_compare_nets(entries, sets, device: str):
     for model, ckpt_path, label in entries:
         spec = get_spec(model)
         ckpt = torch.load(ckpt_path, map_location="cpu", weights_only=False)
-        net_cfg, _ = _build_configs(spec, ckpt.get("config", {}), {"device": device}, sets)
+        net_cfg, _ = _build_configs(
+            spec, ckpt.get("config", {}), {"device": device}, sets
+        )
         net = spec.net.factory(net_cfg)
         net.load_state_dict(ckpt["state_dict"], strict=False)
         net.eval()
@@ -242,7 +260,9 @@ def _save_top_n_figure(top, labels, out_dir):
         axs[r, 1].axis("off")
         for c, (label, pred) in enumerate(zip(labels, preds, strict=True)):
             axs[r, 2 + c].imshow(pred, cmap="gray")
-            axs[r, 2 + c].set_title(f"{label}\nIoU+{imp:.3f}" if c % 2 == 1 else label)
+            axs[r, 2 + c].set_title(
+                f"{label}\nIoU+{imp:.3f}" if c % 2 == 1 else label
+            )
             axs[r, 2 + c].axis("off")
     fig.suptitle("Top-N samples with largest HBSN improvement")
     fig.tight_layout(rect=[0, 0, 1, 0.98])
@@ -267,7 +287,9 @@ def compare_evaluate(
     device 默认 cpu：旧 ckpt 存档可能是 cuda:2 之类已失效的设备。
     """
     first_spec = get_spec(entries[0][0])
-    first_ckpt = torch.load(entries[0][1], map_location="cpu", weights_only=False)
+    first_ckpt = torch.load(
+        entries[0][1], map_location="cpu", weights_only=False
+    )
     _, dataset_cfg = _build_configs(
         first_spec,
         first_ckpt.get("config", {}),
@@ -275,7 +297,9 @@ def compare_evaluate(
         sets,
     )
     dataset = first_spec.dataset(dataset_cfg)
-    _, dataloader = dataset.get_dataloader(batch_size=1, split_rate=0, drop_last=True)
+    _, dataloader = dataset.get_dataloader(
+        batch_size=1, split_rate=0, drop_last=True
+    )
     num_samples = len(dataloader)
     if max_samples is not None:
         num_samples = min(max_samples, num_samples)  # 冒烟/快速验证用
@@ -311,16 +335,26 @@ def compare_evaluate(
             )
             improvements[i] = imp
             if len(top) < top_n or imp > top[-1][0]:
-                top.append((imp, i, img[0].float().cpu().numpy(), mask[0, 0].float().cpu().numpy(), sample_preds))
+                top.append(
+                    (
+                        imp,
+                        i,
+                        img[0].float().cpu().numpy(),
+                        mask[0, 0].float().cpu().numpy(),
+                        sample_preds,
+                    )
+                )
                 top.sort(key=lambda t: t[0], reverse=True)
                 top = top[:top_n]
 
-    print("=== 逐模型 IoU（mean / median）===")
+    logger.info("=== 逐模型 IoU（mean / median）===")
     for j, label in enumerate(labels):
-        print(f"  {label:24s} mean {all_ious[j].mean():.4f}  median {np.median(all_ious[j]):.4f}")
+        logger.info(
+            f"  {label:24s} mean {all_ious[j].mean():.4f}  median {np.median(all_ious[j]):.4f}"
+        )
     if n_models >= 2:
-        print(
-            f"\n改进量（成对 base→improved 求和）: mean {improvements.mean():.4f}, "
+        logger.info(
+            f"改进量（成对 base→improved 求和）: mean {improvements.mean():.4f}, "
             f"median {np.median(improvements):.4f}, "
             f"正改进比例 {(improvements > 0).mean() * 100:.1f}%"
         )
@@ -329,10 +363,12 @@ def compare_evaluate(
         os.makedirs(out_dir, exist_ok=True)
         _save_improvement_scatter(improvements, out_dir)
         _save_top_n_figure(top, labels, out_dir)
-        print(f"\n可视化已保存到 {out_dir}/")
+        logger.info(f"可视化已保存到 {out_dir}/")
 
 
-def _parse_compare_entries(compare_args: list[str]) -> list[tuple[str, str, str]]:
+def _parse_compare_entries(
+    compare_args: list[str],
+) -> list[tuple[str, str, str]]:
     """解析 --compare MODEL:CKPT[:LABEL]，支持 checkpoint glob 展开。"""
     entries = []
     for item in compare_args:
@@ -341,9 +377,13 @@ def _parse_compare_entries(compare_args: list[str]) -> list[tuple[str, str, str]
         base_label = parts[2] if len(parts) > 2 else model
         paths = sorted(glob.glob(ckpt))
         if not paths:
-            print(f"warning: --compare glob '{ckpt}' 未匹配任何文件", file=sys.stderr)
+            logger.warning(f"--compare glob '{ckpt}' 未匹配任何文件")
         for path in paths:
-            label = base_label if len(paths) == 1 else f"{base_label}:{os.path.basename(path)}"
+            label = (
+                base_label
+                if len(paths) == 1
+                else f"{base_label}:{os.path.basename(path)}"
+            )
             entries.append((model, path, label))
     return entries
 
@@ -351,28 +391,60 @@ def _parse_compare_entries(compare_args: list[str]) -> list[tuple[str, str, str]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", help="模型名（单模型评估模式）")
-    parser.add_argument("--checkpoint", help="checkpoint 路径或 glob（单模型评估模式）")
+    parser.add_argument(
+        "--checkpoint", help="checkpoint 路径或 glob（单模型评估模式）"
+    )
     parser.add_argument("--data-dir", help="覆盖 dataset.data_dir")
-    parser.add_argument("--annotation-path", help="覆盖 dataset.annotation_path")
-    parser.add_argument("--device", help="覆盖 net.device（旧 ckpt 可能无 device 或指向不存在的 GPU）")
-    parser.add_argument("--set", action="append", default=[], metavar="KEY=VALUE",
-                        help="任意配置覆盖，可重复（如 --set connected=true --set cat_ids=[16]）")
-    parser.add_argument("--compare", action="append", default=[], metavar="MODEL:CKPT[:LABEL]",
-                        help="多模型对比模式：可重复，相邻两两一组 (base, improved)；支持 glob")
-    parser.add_argument("--top-n", type=int, default=10, help="对比模式 top-N 改进样本数")
-    parser.add_argument("--out-dir", default=None, help="对比模式可视化输出目录 / 单图推理掩码输出目录")
-    parser.add_argument("--max-samples", type=int, default=None, help="仅评估前 N 个样本（冒烟/快速验证）")
-    parser.add_argument("--single-image", default=None, metavar="PATH",
-                        help="单图推理：图片路径或目录（配合 --model/--checkpoint），掩码保存到 --out-dir")
+    parser.add_argument(
+        "--annotation-path", help="覆盖 dataset.annotation_path"
+    )
+    parser.add_argument(
+        "--device",
+        help="覆盖 net.device（旧 ckpt 可能无 device 或指向不存在的 GPU）",
+    )
+    parser.add_argument(
+        "--set",
+        action="append",
+        default=[],
+        metavar="KEY=VALUE",
+        help="任意配置覆盖，可重复（如 --set connected=true --set cat_ids=[16]）",
+    )
+    parser.add_argument(
+        "--compare",
+        action="append",
+        default=[],
+        metavar="MODEL:CKPT[:LABEL]",
+        help="多模型对比模式：可重复，相邻两两一组 (base, improved)；支持 glob",
+    )
+    parser.add_argument(
+        "--top-n", type=int, default=10, help="对比模式 top-N 改进样本数"
+    )
+    parser.add_argument(
+        "--out-dir",
+        default=None,
+        help="对比模式可视化输出目录 / 单图推理掩码输出目录",
+    )
+    parser.add_argument(
+        "--max-samples",
+        type=int,
+        default=None,
+        help="仅评估前 N 个样本（冒烟/快速验证）",
+    )
+    parser.add_argument(
+        "--single-image",
+        default=None,
+        metavar="PATH",
+        help="单图推理：图片路径或目录（配合 --model/--checkpoint），掩码保存到 --out-dir",
+    )
     args = parser.parse_args()
 
     if args.compare:
         entries = _parse_compare_entries(args.compare)
         if not entries:
-            print("未找到匹配的 checkpoint", file=sys.stderr)
+            logger.error("未找到匹配的 checkpoint")
             return 1
         if len(entries) % 2 != 0:
-            print("--compare 必须成对提供（base, improved）", file=sys.stderr)
+            logger.error("--compare 必须成对提供（base, improved）")
             return 1
         compare_evaluate(
             entries,
@@ -390,23 +462,32 @@ def main():
         if not args.model or not args.checkpoint:
             parser.error("--single-image 需要 --model 与 --checkpoint")
         single_image_infer(
-            args.model, args.checkpoint, args.single_image,
+            args.model,
+            args.checkpoint,
+            args.single_image,
             out_dir=args.out_dir or "outputs/single_image",
-            device=args.device or "cpu", sets=args.set,
+            device=args.device or "cpu",
+            sets=args.set,
         )
         return 0
 
     if not args.model or not args.checkpoint:
-        parser.error("单模型模式需要 --model 与 --checkpoint；多模型对比用 --compare")
+        parser.error(
+            "单模型模式需要 --model 与 --checkpoint；多模型对比用 --compare"
+        )
 
     for path in sorted(glob.glob(args.checkpoint)):
         f1, iou = evaluate(
-            args.model, path, sets=args.set,
+            args.model,
+            path,
+            sets=args.set,
             max_samples=args.max_samples,
-            data_dir=args.data_dir, annotation_path=args.annotation_path,
-            device=args.device or "cpu",  # 旧 ckpt 存档 device 可能失效（如 cuda:2）
+            data_dir=args.data_dir,
+            annotation_path=args.annotation_path,
+            device=args.device
+            or "cpu",  # 旧 ckpt 存档 device 可能失效（如 cuda:2）
         )
-        print(f"{path} [F1 {f1:.6f} | IoU {iou:.6f}]")
+        logger.info(f"{path} [F1 {f1:.6f} | IoU {iou:.6f}]")
     return 0
 
 

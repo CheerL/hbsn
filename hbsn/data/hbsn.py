@@ -1,4 +1,5 @@
 """HBSNDataset：读 img/**/*.npy（float32 CHW (2,256,256)，由 tools/convert_mat_to_npy.py 生成）。"""
+
 import os
 
 import numpy as np
@@ -36,10 +37,16 @@ class HBSNDataset(BaseDataset):
         # is_soft_label 保留旧行为以保证数值等价，见 README）
         image_transform = (
             transforms.Compose(
-                [transforms.Grayscale(), transforms.ToTensor(), SoftLabel(kernel_size=5)]
+                [
+                    transforms.Grayscale(),
+                    transforms.ToTensor(),
+                    SoftLabel(kernel_size=5),
+                ]
             )
             if self.config.is_soft_label
-            else transforms.Compose([transforms.Grayscale(), transforms.ToTensor()])
+            else transforms.Compose(
+                [transforms.Grayscale(), transforms.ToTensor()]
+            )
         )
         # npy 已是 (C,H,W) float32 张量，无需 ToTensor
         self.transform = transforms.Lambda(
@@ -90,11 +97,3 @@ class HBSNDataset(BaseDataset):
             m = self.config.masked_size
             hbs = hbs[:, m:-m, m:-m]  # npy 为 CHW，裁剪 H/W 两维
         return image, hbs
-
-    def get_size(self):
-        return (
-            self.height,
-            self.width,
-            self.input_channels,
-            self.output_channels,
-        )

@@ -1,8 +1,10 @@
 """train 模块：run/epoch_run/initialization/save/load（mock net + recorder，不跑真实训练）。"""
+
 import os
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
 import torch
 from omegaconf import OmegaConf
 
@@ -36,7 +38,12 @@ class FakeNet:
 
     def load(self, path):
         ckpt = torch.load(path, map_location="cpu", weights_only=False)
-        return ckpt.get("epoch", 0), 0, 1e10, None
+        return (
+            ckpt.get("epoch", 0),
+            ckpt.get("best_epoch", 0),
+            ckpt.get("best_loss", 1e10),
+            ckpt.get("optimizer"),
+        )
 
     def __call__(self, img):
         return self.forward(img)
@@ -84,7 +91,13 @@ def test_initialization():
     recorder = MagicMock()
     # initialization 里 config_to_dict 用 OmegaConf.to_container → 传 OmegaConf 配置
     run_cfg = OmegaConf.create(
-        {"lr": 1e-3, "weight_norm": 1e-5, "moments": 0.9, "lr_decay_steps": [2], "lr_decay_rate": 0.5}
+        {
+            "lr": 1e-3,
+            "weight_norm": 1e-5,
+            "moments": 0.9,
+            "lr_decay_steps": [2],
+            "lr_decay_rate": 0.5,
+        }
     )
     optimizer, scheduler = train.initialization(net, recorder, run_cfg)
     assert isinstance(optimizer, torch.optim.Adam)
@@ -99,7 +112,9 @@ def test_save_checkpoint_best(tmp_path):
     recorder.best_epoch = 0
     recorder.best_loss = 0.1
     recorder.update_best.return_value = True
-    train.save_checkpoint(net, recorder, SimpleNamespace(), {"net": {}}, None, 0)
+    train.save_checkpoint(
+        net, recorder, SimpleNamespace(), {"net": {}}, None, 0
+    )
     assert any(os.path.basename(p) == "best.pth" for p in net._saved)
     recorder.update_best.assert_called_once()
 
@@ -111,7 +126,9 @@ def test_save_checkpoint_interval(tmp_path):
     recorder.best_epoch = 0
     recorder.best_loss = 0.1
     recorder.update_best.return_value = False
-    train.save_checkpoint(net, recorder, SimpleNamespace(), {"net": {}}, None, 5)
+    train.save_checkpoint(
+        net, recorder, SimpleNamespace(), {"net": {}}, None, 5
+    )
     assert any(os.path.basename(p) == "epoch_5.pth" for p in net._saved)
 
 
@@ -123,7 +140,9 @@ def test_save_checkpoint_neither_best_nor_interval(tmp_path):
     recorder.best_epoch = 0
     recorder.best_loss = 0.1
     recorder.update_best.return_value = False
-    train.save_checkpoint(net, recorder, SimpleNamespace(), {"net": {}}, None, 1)
+    train.save_checkpoint(
+        net, recorder, SimpleNamespace(), {"net": {}}, None, 1
+    )
     assert net._saved == []
 
 
@@ -143,7 +162,9 @@ def test_load_checkpoint_present(tmp_path):
     optimizer = MagicMock()
     scheduler = MagicMock()
     run_cfg = SimpleNamespace(checkpoint_path=str(path))
-    init_epoch = train.load_checkpoint(net, recorder, optimizer, scheduler, run_cfg)
+    init_epoch = train.load_checkpoint(
+        net, recorder, optimizer, scheduler, run_cfg
+    )
     assert init_epoch == 3
     assert recorder.best_epoch == 0
     scheduler.last_epoch = init_epoch
@@ -152,3 +173,30 @@ def test_load_checkpoint_present(tmp_path):
 def test_config_to_dict():
     cfg = OmegaConf.create({"a": 1, "b": {"c": 2}})
     assert train.config_to_dict(cfg) == {"a": 1, "b": {"c": 2}}
+
+
+def test_load_checkpoint_with_optimizer(tmp_path):
+    """ckpt 带 optimizer 状态 → load_state_dict 恢复 + recorder/scheduler 同步（train.py 108-113）。"""
+    net = FakeNet()
+    torch.save(
+        {
+            "epoch": 4,
+            "best_epoch": 2,
+            "best_loss": 0.2,
+            "optimizer": torch.optim.Adam([net.w]).state_dict(),
+        },
+        tmp_path / "ckpt.pth",
+    )
+
+    net2 = FakeNet()
+    recorder = MagicMock()
+    optimizer = torch.optim.Adam([net2.w])
+    scheduler = MagicMock()
+    run_cfg = SimpleNamespace(checkpoint_path=str(tmp_path / "ckpt.pth"))
+    init_epoch = train.load_checkpoint(
+        net2, recorder, optimizer, scheduler, run_cfg
+    )
+    assert init_epoch == 4
+    assert recorder.best_epoch == 2
+    assert recorder.best_loss == pytest.approx(0.2)
+    scheduler.last_epoch = init_epoch

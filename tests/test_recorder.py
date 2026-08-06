@@ -1,4 +1,5 @@
 """Recorder：损失记录/checkpoint 判定/结果图（CPU，无 GPU 依赖）。"""
+
 import pytest
 import torch
 
@@ -8,7 +9,9 @@ from hbsn.recorder import Recorder, get_random_index
 
 def make_recorder(tmp_path, **kw):
     cfg = RecorderSchema(log_dir=str(tmp_path / "run"), comment="test", **kw)
-    return Recorder(cfg, train_size=4, test_size=2, total_epoches=2, batch_size=2)
+    return Recorder(
+        cfg, train_size=4, test_size=2, total_epoches=2, batch_size=2
+    )
 
 
 def test_set_log_dir_comment(tmp_path):
@@ -29,7 +32,12 @@ def test_get_random_index():
 
 def test_add_loss_train_test(tmp_path):
     r = make_recorder(tmp_path)
-    r.add_loss(0, 0, {"loss": torch.tensor(0.5), "iou": torch.tensor(0.1)}, is_train=True)
+    r.add_loss(
+        0,
+        0,
+        {"loss": torch.tensor(0.5), "iou": torch.tensor(0.1)},
+        is_train=True,
+    )
     r.add_loss(0, 1, {"loss": torch.tensor(0.4)}, is_train=True)
     r.add_loss(0, 0, {"loss": torch.tensor(0.3)}, is_train=False)
     assert r.train_loss[0].item() == pytest.approx(0.5)
@@ -90,8 +98,17 @@ def test_add_output_variants(tmp_path):
     mapping = torch.rand(2, 2, 16, 16)
 
     r.add_output(0, 0, (img, gt_mask), (pred_hbs, gt_hbs), is_train=True, num=2)
-    r.add_output(0, 1, (img, gt_mask), (gt_mask, pred_hbs, gt_hbs), is_train=True, num=2)
-    r.add_output(0, 2, (img, gt_mask), (gt_mask, pred_hbs, gt_hbs, mapping), is_train=True, num=2)
+    r.add_output(
+        0, 1, (img, gt_mask), (gt_mask, pred_hbs, gt_hbs), is_train=True, num=2
+    )
+    r.add_output(
+        0,
+        2,
+        (img, gt_mask),
+        (gt_mask, pred_hbs, gt_hbs, mapping),
+        is_train=True,
+        num=2,
+    )
 
 
 def test_add_output_rgb_image(tmp_path):
@@ -102,3 +119,66 @@ def test_add_output_rgb_image(tmp_path):
     pred_hbs = torch.rand(2, 2, 16, 16)
     gt_hbs = torch.rand(2, 2, 16, 16)
     r.add_output(0, 0, (img, gt), (pred_hbs, gt_hbs), is_train=True, num=2)
+
+
+def test_add_loss_test_metrics(tmp_path):
+    """is_train=False 且 loss_dict 带 iou/dice → 写 test_iou/test_dice 槽（130/132-135）。"""
+    r = make_recorder(tmp_path)
+    r.add_loss(
+        0,
+        0,
+        {
+            "loss": torch.tensor(0.3),
+            "iou": torch.tensor(0.2),
+            "dice": torch.tensor(0.7),
+        },
+        is_train=False,
+    )
+    assert r.test_iou[0].item() == pytest.approx(0.2)
+    assert r.test_dice[0].item() == pytest.approx(0.7)
+
+
+def test_add_epoch_loss_with_metrics(tmp_path):
+    """非空 iou/dice 槽 → add_scalar 分支（160/162）。"""
+    r = make_recorder(tmp_path)
+    r.train_loss[0] = torch.tensor(0.5)
+    r.train_iou[0] = torch.tensor(0.8)
+    r.train_dice[0] = torch.tensor(0.9)
+    r.add_epoch_loss(0, is_train=True)
+    r.test_loss[0] = torch.tensor(0.4)
+    r.test_iou[0] = torch.tensor(0.6)
+    r.add_epoch_loss(0, is_train=False)
+
+
+def test_init_recorder_add_graph_error(tmp_path):
+    """add_graph 对 forward 抛错的 net → 走 logger.error 分支，不崩（104-113）。"""
+
+    class BadNet(torch.nn.Module):
+        def get_input_shape(self, batch_size=1):
+            return (1, 1, 4, 4)
+
+        def forward(self, x):
+            raise RuntimeError("boom")
+
+    cfg = RecorderSchema(
+        log_dir=str(tmp_path / "run"), comment="t", is_add_graph=True
+    )
+    r = Recorder(cfg, 1, 1, 1, 1)
+    r.init_recorder({"a": "1"}, net=BadNet())
+
+
+def test_add_output_2d_panel(tmp_path):
+    """seg 面板为 2D 单通道掩码（无通道维）→ imshow(arr) 分支（217）。"""
+    r = make_recorder(tmp_path)
+    img = torch.rand(2, 3, 16, 16)
+    gt = torch.rand(2, 1, 16, 16)
+    pred_hbs = torch.rand(2, 2, 16, 16)
+    gt_hbs = torch.rand(2, 2, 16, 16)
+    r.add_output(
+        0,
+        0,
+        (img, gt),
+        (torch.rand(2, 16, 16), pred_hbs, gt_hbs),
+        is_train=True,
+        num=2,
+    )
