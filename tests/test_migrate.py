@@ -1,4 +1,5 @@
 """迁移工具全流程测试：合成旧格式 ckpt → 桩反序列化 → 键映射 → 新格式可加载。"""
+
 import os
 import sys
 import types
@@ -28,7 +29,9 @@ class SegHBSNNetConfig:
         self.device = "cpu"
         self.dtype = torch.float32
         self.hbs_loss_rate = 1.0
-        self.hbsn_checkpoint = "runs/hbsn/Jun11_13-01-53_big_ns/checkpoints/best.pth"
+        self.hbsn_checkpoint = (
+            "runs/hbsn/Jun11_13-01-53_big_ns/checkpoints/best.pth"
+        )
         self.input_channels = 3
 
 
@@ -89,7 +92,9 @@ def _make_legacy_config():
     sys.modules["config.run"] = run_mod
     sys.modules["config.config"] = config_mod
 
-    return Config(SegHBSNNetConfig(), HBSNDatasetConfig(), RecorderConfig(), RunConfig())
+    return Config(
+        SegHBSNNetConfig(), HBSNDatasetConfig(), RecorderConfig(), RunConfig()
+    )
 
 
 def test_migrate_seg_checkpoint(tmp_path):
@@ -112,6 +117,7 @@ def test_migrate_seg_checkpoint(tmp_path):
     torch.save(old_ckpt, src)
 
     from hbsn._legacy import pickle_shim
+
     pickle_shim.install()
 
     # 键映射
@@ -130,7 +136,10 @@ def test_migrate_seg_checkpoint(tmp_path):
     assert isinstance(new_ckpt["config"], dict)
     assert "hbsn." not in new_ckpt["state_dict"]
     # hbsn_checkpoint 路径重写：runs/hbsn/... → <out_dir>/hbsn/...
-    assert os.path.join(out_dir, "hbsn") in new_ckpt["config"]["net"]["hbsn_checkpoint"]
+    assert (
+        os.path.join(out_dir, "hbsn")
+        in new_ckpt["config"]["net"]["hbsn_checkpoint"]
+    )
     # dtype 转名称
     assert new_ckpt["config"]["net"]["dtype"] == "float32"
     # 重叠张量一致
@@ -157,10 +166,13 @@ def test_migrate_hbsn_checkpoint(tmp_path):
     torch.save(old_ckpt, src)
 
     from hbsn._legacy import pickle_shim
+
     pickle_shim.install()
 
     assert detect_type(old_ckpt["state_dict"], cfg) == "hbsn"
     out_dir = tmp_path / "migrated"
     out_path = migrate_one(str(src), str(out_dir))
     new_ckpt = torch.load(out_path, map_location="cpu", weights_only=False)
-    assert set(new_ckpt["state_dict"]) == set(old_ckpt["state_dict"])  # hbsn 键全保留
+    assert set(new_ckpt["state_dict"]) == set(
+        old_ckpt["state_dict"]
+    )  # hbsn 键全保留

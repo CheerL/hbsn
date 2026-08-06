@@ -9,6 +9,7 @@
 覆盖确定性核心路径：HBSNet（stn_mode 0/3）、STN 三模式、UNet、UNet2D、QC/LAP 损失。
 分割模型（deeplab/unetpp/maskrcnn）依赖预训练权重，由 test_nets 冒烟覆盖，不入 golden。
 """
+
 import json
 import os
 
@@ -56,15 +57,20 @@ def _builders() -> dict:
         ),
         "unet": (
             lambda: UNet(
-                n_channels=1, n_classes=2,
-                channels_down=[4, 8, 16], channels_up=[8, 16],
-                is_bilinear=True, is_skip=True,
+                n_channels=1,
+                n_classes=2,
+                channels_down=[4, 8, 16],
+                channels_up=[8, 16],
+                is_bilinear=True,
+                is_skip=True,
             ),
             (2, 1, 64, 64),
             None,
         ),
         "unet2d": (
-            lambda: UNet2D(n_input=3, n_output=2, n_feature=4, depth_down=2, depth_hidden=1),
+            lambda: UNet2D(
+                n_input=3, n_output=2, n_feature=4, depth_down=2, depth_hidden=1
+            ),
             (2, 3, 64, 64),
             None,
         ),
@@ -78,12 +84,17 @@ def _loss_module_cases() -> dict:
         torch.linspace(-1, 1, h), torch.linspace(-1, 1, w), indexing="ij"
     )
     mapping = torch.stack([0.9 * x, 0.8 * y], dim=0).unsqueeze(0)
-    return {"bcloss": (BCLossFunc([h, w]), mapping), "laploss": (LAPLossFunc([h, w]), mapping)}
+    return {
+        "bcloss": (BCLossFunc([h, w]), mapping),
+        "laploss": (LAPLossFunc([h, w]), mapping),
+    }
 
 
 def _load_golden(name, suffix):
     path = os.path.join(GOLDEN_DIR, f"{name}_{suffix}")
-    assert os.path.exists(path), f"golden 缺失，请先跑 tests/numerics/_generate_golden.py: {path}"
+    assert os.path.exists(path), (
+        f"golden 缺失，请先跑 tests/numerics/_generate_golden.py: {path}"
+    )
     return path
 
 

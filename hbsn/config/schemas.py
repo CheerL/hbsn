@@ -3,6 +3,7 @@
 字段名与旧版 `config/` 的类属性**逐字一致**——旧 checkpoint 里 pickle 的 Config
 对象通过 tools/migrate_checkpoints.py 的 _legacy 桩反序列化，属性名对不上就失败。
 """
+
 from dataclasses import dataclass, field
 
 

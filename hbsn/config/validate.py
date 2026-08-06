@@ -1,4 +1,5 @@
 """跨字段配置校验：compose 后立即执行，配错立即报错而不是静默带病训练。"""
+
 import os
 
 from omegaconf import DictConfig, OmegaConf
@@ -6,7 +7,9 @@ from omegaconf import DictConfig, OmegaConf
 from hbsn.config.schemas import CocoDatasetSchema, HbsnDatasetSchema
 
 
-def validate_config(cfg: DictConfig, net_schema_cls, dataset_schema_cls) -> tuple:
+def validate_config(
+    cfg: DictConfig, net_schema_cls, dataset_schema_cls
+) -> tuple:
     """合并 + 跨字段校验，返回 (merged_net, merged_dataset)。"""
     # 类型化合并：未知 key 在 OmegaConf.structured 合并时抛 ValidationError
     merged_net = OmegaConf.merge(OmegaConf.structured(net_schema_cls), cfg.net)
@@ -16,10 +19,12 @@ def validate_config(cfg: DictConfig, net_schema_cls, dataset_schema_cls) -> tupl
     net, dataset = merged_net, merged_dataset
 
     # 跨字段约束
-    assert net.stn_mode in {0, 1, 2, 3}, f"stn_mode must be 0..3, got {net.stn_mode}"
+    assert net.stn_mode in {0, 1, 2, 3}, (
+        f"stn_mode must be 0..3, got {net.stn_mode}"
+    )
     assert len(net.channels_up) == len(net.channels_down) - 1, (
         f"len(channels_up)={len(net.channels_up)} must equal "
-        f"len(channels_down)-1={len(net.channels_down)-1}"
+        f"len(channels_down)-1={len(net.channels_down) - 1}"
     )
 
     if dataset_schema_cls is HbsnDatasetSchema:

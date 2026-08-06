@@ -1,4 +1,5 @@
 """CocoDataset：COCO 分割数据（图片 + 实例掩码）。"""
+
 import functools
 import os
 
@@ -30,14 +31,18 @@ class CocoDataset(BaseDataset):
             self.annotation_path = self.config.test_annotation_path
             self.data_dir = self.config.test_data_dir
         else:
-            raise FileNotFoundError("Test data directory or annotation path not found")
+            raise FileNotFoundError(
+                "Test data directory or annotation path not found"
+            )
 
         self.coco: COCO = COCO(self.annotation_path)
         logger.info(f"Loading {self.annotation_path}...")
 
         # cat ids
         self.cat_ids = (
-            self.coco.getCatIds() if not self.config.cat_ids else self.config.cat_ids
+            self.coco.getCatIds()
+            if not self.config.cat_ids
+            else self.config.cat_ids
         )
 
         # img ids（多类别合并去重：一张图含多个目标类只出现一次）
@@ -57,17 +62,22 @@ class CocoDataset(BaseDataset):
             self.img_ids = [
                 img_id
                 for img_id in self.img_ids
-                if len(self.coco.getAnnIds(imgIds=img_id, catIds=self.cat_ids)) == 1
+                if len(self.coco.getAnnIds(imgIds=img_id, catIds=self.cat_ids))
+                == 1
             ]
 
         img_data = self.coco.loadImgs(self.img_ids)
         self.anns = [
             self.coco.loadAnns(
-                self.coco.getAnnIds(imgIds=img["id"], catIds=self.cat_ids, iscrowd=None)
+                self.coco.getAnnIds(
+                    imgIds=img["id"], catIds=self.cat_ids, iscrowd=None
+                )
             )
             for img in img_data
         ]
-        self.files = [os.path.join(self.data_dir, img["file_name"]) for img in img_data]
+        self.files = [
+            os.path.join(self.data_dir, img["file_name"]) for img in img_data
+        ]
 
         # connected
         if self.config.connected:
@@ -79,14 +89,31 @@ class CocoDataset(BaseDataset):
                 len(anns) > 0 and anns[0]["area"] > self.config.min_area
                 for anns in self.anns
             ]
-            self.anns = [a for a, keep in zip(self.anns, filter_list, strict=True) if keep]
-            self.img_ids = [i for i, keep in zip(self.img_ids, filter_list, strict=True) if keep]
-            self.files = [f for f, keep in zip(self.files, filter_list, strict=True) if keep]
+            self.anns = [
+                a
+                for a, keep in zip(self.anns, filter_list, strict=True)
+                if keep
+            ]
+            self.img_ids = [
+                i
+                for i, keep in zip(self.img_ids, filter_list, strict=True)
+                if keep
+            ]
+            self.files = [
+                f
+                for f, keep in zip(self.files, filter_list, strict=True)
+                if keep
+            ]
 
         self.transform = Compose(self._transform_list())
         if self.config.is_augment and not is_test:
             self.augment_transform = Compose(
-                [ToTensor(), RandomFlip(), RandomRotation(self.config.augment_rotation, expand=True), *self._transform_list()[1:]]
+                [
+                    ToTensor(),
+                    RandomFlip(),
+                    RandomRotation(self.config.augment_rotation, expand=True),
+                    *self._transform_list()[1:],
+                ]
             )
 
         logger.info(f"Dataset contains {len(self)} images")
@@ -108,12 +135,20 @@ class CocoDataset(BaseDataset):
     @functools.lru_cache(maxsize=512)
     def _anns_to_mask(coco: COCO, ann_ids: tuple[int, ...]) -> torch.Tensor:
         anns = [coco.loadAnns([ann_id])[0] for ann_id in ann_ids]
-        return torch.LongTensor(np.max(np.stack([coco.annToMask(ann) for ann in anns]), axis=0))
-
+        return torch.LongTensor(
+            np.max(np.stack([coco.annToMask(ann) for ann in anns]), axis=0)
+        )
 
     def _transform_list(self):
         return [
             ToTensor(),
-            ResizeMax(int(self.config.resize_rate * max(self.config.height, self.config.width))),
-            BoundedRandomCrop((self.config.height, self.config.width), pad_if_needed=True),
+            ResizeMax(
+                int(
+                    self.config.resize_rate
+                    * max(self.config.height, self.config.width)
+                )
+            ),
+            BoundedRandomCrop(
+                (self.config.height, self.config.width), pad_if_needed=True
+            ),
         ]

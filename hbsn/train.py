@@ -4,6 +4,7 @@
     python -m hbsn.train model=hbsn run.total_epoches=100 net.stn_mode=3
     python -m hbsn.train model=tpsn dataset.cat_ids='[16]' net.hbsn_checkpoint=runs/.../best.pth
 """
+
 import os
 import random
 
@@ -28,7 +29,9 @@ def run(net: BaseNet, input_data: tuple[torch.Tensor, torch.Tensor]):
     """单 batch 前向 + loss：把数据搬上设备，返回 (loss_dict, output_data)。"""
     img, ground_truth = input_data
     img = img.to(net.config.device, dtype=torch_dtype(net.config))
-    ground_truth = ground_truth.to(net.config.device, dtype=torch_dtype(net.config))
+    ground_truth = ground_truth.to(
+        net.config.device, dtype=torch_dtype(net.config)
+    )
 
     predict = net(img)
     loss_dict, output_data = net.loss(predict, ground_truth)
@@ -52,7 +55,9 @@ def epoch_run(net, dataloader, optimizer, recorder, epoch, is_train=True):
                 optimizer.step()
 
             if iteration % IMAGE_INTERVAL == 0:
-                recorder.add_output(epoch, iteration, input_data, output_data, is_train)
+                recorder.add_output(
+                    epoch, iteration, input_data, output_data, is_train
+                )
     recorder.add_epoch_loss(epoch, is_train)
 
 
@@ -81,7 +86,8 @@ def save_checkpoint(net, recorder, run_cfg, config_dict, optimizer, epoch):
 
     def _save(_is_best):
         checkpoint_path = os.path.join(
-            recorder.checkpoint_dir, "best.pth" if _is_best else f"epoch_{epoch}.pth"
+            recorder.checkpoint_dir,
+            "best.pth" if _is_best else f"epoch_{epoch}.pth",
         )
         net.save(
             checkpoint_path,
@@ -129,9 +135,13 @@ def main(cfg: DictConfig) -> None:
 
     model_name = resolve_model_name(cfg.model)
     spec = get_spec(model_name)
-    net_cfg, dataset_cfg = validate_config(cfg, spec.net_schema, spec.dataset_schema)
+    net_cfg, dataset_cfg = validate_config(
+        cfg, spec.net_schema, spec.dataset_schema
+    )
     run_cfg = OmegaConf.merge(OmegaConf.structured(RunSchema), cfg.run)
-    recorder_cfg = OmegaConf.merge(OmegaConf.structured(RecorderSchema), cfg.recorder)
+    recorder_cfg = OmegaConf.merge(
+        OmegaConf.structured(RecorderSchema), cfg.recorder
+    )
 
     net = spec.net.factory(net_cfg)
 
@@ -173,10 +183,16 @@ def main(cfg: DictConfig) -> None:
     }
 
     for epoch in range(init_epoch + 1, run_cfg.total_epoches):
-        epoch_run(net, train_dataloader, optimizer, recorder, epoch, is_train=True)
-        epoch_run(net, test_dataloader, optimizer, recorder, epoch, is_train=False)
+        epoch_run(
+            net, train_dataloader, optimizer, recorder, epoch, is_train=True
+        )
+        epoch_run(
+            net, test_dataloader, optimizer, recorder, epoch, is_train=False
+        )
         scheduler.step()
-        save_checkpoint(net, recorder, run_cfg, checkpoint_config, optimizer, epoch)
+        save_checkpoint(
+            net, recorder, run_cfg, checkpoint_config, optimizer, epoch
+        )
 
 
 if __name__ == "__main__":

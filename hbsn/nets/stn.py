@@ -1,4 +1,5 @@
 """空间变换网络（STN）。state_dict 键：localization/fc_loc1/fc_loc2/fc_loc。"""
+
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -54,14 +55,20 @@ class STN(nn.Module):
             # (s + stride - kernel) // stride；链为 conv1(k=7) → pool(k=2,s=4) →
             # conv2(k=5) → pool(k=2,s=4)。128×128 输入 → 2×2，256×256 → 7×7。
             s = s - (loc_conv1_kernel_size - 1)
-            s = (s + (loc_maxpool_stride - loc_maxpool_kernel_size)) // loc_maxpool_stride
+            s = (
+                s + (loc_maxpool_stride - loc_maxpool_kernel_size)
+            ) // loc_maxpool_stride
             s = s - (loc_conv2_kernel_size - 1)
-            s = (s + (loc_maxpool_stride - loc_maxpool_kernel_size)) // loc_maxpool_stride
+            s = (
+                s + (loc_maxpool_stride - loc_maxpool_kernel_size)
+            ) // loc_maxpool_stride
             return s
 
         output_height = get_loc_output_size(height)
         output_width = get_loc_output_size(width)
-        self.fc_loc_input_size = loc_conv2_out_channels * output_height * output_width
+        self.fc_loc_input_size = (
+            loc_conv2_out_channels * output_height * output_width
+        )
 
         if self.stn_mode == 0:
             fc_loc_output_size = 6
@@ -100,10 +107,20 @@ class STN(nn.Module):
             p = torch.stack(
                 [
                     torch.stack(
-                        [torch.cos(theta) / scale, torch.sin(theta) / scale, dx], dim=1
+                        [
+                            torch.cos(theta) / scale,
+                            torch.sin(theta) / scale,
+                            dx,
+                        ],
+                        dim=1,
                     ),
                     torch.stack(
-                        [-torch.sin(theta) / scale, torch.cos(theta) / scale, dy], dim=1
+                        [
+                            -torch.sin(theta) / scale,
+                            torch.cos(theta) / scale,
+                            dy,
+                        ],
+                        dim=1,
                     ),
                 ],
                 dim=1,

@@ -1,4 +1,5 @@
 """geodesic welding 冒烟：有限值、形状正确。"""
+
 import numpy as np
 
 from hbsn.geometry.geodesic_welding import geodesicwelding

@@ -3,6 +3,7 @@
 对旧实现补齐了空 mask / 除零 / randint 区间非法三类 edge case 守卫；
 有效区间内的数值行为与原实现一致。
 """
+
 import random
 from typing import Any
 
@@ -29,12 +30,16 @@ class BoundedRandomAffine(transforms.RandomAffine):
             max_dis = dis.max()
 
         angle = float(
-            torch.empty(1).uniform_(float(self.degrees[0]), float(self.degrees[1])).item()
+            torch.empty(1)
+            .uniform_(float(self.degrees[0]), float(self.degrees[1]))
+            .item()
         )
 
         if self.scale is not None:
             if max_dis > 0:
-                max_scale = min(self.scale[1], min(width, height) / (max_dis * 2))
+                max_scale = min(
+                    self.scale[1], min(width, height) / (max_dis * 2)
+                )
             else:
                 max_scale = self.scale[1]
             min_scale = min(self.scale[0], max_scale)
@@ -44,8 +49,12 @@ class BoundedRandomAffine(transforms.RandomAffine):
 
         if self.translate is not None:
             scaled_max_dis = scale * max_dis
-            max_dx = min(float(self.translate[0] * width), width / 2 - scaled_max_dis)
-            max_dy = min(float(self.translate[1] * height), height / 2 - scaled_max_dis)
+            max_dx = min(
+                float(self.translate[0] * width), width / 2 - scaled_max_dis
+            )
+            max_dy = min(
+                float(self.translate[1] * height), height / 2 - scaled_max_dis
+            )
             tx = round(torch.empty(1).uniform_(-max_dx, max_dx).item())
             ty = round(torch.empty(1).uniform_(-max_dy, max_dy).item())
             translations = (tx, ty)
@@ -55,9 +64,13 @@ class BoundedRandomAffine(transforms.RandomAffine):
         shear_x = shear_y = 0.0
         if self.shear is not None:
             shears = self.shear
-            shear_x = float(torch.empty(1).uniform_(shears[0], shears[1]).item())
+            shear_x = float(
+                torch.empty(1).uniform_(shears[0], shears[1]).item()
+            )
             if len(shears) == 4:
-                shear_y = float(torch.empty(1).uniform_(shears[2], shears[3]).item())
+                shear_y = float(
+                    torch.empty(1).uniform_(shears[2], shears[3]).item()
+                )
         shear = (shear_x, shear_y)
 
         return F.affine(
@@ -112,13 +125,26 @@ class BoundedRandomCrop(transforms.RandomCrop):
         _, mask_y, mask_x = torch.where(mask > 0.5)
         if mask_x.numel() == 0:
             # 空 mask：退化为随机裁剪（原实现 torch.where 空张量 .min() 崩溃）
-            top = int(torch.randint(0, max(1, mask.shape[-2] - cropped_height + 1), size=()))
-            left = int(torch.randint(0, max(1, mask.shape[-1] - cropped_width + 1), size=()))
+            top = int(
+                torch.randint(
+                    0, max(1, mask.shape[-2] - cropped_height + 1), size=()
+                )
+            )
+            left = int(
+                torch.randint(
+                    0, max(1, mask.shape[-1] - cropped_width + 1), size=()
+                )
+            )
             return {
-                "needs_crop": True, "top": top, "left": left,
-                "height": cropped_height, "width": cropped_width,
-                "needs_pad": False, "padding": [0, 0, 0, 0],
-                "needs_resize": False, "resize_size": None,
+                "needs_crop": True,
+                "top": top,
+                "left": left,
+                "height": cropped_height,
+                "width": cropped_width,
+                "needs_pad": False,
+                "padding": [0, 0, 0, 0],
+                "needs_resize": False,
+                "resize_size": None,
             }
 
         mask_width_min = mask_x.min().item()
@@ -139,7 +165,9 @@ class BoundedRandomCrop(transforms.RandomCrop):
             needs_resize = True
             resize_size = (resized_height, resized_width)
 
-            mask = F.resize(mask, size=[resized_height, resized_width], antialias=True)
+            mask = F.resize(
+                mask, size=[resized_height, resized_width], antialias=True
+            )
             _, mask_y, mask_x = torch.where(mask > 0.5)
             mask_width_min = mask_x.min().item()
             mask_width_max = mask_x.max().item()
@@ -202,7 +230,10 @@ class BoundedRandomCrop(transforms.RandomCrop):
                 True,
                 randint_between(
                     max(0, mask_height_max - cropped_height + pad_top),
-                    min(padded_height - cropped_height + 1, mask_height_min + pad_top + 1),
+                    min(
+                        padded_height - cropped_height + 1,
+                        mask_height_min + pad_top + 1,
+                    ),
                 ),
             )
             if padded_height > cropped_height
@@ -213,7 +244,10 @@ class BoundedRandomCrop(transforms.RandomCrop):
                 True,
                 randint_between(
                     max(0, mask_width_max - cropped_width + pad_left),
-                    min(padded_width - cropped_width + 1, mask_width_min + pad_left + 1),
+                    min(
+                        padded_width - cropped_width + 1,
+                        mask_width_min + pad_left + 1,
+                    ),
                 ),
             )
             if padded_width > cropped_width
@@ -239,17 +273,27 @@ class BoundedRandomCrop(transforms.RandomCrop):
             mask = F.resize(mask, size=params["resize_size"], antialias=True)
 
         if params["needs_pad"]:
-            image = F.pad(image, padding=params["padding"], padding_mode=self.padding_mode)
-            mask = F.pad(mask, padding=params["padding"], padding_mode=self.padding_mode)
+            image = F.pad(
+                image, padding=params["padding"], padding_mode=self.padding_mode
+            )
+            mask = F.pad(
+                mask, padding=params["padding"], padding_mode=self.padding_mode
+            )
 
         if params["needs_crop"]:
             image = F.crop(
-                image, top=params["top"], left=params["left"],
-                height=params["height"], width=params["width"],
+                image,
+                top=params["top"],
+                left=params["left"],
+                height=params["height"],
+                width=params["width"],
             )
             mask = F.crop(
-                mask, top=params["top"], left=params["left"],
-                height=params["height"], width=params["width"],
+                mask,
+                top=params["top"],
+                left=params["left"],
+                height=params["height"],
+                width=params["width"],
             )
 
         return image, mask
@@ -317,9 +361,19 @@ class RandomRotation(transforms.RandomRotation):
         angle = self.get_params(self.degrees)
 
         img = F.rotate(
-            img, angle, self.interpolation, self.expand, self.center, self.get_fill(img)
+            img,
+            angle,
+            self.interpolation,
+            self.expand,
+            self.center,
+            self.get_fill(img),
         )
         mask = F.rotate(
-            mask, angle, self.interpolation, self.expand, self.center, self.get_fill(mask)
+            mask,
+            angle,
+            self.interpolation,
+            self.expand,
+            self.center,
+            self.get_fill(mask),
         )
         return img, mask

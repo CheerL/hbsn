@@ -26,8 +26,12 @@ class BCLossFunc(torch.nn.Module):
     def __init__(self, size):
         super().__init__()
         # 非持久 buffer：.to(device) 可搬运，不入 state_dict
-        self.register_buffer("hx1", torch.tensor(2.0 / size[0]), persistent=False)
-        self.register_buffer("hx2", torch.tensor(2.0 / size[1]), persistent=False)
+        self.register_buffer(
+            "hx1", torch.tensor(2.0 / size[0]), persistent=False
+        )
+        self.register_buffer(
+            "hx2", torch.tensor(2.0 / size[1]), persistent=False
+        )
 
     def forward(self, mapping):
         eps = 1e-8
@@ -70,8 +74,12 @@ class LAPLossFunc(torch.nn.Module):
             .unsqueeze(0)
         )
         self.weight = torch.nn.Parameter(data=kernel, requires_grad=False)
-        self.register_buffer("hx1", torch.tensor(2.0 / size[0]), persistent=False)
-        self.register_buffer("hx2", torch.tensor(2.0 / size[1]), persistent=False)
+        self.register_buffer(
+            "hx1", torch.tensor(2.0 / size[0]), persistent=False
+        )
+        self.register_buffer(
+            "hx2", torch.tensor(2.0 / size[1]), persistent=False
+        )
 
     def forward(self, x):
         x1 = x[:, 0, :, :]
@@ -89,7 +97,12 @@ class TPSN(SegHBSNNet):
         theta = torch.tensor([[[1, 0, 0], [0, 1, 0]]], dtype=torch.float)
         grid_identity = F.affine_grid(
             theta,
-            (1, 2, self.config.height + 2 * PAD_SIZE, self.config.width + 2 * PAD_SIZE),
+            (
+                1,
+                2,
+                self.config.height + 2 * PAD_SIZE,
+                self.config.width + 2 * PAD_SIZE,
+            ),
             align_corners=True,
         )[0]
         self.grid_padded_identity = grid_identity.permute((2, 0, 1)).to(
@@ -97,15 +110,28 @@ class TPSN(SegHBSNNet):
         )
 
         # 平凡模板 mask（全 1）
-        mask_temp = torch.ones([1, 1, self.config.height - 2 * PAD_SIZE, self.config.width - 2 * PAD_SIZE])
+        mask_temp = torch.ones(
+            [
+                1,
+                1,
+                self.config.height - 2 * PAD_SIZE,
+                self.config.width - 2 * PAD_SIZE,
+            ]
+        )
         self.mask_simple = pad_image(mask_temp).to(self.config.device)
 
         # QC / LAP 损失
         self.qc_loss = BCLossFunc(
-            [self.config.height + 2 * PAD_SIZE, self.config.width + 2 * PAD_SIZE]
+            [
+                self.config.height + 2 * PAD_SIZE,
+                self.config.width + 2 * PAD_SIZE,
+            ]
         )
         self.lap_loss = LAPLossFunc(
-            [self.config.height + 2 * PAD_SIZE, self.config.width + 2 * PAD_SIZE]
+            [
+                self.config.height + 2 * PAD_SIZE,
+                self.config.width + 2 * PAD_SIZE,
+            ]
         )
 
     def model_forward(self, img: torch.Tensor) -> torch.Tensor:
@@ -130,9 +156,13 @@ class TPSN(SegHBSNNet):
         predict: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
         ground_truth: torch.Tensor,
     ) -> tuple[dict[str, torch.Tensor], tuple[torch.Tensor, ...]]:
-        predict_mask, predict_hbs, (predict_pad_mask, predict_pad_mapping) = predict
+        predict_mask, predict_hbs, (predict_pad_mask, predict_pad_mapping) = (
+            predict
+        )
         mse_loss = F.mse_loss(predict_pad_mask, pad_image(ground_truth))
-        f1, iou = self.get_metrics(self.binarize_mask(predict_mask), ground_truth)
+        f1, iou = self.get_metrics(
+            self.binarize_mask(predict_mask), ground_truth
+        )
         f1 = f1.mean()
         iou = iou.mean()
         dice_loss = 1 - f1

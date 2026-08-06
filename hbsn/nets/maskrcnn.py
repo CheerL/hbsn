@@ -3,6 +3,7 @@
 手抄了 torchvision 0.28 的内部推理链（rpn/roi_heads/postprocess）——
 升级 torchvision 前必须核对，state_dict 键：model.* / weight_layer.* / mask_conv.*。
 """
+
 from collections import OrderedDict
 
 import torch
@@ -33,7 +34,9 @@ class MaskRCNN(SegHBSNNet):
         super().__init__(hbsn, config)
 
     def build_model(self):
-        self.model = maskrcnn_resnet50_fpn(weights=MaskRCNN_ResNet50_FPN_Weights.DEFAULT)
+        self.model = maskrcnn_resnet50_fpn(
+            weights=MaskRCNN_ResNet50_FPN_Weights.DEFAULT
+        )
         self.weight_layer = nn.Sequential(
             nn.Linear(2, self.config.weight_hidden_size),
             nn.ReLU(),
@@ -41,7 +44,11 @@ class MaskRCNN(SegHBSNNet):
             nn.Softmax(dim=1),
         )
         self.mask_conv = nn.Sequential(
-            nn.Conv2d(self.config.select_num, self.config.output_channels, kernel_size=1),
+            nn.Conv2d(
+                self.config.select_num,
+                self.config.output_channels,
+                kernel_size=1,
+            ),
             nn.Sigmoid(),
         )
 
@@ -56,7 +63,9 @@ class MaskRCNN(SegHBSNNet):
         detections = self.roi_heads(features, proposals, images.image_sizes)
         detections = self.postprocess(detections, images.image_sizes)
 
-        masks = [x["masks"][: self.config.select_num].squeeze(1) for x in detections]
+        masks = [
+            x["masks"][: self.config.select_num].squeeze(1) for x in detections
+        ]
         masks = [
             F.pad(x, (0, 0, 0, 0, 0, self.config.select_num - x.shape[0]))
             for x in masks
@@ -65,10 +74,15 @@ class MaskRCNN(SegHBSNNet):
         masks = masks.to(self.config.device, dtype=torch_dtype(self.config))
 
         weight = [
-            torch.stack([x["labels"].float(), x["scores"]], dim=1)[: self.config.select_num]
+            torch.stack([x["labels"].float(), x["scores"]], dim=1)[
+                : self.config.select_num
+            ]
             for x in detections
         ]
-        weight = [F.pad(x, (0, 0, 0, self.config.select_num - x.shape[0])) for x in weight]
+        weight = [
+            F.pad(x, (0, 0, 0, self.config.select_num - x.shape[0]))
+            for x in weight
+        ]
         weight = torch.stack(weight)
         weight = weight.to(self.config.device, dtype=torch_dtype(self.config))
 
@@ -76,7 +90,9 @@ class MaskRCNN(SegHBSNNet):
         masks = self.mask_conv(masks * weight.unsqueeze(3))
         return masks
 
-    def rpn(self, images, features: dict[str, torch.Tensor]) -> list[torch.Tensor]:
+    def rpn(
+        self, images, features: dict[str, torch.Tensor]
+    ) -> list[torch.Tensor]:
         features = list(features.values())
         objectness, pred_bbox_deltas = self.model.rpn.head(features)
         anchors = self.model.rpn.anchor_generator(images, features)
@@ -89,7 +105,9 @@ class MaskRCNN(SegHBSNNet):
         objectness, pred_bbox_deltas = concat_box_prediction_layers(
             objectness, pred_bbox_deltas
         )
-        proposals = self.model.rpn.box_coder.decode(pred_bbox_deltas.detach(), anchors)
+        proposals = self.model.rpn.box_coder.decode(
+            pred_bbox_deltas.detach(), anchors
+        )
         proposals = proposals.view(num_images, -1, 4)
         boxes, _ = self.model.rpn.filter_proposals(
             proposals,
@@ -105,16 +123,22 @@ class MaskRCNN(SegHBSNNet):
         proposals: list[torch.Tensor],
         image_shapes: list[tuple[int, int]],
     ):
-        box_features = self.model.roi_heads.box_roi_pool(features, proposals, image_shapes)
+        box_features = self.model.roi_heads.box_roi_pool(
+            features, proposals, image_shapes
+        )
         box_features = self.model.roi_heads.box_head(box_features)
-        class_logits, box_regression = self.model.roi_heads.box_predictor(box_features)
+        class_logits, box_regression = self.model.roi_heads.box_predictor(
+            box_features
+        )
 
         result: list[dict[str, torch.Tensor]] = []
         boxes, scores, labels = self.model.roi_heads.postprocess_detections(
             class_logits, box_regression, proposals, image_shapes
         )
         for i in range(len(boxes)):
-            result.append({"boxes": boxes[i], "labels": labels[i], "scores": scores[i]})
+            result.append(
+                {"boxes": boxes[i], "labels": labels[i], "scores": scores[i]}
+            )
 
         if self.model.roi_heads.has_mask():
             mask_proposals = [p["boxes"] for p in result]
@@ -141,8 +165,12 @@ class MaskRCNN(SegHBSNNet):
             keypoint_features = self.model.roi_heads.keypoint_roi_pool(
                 features, keypoint_proposals, image_shapes
             )
-            keypoint_features = self.model.roi_heads.keypoint_head(keypoint_features)
-            keypoint_logits = self.model.roi_heads.keypoint_predictor(keypoint_features)
+            keypoint_features = self.model.roi_heads.keypoint_head(
+                keypoint_features
+            )
+            keypoint_logits = self.model.roi_heads.keypoint_predictor(
+                keypoint_features
+            )
 
             if keypoint_logits is None or keypoint_proposals is None:
                 raise ValueError(
@@ -152,7 +180,9 @@ class MaskRCNN(SegHBSNNet):
             keypoints_probs, kp_scores = keypointrcnn_inference(
                 keypoint_logits, keypoint_proposals
             )
-            for keypoint_prob, kps, r in zip(keypoints_probs, kp_scores, result, strict=True):
+            for keypoint_prob, kps, r in zip(
+                keypoints_probs, kp_scores, result, strict=True
+            ):
                 r["keypoints"] = keypoint_prob
                 r["keypoints_scores"] = kps
 
@@ -163,7 +193,9 @@ class MaskRCNN(SegHBSNNet):
         result: list[dict[str, torch.Tensor]],
         image_shapes: list[tuple[int, int]],
     ) -> list[dict[str, torch.Tensor]]:
-        for i, (pred, im_s) in enumerate(zip(result, image_shapes, strict=True)):
+        for i, (pred, im_s) in enumerate(
+            zip(result, image_shapes, strict=True)
+        ):
             o_im_s = (self.config.height, self.config.width)
             boxes = pred["boxes"]
             boxes = resize_boxes(boxes, im_s, o_im_s)

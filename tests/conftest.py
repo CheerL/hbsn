@@ -4,6 +4,7 @@
 本 fixture 在 tmp_path 里按 HBSNDataset 的读取格式（{i}.png + {i}.npy）生成
 最小合成样本，让数据集测试在任何环境都可复现。
 """
+
 import numpy as np
 import pytest
 from PIL import Image

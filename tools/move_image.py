@@ -1,4 +1,5 @@
 """图像按位移场移动（离线数据生成用，scipy griddata 分支很慢但仅生成期使用）。"""
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -28,7 +29,9 @@ def move_image(img, f, vertex=None, version="torch"):
 
     if version == "torch":
         if N == 1:
-            img = torch.DoubleTensor(img).reshape(N, H, W, C).permute(0, 3, 1, 2)
+            img = (
+                torch.DoubleTensor(img).reshape(N, H, W, C).permute(0, 3, 1, 2)
+            )
             f = torch.tensor(f).reshape(N, H, W, 2)
             J = move_image_torch(img, f)
             J = J.permute(0, 2, 3, 1)

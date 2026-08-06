@@ -1,4 +1,5 @@
 """模型注册表：resolve_model_name 双输入形态 + get_spec 已知/未知名。"""
+
 import pytest
 
 from hbsn.registry import MODEL_REGISTRY, get_spec, resolve_model_name

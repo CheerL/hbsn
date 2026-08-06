@@ -33,7 +33,9 @@ class SegHBSNNet(BaseNet):
     def model_forward(self, img: Tensor) -> Tensor | list[Tensor]:
         raise NotImplementedError("model_forward not implemented")
 
-    def forward(self, img: Tensor) -> tuple[Tensor, Tensor] | tuple[Tensor, Tensor, list[Tensor]]:
+    def forward(
+        self, img: Tensor
+    ) -> tuple[Tensor, Tensor] | tuple[Tensor, Tensor, list[Tensor]]:
         results = self.model_forward(img)
         if isinstance(results, Tensor):
             predict_mask = results
@@ -65,7 +67,9 @@ class SegHBSNNet(BaseNet):
     ) -> tuple[dict[str, Tensor], tuple[Tensor, Tensor, Tensor]]:
         predict_mask, predict_hbs = predict
         mse_loss = F.mse_loss(predict_mask, ground_truth)
-        f1, iou = self.get_metrics(self.binarize_mask(predict_mask), ground_truth)
+        f1, iou = self.get_metrics(
+            self.binarize_mask(predict_mask), ground_truth
+        )
         f1 = f1.mean()
         iou = iou.mean()
         dice_loss = 1 - f1

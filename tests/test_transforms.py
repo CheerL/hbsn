@@ -1,4 +1,5 @@
 """自定义变换：SoftLabel/ResizeMax/ToTensor/RandomFlip/RandomRotation/BoundedRandomCrop/Affine。"""
+
 import random
 
 import torch
@@ -95,8 +96,12 @@ def test_random_flip_always():
     img, mask = _pair()
     flipped_img, flipped_mask = t((img, mask))
     # p=1.0：hflip + vflip 都触发
-    assert torch.equal(flipped_img, torch.flip(torch.flip(img, dims=[2]), dims=[1]))
-    assert torch.equal(flipped_mask, torch.flip(torch.flip(mask, dims=[2]), dims=[1]))
+    assert torch.equal(
+        flipped_img, torch.flip(torch.flip(img, dims=[2]), dims=[1])
+    )
+    assert torch.equal(
+        flipped_mask, torch.flip(torch.flip(mask, dims=[2]), dims=[1])
+    )
 
 
 def test_random_flip_always_skip():

@@ -1,4 +1,5 @@
 """BaseDataset：dataloader 构造（num_workers/pin_memory 从配置透传）+ TransformSubset。"""
+
 import random
 
 import numpy as np
@@ -36,7 +37,9 @@ class TransformSubset(Subset):
         elif isinstance(dataset, Dataset):
             return cls(dataset, range(len(dataset)), transform)
         else:
-            raise TypeError(f"Expected Dataset or Subset, but got {type(dataset)}")
+            raise TypeError(
+                f"Expected Dataset or Subset, but got {type(dataset)}"
+            )
 
 
 class BaseDataset(Dataset):
@@ -86,6 +89,10 @@ class BaseDataset(Dataset):
                 worker_init_fn=worker_init_fn if num_workers > 0 else None,
             )
 
-        train_dataloader = make_loader(train_dataset, True) if train_dataset else None
-        test_dataloader = make_loader(test_dataset, False) if test_dataset else None
+        train_dataloader = (
+            make_loader(train_dataset, True) if train_dataset else None
+        )
+        test_dataloader = (
+            make_loader(test_dataset, False) if test_dataset else None
+        )
         return train_dataloader, test_dataloader

@@ -4,6 +4,7 @@
 本文件在 tmp_path 生成最小合成 COCO 数据（3 张 64×64 图 + annotations JSON），
 覆盖：基础加载/__getitem__ 掩码、single_instance 过滤、connected 过滤、_anns_to_mask。
 """
+
 import json
 
 import numpy as np
@@ -30,14 +31,42 @@ def _write_synthetic_coco(tmp_path):
         Image.fromarray(arr, mode="RGB").save(data_dir / f"{i}.png")
 
     annotations = [
-        {"id": 11, "image_id": 1, "category_id": 16, "bbox": [10, 10, 20, 20],
-         "segmentation": [[10, 10, 30, 10, 30, 30, 10, 30]], "area": 500, "iscrowd": 0},
-        {"id": 21, "image_id": 2, "category_id": 16, "bbox": [5, 5, 15, 15],
-         "segmentation": [[5, 5, 20, 5, 20, 20, 5, 20]], "area": 200, "iscrowd": 0},
-        {"id": 22, "image_id": 2, "category_id": 16, "bbox": [30, 30, 15, 15],
-         "segmentation": [[30, 30, 45, 30, 45, 45, 30, 45]], "area": 200, "iscrowd": 0},
-        {"id": 31, "image_id": 3, "category_id": 16, "bbox": [10, 10, 10, 10],
-         "segmentation": [[10, 10, 20, 10, 20, 20, 10, 20]], "area": 100, "iscrowd": 0},
+        {
+            "id": 11,
+            "image_id": 1,
+            "category_id": 16,
+            "bbox": [10, 10, 20, 20],
+            "segmentation": [[10, 10, 30, 10, 30, 30, 10, 30]],
+            "area": 500,
+            "iscrowd": 0,
+        },
+        {
+            "id": 21,
+            "image_id": 2,
+            "category_id": 16,
+            "bbox": [5, 5, 15, 15],
+            "segmentation": [[5, 5, 20, 5, 20, 20, 5, 20]],
+            "area": 200,
+            "iscrowd": 0,
+        },
+        {
+            "id": 22,
+            "image_id": 2,
+            "category_id": 16,
+            "bbox": [30, 30, 15, 15],
+            "segmentation": [[30, 30, 45, 30, 45, 45, 30, 45]],
+            "area": 200,
+            "iscrowd": 0,
+        },
+        {
+            "id": 31,
+            "image_id": 3,
+            "category_id": 16,
+            "bbox": [10, 10, 10, 10],
+            "segmentation": [[10, 10, 20, 10, 20, 20, 10, 20]],
+            "area": 100,
+            "iscrowd": 0,
+        },
     ]
     payload = {
         "images": [
@@ -55,8 +84,13 @@ def _write_synthetic_coco(tmp_path):
 
 def _make_cfg(data_dir, ann_path, **kw):
     defaults = {
-        "data_dir": data_dir, "annotation_path": ann_path,
-        "cat_ids": [16], "height": 32, "width": 32, "resize_rate": 1.0, "num_workers": 0,
+        "data_dir": data_dir,
+        "annotation_path": ann_path,
+        "cat_ids": [16],
+        "height": 32,
+        "width": 32,
+        "resize_rate": 1.0,
+        "num_workers": 0,
     }
     defaults.update(kw)
     return CocoDatasetSchema(**defaults)
@@ -85,7 +119,9 @@ def test_coco_single_instance_filters(tmp_path):
 def test_coco_connected_filters_by_area(tmp_path):
     """connected=True + min_area=300：图 3（area 100）被过滤，剩图 1（area 500）。"""
     data_dir, ann_path = _write_synthetic_coco(tmp_path)
-    ds = CocoDataset(_make_cfg(data_dir, ann_path, connected=True, min_area=300))
+    ds = CocoDataset(
+        _make_cfg(data_dir, ann_path, connected=True, min_area=300)
+    )
     assert len(ds) == 1
     assert ds.img_ids == [1]
 

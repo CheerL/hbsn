@@ -1,4 +1,5 @@
 """模型注册表：net/schema/dataset 三元组（取代旧 factory.py 的四合一 TYPE_DICT）。"""
+
 from dataclasses import dataclass
 
 from hbsn.config.schemas import (
@@ -31,9 +32,19 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     spec.name: spec
     for spec in [
         ModelSpec("hbsn", HBSNet, HBSNetSchema, HBSNDataset, HbsnDatasetSchema),
-        ModelSpec("deeplab", DeepLab, SegNetSchema, CocoDataset, CocoDatasetSchema),
-        ModelSpec("unetpp", UnetPP, SegNetSchema, CocoDataset, CocoDatasetSchema),
-        ModelSpec("maskrcnn", MaskRCNN, MaskRcnnNetSchema, CocoDataset, CocoDatasetSchema),
+        ModelSpec(
+            "deeplab", DeepLab, SegNetSchema, CocoDataset, CocoDatasetSchema
+        ),
+        ModelSpec(
+            "unetpp", UnetPP, SegNetSchema, CocoDataset, CocoDatasetSchema
+        ),
+        ModelSpec(
+            "maskrcnn",
+            MaskRCNN,
+            MaskRcnnNetSchema,
+            CocoDataset,
+            CocoDatasetSchema,
+        ),
         ModelSpec("tpsn", TPSN, TpsnNetSchema, CocoDataset, CocoDatasetSchema),
     ]
 }

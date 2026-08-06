@@ -55,7 +55,9 @@ class BaseNet(nn.Module):
             self.config.width,
         )
 
-    def save(self, path, epoch, best_epoch, best_loss, config=None, optimizer=None):
+    def save(
+        self, path, epoch, best_epoch, best_loss, config=None, optimizer=None
+    ):
         torch.save(
             {
                 "state_dict": self.state_dict(),

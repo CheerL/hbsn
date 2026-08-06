@@ -26,7 +26,9 @@ class HBSNet(BaseNet):
         self.backbone = backbone
 
         # 非持久 buffer：.to(device) 自动搬运，且不进 state_dict（与旧版普通属性等价）
-        self.register_buffer("mask", self.create_mask(config.radius), persistent=False)
+        self.register_buffer(
+            "mask", self.create_mask(config.radius), persistent=False
+        )
         self.to(config.device)
 
     def create_mask(self, r):
@@ -63,16 +65,22 @@ class HBSNet(BaseNet):
 
         output_data: tuple[Tensor, Tensor] = (predict, ground_truth)
         predict_grad = torch.cat(torch.gradient(predict, dim=(2, 3)), dim=1)
-        ground_truth_grad = torch.cat(torch.gradient(ground_truth, dim=(2, 3)), dim=1)
+        ground_truth_grad = torch.cat(
+            torch.gradient(ground_truth, dim=(2, 3)), dim=1
+        )
 
         if is_mask:
             predict = torch.masked_select(predict, self.mask)
             ground_truth = torch.masked_select(ground_truth, self.mask)
             predict_grad = torch.masked_select(predict_grad, self.mask)
-            ground_truth_grad = torch.masked_select(ground_truth_grad, self.mask)
+            ground_truth_grad = torch.masked_select(
+                ground_truth_grad, self.mask
+            )
 
         hbs_loss = F.mse_loss(predict, ground_truth, reduction="mean")
-        grad_loss = F.mse_loss(predict_grad, ground_truth_grad, reduction="mean")
+        grad_loss = F.mse_loss(
+            predict_grad, ground_truth_grad, reduction="mean"
+        )
 
         loss = (
             hbs_loss
