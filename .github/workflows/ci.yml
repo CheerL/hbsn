@@ -16,7 +16,26 @@ jobs:
           python-version: "3.10"
       - name: "Install deps (incl. dev extras: pytest/ruff)"
         run: uv sync --extra dev
-      - name: Lint
+      - name: Lint (ruff check 0 error)
         run: uv run --extra dev ruff check .
+      - name: Format (ruff format --check 全绿)
+        run: uv run --extra dev ruff format --check .
+      - name: File line-count cap (≤500)
+        # ruff 无"文件最大行数"内置规则（C0302 too-many-lines 未实现），用 CI 兜底
+        run: |
+          python - <<'PY'
+          import pathlib
+
+          limit = 500
+          bad = []
+          for root in ("hbsn", "scripts", "tools", "tests"):
+              for p in pathlib.Path(root).rglob("*.py"):
+                  n = len(p.read_text().splitlines())
+                  if n > limit:
+                      bad.append(f"{p}: {n} lines (> {limit})")
+          if bad:
+              print("\n".join(bad))
+              raise SystemExit(1)
+          PY
       - name: Test (hermetic — 合成数据，coco 数据依赖测试自动 skip)
         run: uv run --extra dev python -m pytest -q --cov=hbsn --cov-fail-under=80

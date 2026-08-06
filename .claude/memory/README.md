@@ -21,6 +21,8 @@ metadata:
 - [syncthing-deletable-prefix](syncthing-deletable-prefix.md) — Syncthing (?d) 前缀用法（尾斜杠、顺序、遍历边界）
 - [uv-extra-dev](uv-extra-dev.md) — uv run 默认不装 extras，pytest/ruff 需 uv run --extra dev
 - [eval-coco-legacy-device](eval-coco-legacy-device.md) — 迁移 ckpt 存档 device 可能失效（cuda:2），评估需强制覆盖
+- [loguru-capsys-stderr](loguru-capsys-stderr.md) — loguru 默认 sink 绑原始 stderr，capsys 捕获不到，测输出用临时 sink
+- [ruff-no-file-lines-rule](ruff-no-file-lines-rule.md) — ruff 无文件行数规则，CI 兜底 ≤500 + tools/format.sh 一键重排
 
 ## 约定
 

@@ -44,9 +44,13 @@ tests/                pytest 覆盖套件（含 test_registry/test_eval_coco/num
 ## 开发流程（提交前门禁）
 
 ```bash
+bash tools/format.sh                  # 一键重排：ruff check --fix + ruff format + 双校验（0 error / 全绿）
 uv run --extra dev python -m pytest   # 必须全部 passed，覆盖 ≥80%（--extra dev 装 pytest/ruff）
 uv run --extra dev ruff check .       # 必须 All checks passed（0 error）
 ```
+
+- CI（`.github/workflows/ci.yml`）另含 `ruff format --check .` 与文件行数 ≤500 门禁
+  （ruff 无文件行数规则，CI 兜底；`tools/format.sh` 一键全仓重排）。
 
 - 测试已 hermetic：`tests/conftest.py` 合成数据，worktree/任意目录可跑；
   coco 数据依赖测试在无数据时自动 skip（test_coco_dataset_shapes）。
