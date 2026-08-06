@@ -65,7 +65,12 @@ uv run --extra dev ruff check .       # 必须 All checks passed（0 error）
 
 - **tokenless 已禁用**（`tokenless style off`）：该输出压缩插件有 reducer bug
   （破坏 git 参数、可静默吞命令）。若新会话它又启用，用 `tokenless style off` 关闭。
-- **venv 在 `python/.venv`**（重建过，path 与新目录绑定）；旧 `.venv_old` 已删。
+- **python 固定 3.12**（pyproject `requires-python` 收窄到 3.12；本地 `.python-version`
+  须为 `3.12`——该文件被 gitignore 忽略，但 uv 会优先读它）。
+- **venv 在 `python/.venv`**：重建用 `uv venv --python 3.12 && uv sync --extra dev`。
+- **worktree 共享 venv**（不必每次新建，省 ~5G/个）：
+  `rm -rf .venv && ln -s /home/nnb/projects/HBSN/python/.venv .venv`
+  共享 venv 只读跑测试安全；**勿在多 worktree 同时 `uv sync`/装包**（并发写会互相覆盖）。
 - Bash 工具 shell 是 **zsh**（变量不分词、`cd` 不持久跨调用）；重命名/移动文件后
   shebang 会断，需重建 venv。
 
