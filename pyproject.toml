@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "hbsn"
 version = "0.1.0"
 description = "Harmonic Beltrami Signature Network — training & evaluation codebase"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"  # 固定 3.12：golden 数值测试与多 venv 一致
 # 精确钉版：maskrcnn/deeplab 手抄 torchvision 内部 API，smp 0.3.3 与 unetpp checkpoint 的
 # state_dict 键绑定，跨版本升级会静默换键
 dependencies = [
