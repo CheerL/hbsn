@@ -10,11 +10,16 @@ from .grid import CX, CY, R, get_ghbs_grid
 
 
 def d2(a, b, z=None, mask=None):
-    """圆盘掩膜上 L² 距离。"""
+    r"""圆盘掩膜上平均 L² 距离（论文口径 d(B,B')=(1/N)Σ|B−B'|²）。
+
+    除以圆盘像素数 N（mask 内点数）——与主文 eq. (d hbs) 的 distance 定义一致。
+    is_flip 用相对比较，口径不影响判定。
+    """
     if z is None:
         z, mask = get_ghbs_grid()
     diff = a - b
-    return np.sqrt(np.sum(np.abs(diff[mask]) ** 2))
+    n = mask.sum()
+    return np.sum(np.abs(diff[mask]) ** 2) / n
 
 
 def i2(field, z=None, mask=None):

@@ -252,8 +252,8 @@ def main():
     )
     print(f"经典 R_π 翻转 {flip_classic} 次, HBSN 翻转 {flip_hbsn} 次")
     print(
-        f"d(B_θ,B_θ*) classic: 左侧阶跃 {np.nanmax(d_classic):.2f} → 右侧 ~0, "
-        f"hbsn max={np.nanmax(d_hbsn):.2f}"
+        f"d(B_θ,B_θ*) classic: 左侧阶跃 {np.nanmax(d_classic):.4f} → 右侧 ~0, "
+        f"hbsn max={np.nanmax(d_hbsn):.4f}"
     )
     print(f"输出: {OUT_DIR}/f_deform.png (a+b GridSpec)")
 
