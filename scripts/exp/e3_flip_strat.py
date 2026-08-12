@@ -188,9 +188,7 @@ def main():
 
     # ---- 表格 ----
     with open(os.path.join(TAB_DIR, "tab_flip_counts.tex"), "w") as f:
-        f.write(
-            "%% E3 翻转计数按 sym 分箱：翻转数/总对数（经典 / HBSN+RN）\n"
-        )
+        f.write("%% E3 翻转计数按 sym 分箱：翻转数/总对数（经典 / HBSN+RN）\n")
         f.write("\\begin{tabular}{|c|c|c|c|}\\hline\n")
         f.write("sym bin & pairs & classical & HBSN+RN \\\\ \\hline\n")
         for b in range(len(BIN_LABELS)):
@@ -213,8 +211,12 @@ def main():
     ]
     fig, ax = plt.subplots(figsize=(9, 5))
     w = 0.3
-    ax.bar(xs - w / 2, rates[0], w, label="classical", color="tab:red", alpha=0.85)
-    ax.bar(xs + w / 2, rates[1], w, label="HBSN+RN", color="tab:blue", alpha=0.85)
+    ax.bar(
+        xs - w / 2, rates[0], w, label="classical", color="tab:red", alpha=0.85
+    )
+    ax.bar(
+        xs + w / 2, rates[1], w, label="HBSN+RN", color="tab:blue", alpha=0.85
+    )
     ax.set_xticks(xs)
     ax.set_xticklabels(BIN_LABELS)
     ax.set_xlabel(r"$\mathrm{sym}(B)$")
@@ -234,12 +236,8 @@ def main():
     nb = len(i2_edges) - 1
     i2_bin = np.clip(np.digitize(records[:, 1], i2_edges) - 1, 0, nb - 1)
     t_i2 = np.bincount(i2_bin[ok], minlength=nb)
-    c_i2 = np.bincount(
-        i2_bin[ok], weights=records[ok, 2], minlength=nb
-    )
-    h_i2 = np.bincount(
-        i2_bin[ok], weights=records[ok, 3], minlength=nb
-    )
+    c_i2 = np.bincount(i2_bin[ok], weights=records[ok, 2], minlength=nb)
+    h_i2 = np.bincount(i2_bin[ok], weights=records[ok, 3], minlength=nb)
     rate_i2_c = c_i2 / np.maximum(t_i2, 1)
     print("\n=== |Im I₂| 分箱（到实轴墙距离）===")
     for i in range(nb):
@@ -266,11 +264,19 @@ def main():
     fig, ax2 = plt.subplots(figsize=(9, 5))
     w = 0.32
     ax2.bar(
-        xs2 - w / 2, c100, w, color="tab:red", alpha=0.85,
+        xs2 - w / 2,
+        c100,
+        w,
+        color="tab:red",
+        alpha=0.85,
         label="classical",
     )
     ax2.bar(
-        xs2 + w / 2, h100, w, color="tab:blue", alpha=0.85,
+        xs2 + w / 2,
+        h100,
+        w,
+        color="tab:blue",
+        alpha=0.85,
         label="HBSN+RN",
     )
     ax2.set_xticks(xs2)
@@ -283,8 +289,11 @@ def main():
     ax2.set_ylim(0, 35)
     for i in range(len(BIN_LABELS)):
         ax2.text(
-            i - w / 2, c100[i] + 1,
-            f"{c100[i]:.0f}%", ha="center", fontsize=9,
+            i - w / 2,
+            c100[i] + 1,
+            f"{c100[i]:.0f}%",
+            ha="center",
+            fontsize=9,
         )
         ax2.text(i + w / 2, 0.5, "0%", ha="center", fontsize=9)
     ax2.legend(fontsize=10)

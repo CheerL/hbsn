@@ -68,7 +68,9 @@ def main():
             hf = legacy.infer_to_ghbs(net, img, z, mask)
             ac, bc = abs(fc), abs(hf)
             r = np.corrcoef(ac.flatten(), bc.flatten())[0, 1]
-            err = np.sqrt(np.mean((ac - bc) ** 2)) / (np.sqrt(np.mean(ac**2)) + 1e-8)
+            err = np.sqrt(np.mean((ac - bc) ** 2)) / (
+                np.sqrt(np.mean(ac**2)) + 1e-8
+            )
             corr_sum[name].append(r)
             err_sum[name].append(err)
     for name in MODELS:
@@ -78,7 +80,7 @@ def main():
             f"  {name:22s} corr={results[name]['field_corr']:.3f} "
             f"rel_err={results[name]['field_rel_err']:.3f}"
         )
-    print(f"  场质量耗时 {time.time()-t0:.0f}s")
+    print(f"  场质量耗时 {time.time() - t0:.0f}s")
 
     # ---- E3 翻转率（sym 分箱） ----
     print("\n===== E3 翻转率（sym 分箱，flips/pairs）=====")
@@ -92,7 +94,9 @@ def main():
             for name, net in nets_old.items():
                 hf = legacy.infer_to_ghbs(net, img, z, mask)
                 if prev[name] is not None:
-                    recs[name].append((sb, ops.is_flip(prev[name], hf, z, mask)))
+                    recs[name].append(
+                        (sb, ops.is_flip(prev[name], hf, z, mask))
+                    )
                 prev[name] = hf
     edges = np.array(BINS)
     for name in MODELS:
@@ -103,8 +107,11 @@ def main():
             t = m.sum()
             rates.append(arr[m, 1].sum() / t if t else 0.0)
         results[name]["e3_flip_rates"] = rates
-        print(f"  {name:22s} rates(%)=" + " ".join(f"{r*100:.1f}" for r in rates))
-    print(f"  E3 耗时 {time.time()-t0:.0f}s")
+        print(
+            f"  {name:22s} rates(%)="
+            + " ".join(f"{r * 100:.1f}" for r in rates)
+        )
+    print(f"  E3 耗时 {time.time() - t0:.0f}s")
 
     # ---- E1 连续性（半圆扫掠族 d_max） ----
     print("\n===== E1 连续性（半圆扫掠族 d(B_t,B_{t+δ}) max）=====")
@@ -122,11 +129,13 @@ def main():
             prev_hf = hf
         results[name]["e1_dmax"] = float(dmax)
         print(f"  {name:22s} d_max={dmax:.3f}")
-    print(f"  E1 耗时 {time.time()-t0:.0f}s")
+    print(f"  E1 耗时 {time.time() - t0:.0f}s")
 
     # ---- 汇总表 ----
     print("\n===== 汇总 =====")
-    print(f"{'model':<22}{'corr':>7}{'rel_err':>9}{'E3_rate[0]':>12}{'E1_dmax':>10}")
+    print(
+        f"{'model':<22}{'corr':>7}{'rel_err':>9}{'E3_rate[0]':>12}{'E1_dmax':>10}"
+    )
     for name in MODELS:
         r = results[name]
         e3 = r["e3_flip_rates"][0] * 100

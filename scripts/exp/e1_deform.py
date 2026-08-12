@@ -77,8 +77,7 @@ def main():
         for i in range(N_T)
     ]
     d_hbsn = [
-        ops.d2(hbsn_fields[i], hbsn_fields[i_star], z, mask)
-        for i in range(N_T)
+        ops.d2(hbsn_fields[i], hbsn_fields[i_star], z, mask) for i in range(N_T)
     ]
 
     # R_π 翻转计数（经典 vs HBSN）
@@ -111,9 +110,7 @@ def main():
         ms=3,
         label=f"classical (flips={flip_classic})",
     )
-    ax_a.plot(
-        ths, d_hbsn, "b-s", ms=3, label=f"HBSN (flips={flip_hbsn})"
-    )
+    ax_a.plot(ths, d_hbsn, "b-s", ms=3, label=f"HBSN (flips={flip_hbsn})")
     ax_a.axvline(th_star, color="k", ls="--", lw=1)
     # θ* 标注：紧贴虚线右侧、红色折线上方（图例已缩小避开虚线）
     ax_a.text(
@@ -168,9 +165,7 @@ def main():
         ax0.set_xlim(-1.5, 1.5)
         ax0.set_ylim(-1.5, 1.5)
         ax0.set_aspect("equal")
-        ax0.set_title(
-            rf"$\theta={thv:.2f}^\circ$", fontsize=FONTSIZE + 1
-        )
+        ax0.set_title(rf"$\theta={thv:.2f}^\circ$", fontsize=FONTSIZE + 1)
         # 手动隐藏轴元素但保留 patch 背景（axis("off") 会隐藏 patch）
         ax0.set_xticks([])
         ax0.set_yticks([])

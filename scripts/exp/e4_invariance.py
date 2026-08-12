@@ -39,9 +39,7 @@ def gen_pool(n=N_SHAPES, seed=3):
             pool.append(shapes.triangle(t=rng.uniform(0.3, 0.7), base=0.6))
         else:
             pool.append(
-                shapes.random_polygon(
-                    verts=int(rng.integers(5, 8)), rng=rng
-                )
+                shapes.random_polygon(verts=int(rng.integers(5, 8)), rng=rng)
             )
     return pool
 
@@ -125,12 +123,20 @@ def draw_orbit_figure(bound, out_path, z, mask, net):
             axs[r, c0 + 1].axis("off")
             # HBSN |HBS|
             hf = nets.field_to_complex(nets.infer(net, gray))
-            axs[r, c0 + 2].imshow(np.abs(hf) * mask, cmap="jet", vmin=0, vmax=0.8)
+            axs[r, c0 + 2].imshow(
+                np.abs(hf) * mask, cmap="jet", vmin=0, vmax=0.8
+            )
             axs[r, c0 + 2].axis("off")
         # 行标签（竖排，贴左缘）
         axs[r, 0].text(
-            -0.1, 0.5, tname, transform=axs[r, 0].transAxes,
-            va="center", ha="center", rotation=90, fontsize=12,
+            -0.1,
+            0.5,
+            tname,
+            transform=axs[r, 0].transAxes,
+            va="center",
+            ha="center",
+            rotation=90,
+            fontsize=12,
         )
 
     # 列含义标签（顶部，3 组 × input/classical/HBSN）
@@ -138,9 +144,7 @@ def draw_orbit_figure(bound, out_path, z, mask, net):
     fig.canvas.draw()
     for c, label in enumerate(col_labels):
         pos = axs[0, c].get_position()
-        fig.text(
-            (pos.x0 + pos.x1) / 2, 0.965, label, ha="center", fontsize=11
-        )
+        fig.text((pos.x0 + pos.x1) / 2, 0.965, label, ha="center", fontsize=11)
     fig.savefig(out_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
@@ -202,8 +206,11 @@ def main():
     # ---- 轨道场热图：3 变换 × [input + classical|HBS| + HBSN|HBS|] ----
     os.makedirs(OUT_DIR, exist_ok=True)
     draw_orbit_figure(
-        shapes.quadrilateral(), os.path.join(OUT_DIR, "f_invariance.png"),
-        z, mask, net,
+        shapes.quadrilateral(),
+        os.path.join(OUT_DIR, "f_invariance.png"),
+        z,
+        mask,
+        net,
     )
     print(f"输出: {OUT_DIR}/f_invariance.png")
 

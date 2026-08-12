@@ -59,9 +59,7 @@ def quadrilateral(n=300):
 
     顶点在单位圆内，边界线性插值后质心归零 + 缩放 0.85（与 triangle 同约定）。
     """
-    verts = np.array(
-        [[0.85, 0.45], [-0.6, 0.75], [-0.9, -0.35], [0.55, -0.8]]
-    )
+    verts = np.array([[0.85, 0.45], [-0.6, 0.75], [-0.9, -0.35], [0.55, -0.8]])
     edges = []
     for i in range(4):
         p0, p1 = verts[i], verts[(i + 1) % 4]
@@ -71,6 +69,7 @@ def quadrilateral(n=300):
     bd = bd - bd.mean(axis=0)
     bd = bd / np.abs(bd).max() * 0.85
     return bd
+
 
 def triangle(t, n=300, base=0.7):
     """E1 三角形单参数族：两顶点固定，第三顶点在 (cos(πt), sin(πt)) 扫过。

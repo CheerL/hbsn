@@ -53,16 +53,20 @@ def main():
             img = shapes.shape_to_image(bound)[..., 0]
             sb = sym_geom(bound)
             # 当前 HBSN+RN
-            hf_cur = nets.field_to_complex(nets.infer(nets_cur, img, device=device))
+            hf_cur = nets.field_to_complex(
+                nets.infer(nets_cur, img, device=device)
+            )
             fields = {"HBSN+RN": hf_cur}
             for name, net in nets_old.items():
                 fields[name] = legacy.infer_to_ghbs(net, img, z, mask)
             for name, hf in fields.items():
                 if prev[name] is not None:
-                    recs[name].append((sb, ops.is_flip(prev[name], hf, z, mask)))
+                    recs[name].append(
+                        (sb, ops.is_flip(prev[name], hf, z, mask))
+                    )
                 prev[name] = hf
             done += 1
-        print(f"族 {fam_name}: 累计 {done} 形状, {time.time()-t0:.0f}s")
+        print(f"族 {fam_name}: 累计 {done} 形状, {time.time() - t0:.0f}s")
 
     # ---- 分箱统计 ----
     print("\n=== 翻转计数（翻转数/总对数）===")
@@ -97,7 +101,7 @@ def main():
             row += f"{r:>13.1f}%"
         print(row)
 
-    print(f"\n总形状 {done}, 耗时 {time.time()-t0:.0f}s")
+    print(f"\n总形状 {done}, 耗时 {time.time() - t0:.0f}s")
 
 
 if __name__ == "__main__":

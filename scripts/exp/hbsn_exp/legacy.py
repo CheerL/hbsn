@@ -90,12 +90,18 @@ def resample_to_ghbs(field256, z, mask, order=1):
     out = np.empty((2, *z.shape))
     for _c in range(2):
         re = map_coordinates(
-            field256[0], [src_row, src_col], order=order,
-            mode="constant", cval=0,
+            field256[0],
+            [src_row, src_col],
+            order=order,
+            mode="constant",
+            cval=0,
         )
         im = map_coordinates(
-            field256[1], [src_row, src_col], order=order,
-            mode="constant", cval=0,
+            field256[1],
+            [src_row, src_col],
+            order=order,
+            mode="constant",
+            cval=0,
         )
         out[0] = re.reshape(z.shape)
         out[1] = im.reshape(z.shape)

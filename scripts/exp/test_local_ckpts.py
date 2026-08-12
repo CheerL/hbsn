@@ -145,9 +145,7 @@ def main():
             if name is None:
                 print(f"{p:<74}{'?':<9}{'':>4}{'':>5}  SKIP")
                 continue
-            print(
-                f"{p:<74}{name:<9}{mode!s:>4}{miss:>5}  {shape!s:<18}{h}"
-            )
+            print(f"{p:<74}{name:<9}{mode!s:>4}{miss:>5}  {shape!s:<18}{h}")
         except Exception as e:
             print(f"{p:<74}FAIL: {type(e).__name__}: {str(e)[:50]}")
 
@@ -166,7 +164,9 @@ def main():
             print(f"  {exp:<56} {same}")
             matched += 1
     if matched == 0:
-        print("  （无成对原文件+migrated——本地原文件多为 UNMIGRATED，需先迁移）")
+        print(
+            "  （无成对原文件+migrated——本地原文件多为 UNMIGRATED，需先迁移）"
+        )
 
 
 if __name__ == "__main__":
