@@ -71,16 +71,19 @@ def render_transformed(bound, offset_px=(0, 0), scale=1.0, rot_deg=0.0):
 
 
 def orbit_variance(fields, z, mask):
-    """轨道内 L² 方差：mean_k ‖B_k − B̄‖²（论文口径，除以圆盘像素数 N）。
+    """轨道内 RMS 距离：sqrt(mean_k (1/N)Σ|B_k − B̄|²)。
 
-    fields 含 None 则跳过（经典失败）。与主文 d(B,B')=(1/N)Σ|B−B'|² 一致。
+    与 HBS 论文式 (7.1) 的 L² metric 一致（先除 N 再开根）。
+    fields 含 None 则跳过（经典失败）。
     """
     valid = [f for f in fields if f is not None]
     if len(valid) < 2:
         return np.nan
     mean = np.mean(valid, axis=0)
     n = mask.sum()
-    return np.mean([np.sum(np.abs(f - mean)[mask] ** 2) / n for f in valid])
+    return np.sqrt(
+        np.mean([np.sum(np.abs(f - mean)[mask] ** 2) / n for f in valid])
+    )
 
 
 def draw_orbit_figure(bound, out_path, z, mask, net):
