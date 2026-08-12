@@ -44,6 +44,11 @@ def gen_pool(n=N_SHAPES, seed=3):
     return pool
 
 
+def irregular_shape():
+    """E4 代表形状：固定 seed 的随机 7 边形（明显不规则、可复现）。"""
+    return shapes.random_polygon(verts=7, rng=np.random.default_rng(3))
+
+
 def render_transformed(bound, offset_px=(0, 0), scale=1.0, rot_deg=0.0):
     """渲染变换后的形状图（变换可见，不做居中归一化）。
 
@@ -79,7 +84,7 @@ def draw_orbit_figure(bound, out_path, z, mask, net):
     每变体显示 [input | classical |HBS| | HBSN |HBS|] 三图——直观验证
     变换后 input 与两法场，以及轨道内场几乎不变。
 
-    bound 用固定不规则四边形（shapes.quadrilateral，可复现）；
+    bound 用固定不规则七边形（irregular_shape，可复现）；
     classical 在个别变体可能失败（近墙翻转/数值），失败格显示空白。
     """
     trans_sets = {
@@ -140,7 +145,7 @@ def draw_orbit_figure(bound, out_path, z, mask, net):
         )
 
     # 列含义标签（顶部，3 组 × input/classical/HBSN）
-    col_labels = ["input", "classical |HBS|", "HBSN |HBS|"] * 3
+    col_labels = ["input", "classical", "HBSN"] * 3
     fig.canvas.draw()
     for c, label in enumerate(col_labels):
         pos = axs[0, c].get_position()
@@ -206,7 +211,7 @@ def main():
     # ---- 轨道场热图：3 变换 × [input + classical|HBS| + HBSN|HBS|] ----
     os.makedirs(OUT_DIR, exist_ok=True)
     draw_orbit_figure(
-        shapes.quadrilateral(),
+        irregular_shape(),
         os.path.join(OUT_DIR, "f_invariance.png"),
         z,
         mask,
