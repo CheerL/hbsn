@@ -8,7 +8,7 @@
       沿上半单位圆扫过，θ∈[110.9°,112.3°]，翻转 θ*≈111.10°（Im I₂ 穿越实轴）。
       经典在 θ* 处 R_π 翻转 1 次 / HBSN 0 次。
       **图语义**：a 图 y 轴 = d(B_θ, B_θ*)（每场与翻转点场 L2 距离）→ 经典呈**阶跃**
-      （θ<θ* 侧 ≈0、θ>θ* 侧 ≈52）、HBSN 平坦（d_max≈3.4）；b 图 3 行×4 列快照
+      （θ<θ* 侧 ≈0、θ>θ* 侧 ≈0.586）、HBSN 平坦（d_max≈0.039，RMS 口径）；b 图 3 行×4 列快照
       （θ*-2ε/θ*-ε/θ*+ε/θ*+2ε，ε=6×10⁻⁴；行=黑底白三角形+C 顶点坐标 4 位小数/经典/HBSN），
       行标签竖排无 bbox，标题各自居中。产出 `figures/hbsn/f_deform.png`，回填 §5.1。
 - [x] **E3 对称分层（去 no-RN + sym 修正）**：1296 对形状（椭圆/等边族三角形/base=0.7 三角形/
@@ -22,8 +22,11 @@
       回填 §5.2。
       **方法修正**：推理时置 post_stn=None 的 no-RN 是假消融（网络仍被 rotation loss 训练过），
       **已删除**；真·no-RN 需重训（见下方待办）。
-- [x] **E4 不变性**：20 形状 × 平移/缩放/旋转轨道，中位±IQR 方差 ~2-4（场范数 5-9%），
-      两法高度不变，HBSN 略优。产出 `tables/tab_invariance.tex`，回填 §5.2。
+- [x] **E4 不变性**：20 形状 × 平移/缩放/旋转轨道，中位±IQR 方差 0.017-0.025（场范数 ≈5-7%，RMS 口径），
+      两法高度不变，HBSN 略优。产出 `tables/tab_invariance.tex` + `f_invariance.png`
+      （轨道场热图：3 变换 × 每变体 [input|classical|HBSN]，paper 加 fig:e4-invariance），回填 §5.2。
+      **可复现性修复**：`random_polygon` 原用无种子 rng → 每次形状池不同 → 表格数字不稳定；
+      已加 `rng` 参数 + `gen_pool` 传 seed rng + `irregular_shape` 固定 seed 七边形，重跑 2 次验证数字一致。
       **发现**：经典图像管线旋转时对个别近墙形状翻转（2/20），中位数稳健。
 - [x] **E2 noise 完全移除**：paper.tex 删 `\subsubsection{Robustness to noise}` 整块；
       删 `e2_noise.py`、`f_noise.png`、`tab_noise.tex`（python + latex 两侧）；grep 无残留。
@@ -31,6 +34,20 @@
 
 ## 待办
 
+- [x] **E5 噪声鲁棒性（分割）**：原版分割（无 HBSN）vs 带 HBSN 在带噪 COCO 图上的退化对比。
+      **穷尽式负面（hbs_loss 路线）**：hbs_loss 作用于输出 mask 的整条路线无噪声鲁棒性——权重扫掠
+      0.05→1.0（剂量-响应单调劣化）、解冻 hbsn、σtr=0.2 匹配、边界 IoU、salt-pepper、HBS 场稳定性
+      全负。机制：先验施加在受蚀输出上，目标不可达。
+      **✅ 真实提升（噪声条件 HBS 形状一致性）**：重噪声增广 σ∈[0.05,0.3] + 仅 σ≥0.15 施加
+      HBS 形状一致性正则（冻结 bce hbsn 分支做形状锚，对齐模型自己的干净预测形状）。
+      **对比口径修正**：早期用「σ=0.1 单点 finetune」做基线有协议缺陷（单噪声点训练把干净图
+      砸到 0.437）；正确基线是**原始干净训练 hbs0**（干净 0.700）。**cond0.15 vs 原始模型全 σ 点都赢**：
+      干净 +0.03、σ=0.05 +0.18、σ=0.1 +0.23、σ=0.2 +0.30、σ=0.3 +0.28（噪声越高增益越大）。
+      推荐 **rate 0.15**（cond0.15，2 seed 复现一致）。对照（仅增广 rate0）证明一致性独力救回
+      干净性能。产物 `f_noise_robust_cons.png`。
+      **复现命令**：`uv run python scripts/exp/finetune_noise.py 5 --batch-size 8 --models unetpp
+      --starts hbs0 --noise-sigma-range 0.05,0.3 --cons-min-sigma 0.15 --hbs-consistency-rate 0.15
+      --out-suffix _cg015`（ckpt `unetpp_hbs0_noise_ft_cg015.pth`）
 - [ ] **重训真·no-RN HBSN**：`net.stn_mode=1`（去 post_stn，stn_loss 自动归零；同数据/超参
       1000 epoch，RTX 4070 SUPER ~0.5–1 天）。E3 要对比"HBSN 无 RotationNormalizer"必须重训，
       推理期置 None 不算数（本网络被 rotation loss 训练过）。
