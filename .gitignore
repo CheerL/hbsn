@@ -18,8 +18,6 @@ coco
 !tests/numerics/golden/*.npy
 
 # hydra 运行输出目录
-
-# hydra 运行输出目录
 outputs/
 .coverage
 uv.lock
@@ -28,8 +26,9 @@ uv.lock
 .mindfs/
 
 # Claude Code 运行时产物（hooks 生成，不入 git；.claude/memory + settings.json 保留）
-.claude/accumulator.json
-.claude/insights/
-.claude/metrics/
-.claude/observations/
-.claude/sessions/
+# **/ 前缀：嵌套 .claude/（如 figures/hbsn/.claude/）同样忽略
+**/.claude/accumulator.json
+**/.claude/insights/
+**/.claude/metrics/
+**/.claude/observations/
+**/.claude/sessions/
