@@ -25,6 +25,9 @@ uv.lock
 # mindfs 会话工具运行时 DB（不入 git）
 .mindfs/
 
+# COCO 人工候选审核图（临时产物；定稿图 coco_*_{big,hbs}.png 正常跟踪）
+figures/hbsn/cand_*.png
+
 # Claude Code 运行时产物（hooks 生成，不入 git；.claude/memory + settings.json 保留）
 # **/ 前缀：嵌套 .claude/（如 figures/hbsn/.claude/）同样忽略
 **/.claude/accumulator.json
