@@ -25,25 +25,29 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from vis_coco_hbs import COLUMNS, PAIRS, render_hbs, scan
 
-# 已定稿/已弃用：行1/行4 定稿，行2/行3 现候选待换（全部排除，池里只留新选择）
+# 已定稿/已弃用：全拦截——旧 4 行图 8 个 idx（unet #477,#168,#121,#447 / deeplab #169,#548,#219,#262）两池都排除
 EXCLUDE = {
-    "unet": {477, 447, 456, 486},
-    "deeplab": {551, 262, 511, 10},
+    "unet": {"big": {477, 168, 121, 447}, "hbs": {477, 168, 121, 447}},
+    "deeplab": {"big": {169, 548, 219, 262}, "hbs": {169, 548, 219, 262}},
 }
-CATS = ("big", "mod")  # 行2=big, 行3=mod
+# 两标准：big（大提升）/ hbs（mask 小进步 + HBS 大提升），各模型一审核图
+CATS = ("big", "hbs")
 N_SHOW = 10
 CELL = 1.8  # 列名（DeepLabV3+HBSN…）在 1.7in 下会贴边，稍放宽
-# unet 的 hbsn HBS 须贴近 GT：审核池按 dh_h 升序排，并硬性卡 dh_h ≤ 上限
-DH_CAP = {"unet": 0.16, "deeplab": None}
+# unet 的 hbsn HBS 须贴近 GT；big 组 hbs 要求 hbsn HBS 贴近（dh_h 上限）；按 dd 排序优先
+DH_CAP = {"big": {"unet": 0.16, "deeplab": None}, "hbs": {"unet": 0.15, "deeplab": 0.11}}
 
 
 def _render_grid(key, cat, entries, out):
-    rows = [e for e in entries if e[2][0] not in EXCLUDE[key]]
-    cap = DH_CAP[key]
+    rows = [e for e in entries if e[2][0] not in EXCLUDE[key][cat]]
+    cap = DH_CAP[cat][key]
     if cap is not None:
         rows = [e for e in rows if e[2][13] <= cap]
     if key == "unet":
         rows.sort(key=lambda e: e[2][13])  # dh_h 升序：hbsn HBS 贴近 GT 的优先
+    elif cat == "hbs":
+        # 标准 B：hbs 提升幅度优先，兼顾 mask 进步
+        rows.sort(key=lambda e: (e[2][12] - e[2][13]) + e[2][9] - e[2][8], reverse=True)
     # 去重：同 idx 且 IoU 相同 → 同一裁剪内容，只留一个（unet 大提升池在多 offset 下会重复）
     seen, uniq = set(), []
     for e in rows:
@@ -125,7 +129,7 @@ def main():
     for key in PAIRS:
         cands, n = scan(key, 561, device, relax=True)
         print(f"===== {key}（扫 {n} 张）池: "
-              f"big {len(cands['big'])}, mod {len(cands['mod'])}")
+              f"big {len(cands['big'])}, hbs {len(cands['hbs'])}")
         for cat in CATS:
             _render_grid(key, cat, cands[cat],
                          f"figures/hbsn/cand_{key}_{cat}.png")

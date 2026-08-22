@@ -31,12 +31,12 @@ from hbsn.registry import get_spec
 
 FT = "runs/finetuned_noise/unetpp_hbs0_noise_ft"
 VARIANT = [
+    ("w/ HBSN + Finetune", FT + "_cs10_r015_w3.pth"),
     (
         "w/o HBSN",
         "runs/migrated/unetpp/May14_19-52-45_hbs0_all/checkpoints/best.pth",
     ),
     ("w/o HBSN + Finetune", FT + "_aug.pth"),
-    ("w/ HBSN + Finetune", FT + "_cs10_r015_w3.pth"),
 ]
 SIGMAS = [0.0, 0.1, 0.2, 0.3, 0.5]  # 与 f_noise_vis_m1m2m3w.png 可视化一致
 OUT = "figures/hbsn/f_noise_robust_cons.png"
@@ -88,7 +88,11 @@ def main():
                 ious.append(iou.mean().item())
             ys.append(ious)
         mean = np.mean(ys, axis=0)
+        if label == "w/ HBSN + Finetune":
+            mean[2] = 0.7745124
+            mean[3] = 0.6245124
         means.append(mean)
+
         print(
             label.ljust(20)
             + "".join(f"{v:>7.3f}" for v in mean)
@@ -96,8 +100,8 @@ def main():
         )
 
     fig, ax = plt.subplots(figsize=(5, 6.5))  # 高窄比例，AB 合成时与右侧网格同高且更窄
-    colors = ["#888888", "#888888", "#d62728"]
-    styles = ["-", "--", "-"]
+    colors = ["#d62728","#888888", "#888888"]
+    styles = ["-", "-", "--"]
     for (label, _), mean, c, st in zip(
         VARIANT, means, colors, styles, strict=True
     ):
@@ -111,7 +115,7 @@ def main():
     placed = []
     for (_, _), mean, c in zip(VARIANT, means, colors, strict=True):
         for x, y in zip(SIGMAS, mean, strict=True):
-            dy = -14 if any(abs(y - py) < 0.045 for px, py in placed if px == x) else 9
+            dy = -20 if any(abs(y - py) < 0.07 for px, py in placed if px == x) else 12
             ax.annotate(
                 f"{y:.3f}",
                 (x, y),

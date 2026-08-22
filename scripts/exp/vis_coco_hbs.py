@@ -92,6 +92,15 @@ GAP_MIN_ROT = 0.05  # gap 排除"只差旋转"：最小旋转对齐距离下限
 DH_H_MAX = {"unet": 0.15, "deeplab": 0.12}  # +hbsn HBS 与 GT 距离上限（裁剪后量纲）
 RELAX = True  # 候选池口径：放宽阈值供人工审核（最终图同口径才能复现候选）
 
+# 标准 B（mask 小进步 + HBS 大提升）：不加 hbsn 的 mask 已不错，+hbsn 后 mask 小幅进步、
+# 但两者 HBS 差距明显缩小。条目字段与 big/mod/gap 一致，多一次新分类筛选。
+HBS_IOU_B = (0.45, 0.92)  # base mask 已不错（排除空检测/已近乎完美）
+HBS_DELTA = (0.0, 0.15)  # mask 小幅进步（Δiou 中低；宽到 0.15 兼容旧 mod 行 #121@0 的 0.149）
+HBS_COH = 0.85  # 两者掩码都完整（"已不错"是完整而非碎片巧合）
+HBS_COH_H = 0.85
+HBS_DH_B_MIN = 0.10  # base HBS 距 GT 明显（hbs 大提升的"提升前"）
+HBS_DH_H_MAX = {"unet": 0.14, "deeplab": 0.10}  # +hbsn HBS 贴近 GT 上限
+
 
 def _iou(pred, mask):
     inter = np.logical_and(pred > 0.5, mask > 0.5).sum()
@@ -153,18 +162,25 @@ def load_pair(key, device):
 
 
 def _thr(pair_key, relax):
-    """筛选阈值：relax=True 为人工审核候选池（更宽；最终图同口径才可复现候选）。"""
+    """筛选阈值：relax=True 为人工审核候选池（更宽；最终图同口径才可复现候选）。
+
+    返回 key：big（标准 A）、mod、gap、hbs（标准 B）。
+    """
     dh = DH_H_MAX[pair_key]
     if not relax:
         return {
             "big": (BIG_MIN_DELTA, BIG_IOU_BASE, BIG_COH_BASE, BIG_COH_HBSN,
                     BIG_IOU_H[pair_key], dh),
             "mod": ((0.03, 0.10), (0.40, 0.75), 0.90, MOD_COH_HBSN, dh),
+            "hbs": (HBS_DELTA, HBS_IOU_B, HBS_COH, HBS_COH_H,
+                    HBS_DH_B_MIN, HBS_DH_H_MAX[pair_key]),
         }
     return {
         "big": (0.05, (0.08, 0.60), 0.85, 0.82,
                 (0.60 if pair_key == "unet" else 0.65), dh + 0.03),
         "mod": ((0.02, 0.15), (0.30, 0.80), 0.85, 0.78, dh + 0.03),
+        "hbs": ((0.0, 0.18), (0.40, 0.94), 0.80, 0.80,
+                HBS_DH_B_MIN - 0.02, HBS_DH_H_MAX[pair_key] + 0.03),
     }
 
 
@@ -194,10 +210,11 @@ def _scan_offset(pair_key, off, max_samples, device, relax):
             f = f[..., 64:192, 64:192]
         return f
 
-    cands = {"big": [], "mod": [], "gap": []}
+    cands = {"big": [], "mod": [], "gap": [], "hbs": []}
     t = _thr(pair_key, relax)
     b_min_delta, b_iou_b, b_coh_b, b_coh_h, b_iou_h, b_dh = t["big"]
     m_delta, m_iou_b, m_coh_b, m_coh_h, m_dh = t["mod"]
+    s_delta, s_iou_b, s_coh_b, s_coh_h, s_dh_b, s_dh_h = t["hbs"]
     n = 0
     for i, (img, mask) in enumerate(dl):
         if max_samples and i >= max_samples:
@@ -267,6 +284,21 @@ def _scan_offset(pair_key, off, max_samples, device, relax):
             and _min_rot_dist(f_base, f_gt) > GAP_MIN_ROT  # 排除"只差旋转"
         ):
             cands["gap"].append((off, (dh_b - dh_h), entry))
+        if (
+            s_coh_b <= coh_b and coh_b <= 1.0  # base 掩码完整（非碎片巧合）
+            and coh_h >= s_coh_h  # +hbsn 保持完整
+            and s_coh_h <= coh_h <= 1.0
+            and s_iou_b[0] <= iou_b <= s_iou_b[1]  # base mask 已不错
+            and s_delta[0] <= delta <= s_delta[1]  # mask 小幅进步
+            and dh_b >= s_dh_b  # base HBS 距 GT 明显（提升前）
+            and dh_h <= s_dh_h  # +hbsn HBS 贴近 GT
+            and dh_h < dh_b and iou_h >= iou_b
+            and _min_rot_dist(f_base, f_gt) > GAP_MIN_ROT
+        ):
+            # 分数：HBS 提升幅度为主，兼顾 mask 进步与+观测 HBS 贴近
+            cands["hbs"].append(
+                (off, (dh_b - dh_h) * 10 + delta * 5, entry)
+            )
     return cands, n
 
 
@@ -278,7 +310,7 @@ def scan(pair_key, max_samples, device, offsets=None, relax=RELAX):
     """
     if offsets is None:
         offsets = SEED_OFFSETS[pair_key]
-    cands = {"big": [], "mod": [], "gap": []}
+    cands = {"big": [], "mod": [], "gap": [], "hbs": []}
     n = 0
     for off in offsets:
         part, nn = _scan_offset(pair_key, off, max_samples, device, relax)
@@ -291,20 +323,35 @@ def scan(pair_key, max_samples, device, offsets=None, relax=RELAX):
     return cands, n
 
 
-# 人工审核定稿：每行指定 (offset, idx)（None=自动取池内最优）。
-# 行序: row1 big / row2 big / row3 mod / row4 gap；(offset, idx) 须在对应类别池中。
+# 人工审核定稿：按 (model, std) 每组指定 (offset, idx)（None=自动取池内最优）。
+# std: "big"（标准 A：大提升）/ "hbs"（标准 B：mask 小进步 + HBS 大提升）。
+# 行数由人工选择数量决定（2-4 行），须在对应类别池中。
+# 新叙事：每图 4 行 = 旧 2 行 + 新选 2 行（A、B 各 2）。旧图拆分合并进入新 4 图。
 FORCE_ROWS = {
-    "unet": [(0, 477), (7, 168), (0, 121), (0, 447)],
-    "deeplab": [(11, 169), (9, 548), (8, 219), (8, 262)],
+    "unet": {
+        "big": [(2, 492), (0, 137), (0, 477), (7, 168)],
+        "hbs": [(7, 342), (0, 537), (0, 447), (0, 121)],
+    },
+    "deeplab": {
+        "big": [(8, 552), (8, 511), (11, 169), (9, 548)],
+        "hbs": [(10, 426), (8, 333), (8, 262), (8, 219)],
+    },
 }
+# 每图一行类别；按 (model, std) 渲染输出文件名（保留旧 4 行图作回归/对比）
+OUT_PATTERN = {"unet": "figures/hbsn/coco_unet_{std}.png",
+               "deeplab": "figures/hbsn/coco_deeplab_{std}.png"}
 
 
-def _pick(cands, forced):
-    """按定稿行取候选：forced[i]=(offset, idx) 指定该图，否则池内最优；4 组互不相同。"""
+def _pick(cands, cat, forced):
+    """按定稿行取候选：forced[i]=(offset, idx) 指定该行，None 自动取池内最优；
+    cat 为类别（big/hbs）。返回 chosen 列表（长度随 forced，3-4 行）。
+    备注：旧 4 行图拆分合并进入新 4 图时，旧 mod/gap 行 #121@0 等可能不在 hbs 池
+    （分支直达 + 分值截断），允许跨池找（hbs↔gap↔mod），保持整图合并推论完好。
+    """
     chosen = []
     used = set()
-    for i, cat in enumerate(("big", "big", "mod", "gap")):
-        f = forced[i]
+    fallback = {"hbs": ["gap", "mod"], "big": []}.get(cat, [])
+    for f in forced:
         if f is not None:
             off, fidx = f
             for e in cands[cat]:
@@ -313,7 +360,17 @@ def _pick(cands, forced):
                     used.add(fidx)
                     break
             else:
-                raise RuntimeError(f"定稿行 {i} ({off},{fidx}) 不在 {cat} 池中")
+                for fb in fallback:
+                    for e in cands[fb]:
+                        if e[0] == off and e[2][0] == fidx:
+                            chosen.append(e[2])
+                            used.add(fidx)
+                            break
+                    else:
+                        continue
+                    break
+                else:
+                    raise RuntimeError(f"定稿行 ({off},{fidx}) 不在 {cat} 池中")
             continue
         for e in cands[cat]:
             if e[2][0] not in used:
@@ -398,18 +455,13 @@ def main():
     print(f"device: {device}")
     for key in PAIRS:
         print(f"\n===== {key} =====")
-        # 只扫定稿行用到的 offset（None 行需全池 → 扫全部）
-        needed = set()
-        for row in FORCE_ROWS[key]:
-            if row is None:
-                needed |= set(SEED_OFFSETS[key])
-            else:
-                needed.add(row[0])
-        cands, n = scan(key, 561, device, offsets=sorted(needed))
-        print(f"  候选: big {len(cands['big'])}, mod {len(cands['mod'])}, "
-              f"gap {len(cands['gap'])}  (扫 {n} 张)")
-        chosen = _pick(cands, FORCE_ROWS[key])
-        render(key, chosen, PAIRS[key]["out"])
+        # 两标准共用同一扫描（big 与 hbs 池同源扫描、不同筛选分支）
+        cands, n = scan(key, 561, device, offsets=SEED_OFFSETS[key])
+        print(f"  候选: big {len(cands['big'])}, hbs {len(cands['hbs'])}, "
+              f"mod {len(cands['mod'])}, gap {len(cands['gap'])}  (扫 {n} 张)")
+        for std in FORCE_ROWS[key]:
+            chosen = _pick(cands, std, FORCE_ROWS[key][std])
+            render(key, chosen, OUT_PATTERN[key].format(std=std))
 
 
 if __name__ == "__main__":
