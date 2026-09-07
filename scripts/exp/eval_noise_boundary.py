@@ -16,9 +16,7 @@ import torch
 import torch.nn.functional as F
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(
-    0, os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from eval_coco import _build_configs
 from eval_noise import COMMON_SETS, load_compare_nets_no_hbsn
@@ -30,9 +28,17 @@ from hbsn.registry import get_spec
 PROTOCOLS = ["", "_ufz", "_s02"]
 GROUPS = [
     ("unetpp", "hbs0", [("冻结", ""), ("解冻", "_ufz"), ("σtr=0.2", "_s02")]),
-    ("unetpp", "hbs0.05", [("冻结", ""), ("解冻", "_ufz"), ("σtr=0.2", "_s02")]),
+    (
+        "unetpp",
+        "hbs0.05",
+        [("冻结", ""), ("解冻", "_ufz"), ("σtr=0.2", "_s02")],
+    ),
     ("deeplab", "hbs0", [("冻结", ""), ("解冻", "_ufz"), ("σtr=0.2", "_s02")]),
-    ("deeplab", "hbs0.05", [("冻结", ""), ("解冻", "_ufz"), ("σtr=0.2", "_s02")]),
+    (
+        "deeplab",
+        "hbs0.05",
+        [("冻结", ""), ("解冻", "_ufz"), ("σtr=0.2", "_s02")],
+    ),
 ]
 GAUSS_SIGMAS = [0.0, 0.1, 0.2, 0.3]
 SP_PROBS = [0.0, 0.1, 0.2, 0.3]
@@ -90,7 +96,10 @@ def main():
             dtype = torch_dtype(net.config)
             dev = net.config.device
             # 每个噪声类型收集 IoU 与边界 IoU
-            acc = {"g": {s: [[], []] for s in GAUSS_SIGMAS}, "sp": {p: [[], []] for p in SP_PROBS}}
+            acc = {
+                "g": {s: [[], []] for s in GAUSS_SIGMAS},
+                "sp": {p: [[], []] for p in SP_PROBS},
+            }
             torch.manual_seed(0)
             for i, (img, mask) in enumerate(dl):
                 if args.max_samples and i >= args.max_samples:
@@ -98,11 +107,17 @@ def main():
                 mask = mask.to(dev, dtype=dtype)
                 gt_bin = (mask > 0.5).float()
                 for s in GAUSS_SIGMAS:
-                    noisy = (img + s * torch.randn_like(img)).clamp(0, 1).to(dev, dtype=dtype)
+                    noisy = (
+                        (img + s * torch.randn_like(img))
+                        .clamp(0, 1)
+                        .to(dev, dtype=dtype)
+                    )
                     hard = net.get_hard_mask(net(noisy)[0]).float()
                     _, iou = net.get_metrics(hard, mask)
                     acc["g"][s][0].append(iou.mean().item())
-                    acc["g"][s][1].append(boundary_iou(hard, gt_bin).mean().item())
+                    acc["g"][s][1].append(
+                        boundary_iou(hard, gt_bin).mean().item()
+                    )
                 for p in SP_PROBS:
                     if p == 0.0:
                         noisy = img.to(dev, dtype=dtype)
@@ -114,15 +129,39 @@ def main():
                     hard = net.get_hard_mask(net(noisy)[0]).float()
                     _, iou = net.get_metrics(hard, mask)
                     acc["sp"][p][0].append(iou.mean().item())
-                    acc["sp"][p][1].append(boundary_iou(hard, gt_bin).mean().item())
+                    acc["sp"][p][1].append(
+                        boundary_iou(hard, gt_bin).mean().item()
+                    )
 
             print(f"\n-- {model}/{start} / {pname} --")
-            for nt, levels in (("gauss", GAUSS_SIGMAS), ("saltpepper", SP_PROBS)):
+            for nt, levels in (
+                ("gauss", GAUSS_SIGMAS),
+                ("saltpepper", SP_PROBS),
+            ):
                 lbls = levels
-                ious = [sum(acc["g" if nt == "gauss" else "sp"][l][0]) / len(acc["g" if nt == "gauss" else "sp"][l][0]) for l in levels]
-                bis = [sum(acc["g" if nt == "gauss" else "sp"][l][1]) / len(acc["g" if nt == "gauss" else "sp"][l][1]) for l in levels]
-                print(f"  {nt:11s} IoU:   " + " ".join(f"{l}:{v:.3f}" for l, v in zip(lbls, ious, strict=True)))
-                print(f"  {nt:11s} bIoU:  " + " ".join(f"{l}:{v:.3f}" for l, v in zip(lbls, bis, strict=True)))
+                ious = [
+                    sum(acc["g" if nt == "gauss" else "sp"][lv][0])
+                    / len(acc["g" if nt == "gauss" else "sp"][lv][0])
+                    for lv in levels
+                ]
+                bis = [
+                    sum(acc["g" if nt == "gauss" else "sp"][lv][1])
+                    / len(acc["g" if nt == "gauss" else "sp"][lv][1])
+                    for lv in levels
+                ]
+                print(
+                    f"  {nt:11s} IoU:   "
+                    + " ".join(
+                        f"{lv}:{v:.3f}"
+                        for lv, v in zip(lbls, ious, strict=True)
+                    )
+                )
+                print(
+                    f"  {nt:11s} bIoU:  "
+                    + " ".join(
+                        f"{lv}:{v:.3f}" for lv, v in zip(lbls, bis, strict=True)
+                    )
+                )
 
 
 if __name__ == "__main__":
