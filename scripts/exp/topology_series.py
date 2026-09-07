@@ -17,10 +17,13 @@
 
 HBS 场渲染固定口径（禁改）：np.abs(field) * 圆盘 mask -> jet [0, 0.8]，无色条。
 
-用法：uv run python scripts/exp/topology_series.py
-输出：figures/hbsn/candidates/topology_candidates_{multiconn,disconnected}.png
+用法：uv run python scripts/exp/topology_series.py [--dense]
+默认出 Round A 三档候选图；--dense 出 13 档密集扫掠（单侧 0->0.6 六档渐深 +
+居中畸形位 + 镜像六档，列号标注图内），供用户挑 5 列组终稿。
+输出：figures/hbsn/candidates/topology_candidates_{name}[_dense].png
 """
 
+import argparse
 import os
 import sys
 
@@ -122,6 +125,52 @@ def rect_positions(w, t):
     ]
 
 
+N_SIDE = 6  # 密集扫掠单侧档数（6 浅->深 + 畸形 + 6 镜像 = 13 位，畸形居中）
+MAXF = 0.6  # 单侧最深遮挡比例（classic 饱和稳定上限，同 DEPTH 上限）
+
+
+def square_sweep(w, s):
+    """(a) 密集扫掠 2*N_SIDE+1 位：方形咬合深度 0->MAXF 六档、成洞、右侧镜像。
+
+    深度比例 f = MAXF*k/(N_SIDE-1)：f=0 方形内缘恰好贴边（轻咬合），f=MAXF 即
+    Round A 的深咬合位；畸形位（hole）与两侧 f=MAXF 镜像位构成 13 档序列。
+    """
+    e = w(Y_SWEEP)
+    out = []
+    for k in range(N_SIDE):
+        cx = -e + s * (MAXF * k / (N_SIDE - 1) - 0.5)
+        out.append(
+            (cx - s / 2, cx + s / 2, Y_SWEEP - s / 2, Y_SWEEP + s / 2, "bite")
+        )
+    out.append((-s / 2, s / 2, Y_SWEEP - s / 2, Y_SWEEP + s / 2, "hole"))
+    for k in reversed(range(N_SIDE)):
+        cx = e - s * (MAXF * k / (N_SIDE - 1) - 0.5)
+        out.append(
+            (cx - s / 2, cx + s / 2, Y_SWEEP - s / 2, Y_SWEEP + s / 2, "bite")
+        )
+    return out
+
+
+def rect_sweep(w, t):
+    """(b) 密集扫掠 2*N_SIDE+1 位：切入深度 0->MAXF 六档、全宽切断、右侧镜像。
+
+    深度比例 d = MAXF*k/(N_SIDE-1)（占切入高度处全宽比例）：d=0 恰好贴边，
+    d=MAXF 即 Round A 深切口位；畸形位（cut）居中第 N_SIDE+1 列。
+    """
+    e = w(Y_CUT)
+    poke = w(Y_CUT - t / 2) + MARGIN
+    y0, y1 = Y_CUT - t / 2, Y_CUT + t / 2
+    out = []
+    for k in range(N_SIDE):
+        tip = -e + MAXF * k / (N_SIDE - 1) * 2 * e
+        out.append((-poke, tip, y0, y1, "notch"))
+    out.append((-poke, poke, y0, y1, "cut"))
+    for k in reversed(range(N_SIDE)):
+        tip = e - MAXF * k / (N_SIDE - 1) * 2 * e
+        out.append((tip, poke, y0, y1, "notch"))
+    return out
+
+
 def rect_mask(x0, x1, y0, y1):
     """像素中心世界坐标的轴对齐矩形 mask（256 网格，row=y/col=x）。"""
     v = (np.arange(IMG) + 0.5) / PX - 1.5
@@ -184,24 +233,28 @@ def render_cell(base, net, disk_mask, rect):
     return gray, hf, cf, kind
 
 
-def draw_figure(cells, tier_texts, title, out):
-    """9x5 长图：3 档 x 3 行（Input/HBSN/Classic）x 5 遮挡位。"""
-    fig, axs = plt.subplots(9, 5, figsize=(6.8, 11.6))
-    fig.subplots_adjust(
-        left=0.135,
-        right=0.99,
-        top=0.955,
-        bottom=0.005,
-        wspace=0.03,
-        hspace=0.06,
+def draw_sheet(blocks, block_texts, title, out, col_numbers=False):
+    """长图：n_blocks 组 x 3 行（Input/HBSN/Classic）x n_cols 遮挡位。"""
+    n_blocks, n_cols = len(blocks), len(blocks[0])
+    margin = 1.05  # 左侧标签区（英寸）
+    fig_w = 0.95 * n_cols + margin + 0.1
+    fig_h = 1.18 * 3 * n_blocks + 0.6
+    fig, axs = plt.subplots(
+        3 * n_blocks, n_cols, figsize=(fig_w, fig_h), squeeze=False
     )
-    for r in range(9):
-        tier, row = divmod(r, 3)
-        for c in range(5):
+    left = margin / fig_w
+    fig.subplots_adjust(
+        left=left, right=0.99, top=0.955, bottom=0.005, wspace=0.03, hspace=0.06
+    )
+    for r in range(3 * n_blocks):
+        block, row = divmod(r, 3)
+        for c in range(n_cols):
             ax = axs[r, c]
             ax.axis("off")
-            gray, hf, cf, kind = cells[tier][c]
+            gray, hf, cf, kind = blocks[block][c]
             if row == 0:
+                if col_numbers:
+                    ax.set_title(str(c + 1), fontsize=8)
                 ax.imshow(gray, cmap="gray", vmin=0, vmax=255)
             elif row == 1:
                 ax.imshow(hf, cmap="jet", vmin=0, vmax=0.8)
@@ -220,10 +273,10 @@ def draw_figure(cells, tier_texts, title, out):
                     fontsize=13,
                     color="w",
                 )
-    for r in range(9):
+    for r in range(3 * n_blocks):
         pos = axs[r, 0].get_position()
         fig.text(
-            0.055,
+            0.62 * left,
             (pos.y0 + pos.y1) / 2,
             ROW_LABELS[r % 3],
             ha="center",
@@ -231,13 +284,13 @@ def draw_figure(cells, tier_texts, title, out):
             rotation=90,
             fontsize=9,
         )
-    for tier in range(3):
-        y0 = axs[3 * tier, 0].get_position().y0
-        y1 = axs[3 * tier + 2, 0].get_position().y1
+    for b in range(n_blocks):
+        y0 = axs[3 * b, 0].get_position().y0
+        y1 = axs[3 * b + 2, 0].get_position().y1
         fig.text(
-            0.012,
+            0.2 * left,
             (y0 + y1) / 2,
-            tier_texts[tier],
+            block_texts[b],
             ha="center",
             va="center",
             rotation=90,
@@ -248,7 +301,7 @@ def draw_figure(cells, tier_texts, title, out):
     plt.close(fig)
 
 
-def main():
+def main(dense=False):
     bound = shapes.triangle(T, base=BASE)
     h, wbase, w = tri_geometry(bound)
     base = shapes.shape_to_image(bound)[..., 0]
@@ -260,64 +313,50 @@ def main():
         ("disconnected", DENOMS_CUT, "rect", "Disconnected (rect occluder)"),
     )
     for name, denoms, occ, title in groups:
-        print(f"\n== {name} ==")
-        cells, tier_texts = [], []
+        print(f"\n== {name}{' [dense]' if dense else ''} ==")
+        blocks, block_texts = [], []
         for tier, denom in zip(TIER_NAMES, denoms, strict=True):
             if occ == "square":
                 s = h / denom
-                rects = square_positions(w, s)
-                tier_texts.append(f"{tier}: side {s * PX:.0f} px (H/{denom})")
+                rects = square_sweep(w, s) if dense else square_positions(w, s)
+                block_texts.append(f"{tier}: side {s * PX:.0f} px (H/{denom})")
                 print(f"  [{tier}] side {s:.4f} world / {s * PX:.1f} px")
             else:
                 t = wbase / denom
-                rects = rect_positions(w, t)
+                rects = rect_sweep(w, t) if dense else rect_positions(w, t)
                 length = 2 * (w(Y_CUT - t / 2) + MARGIN)
-                tier_texts.append(
+                block_texts.append(
                     f"{tier}: cut {t * PX:.0f}x{length * PX:.0f} px (W/{denom})"
                 )
                 print(
                     f"  [{tier}] thick {t:.4f} world / {t * PX:.1f} px,"
                     f" len {length:.4f} world / {length * PX:.1f} px"
                 )
-            row_cells = []
-            for k, rect in enumerate(rects, 1):
-                cell = render_cell(base, net, disk_mask, rect)
-                _, hf, cf, kind = cell
+            block = []
+            for k, (x0, x1, y0, y1, kind) in enumerate(rects, 1):
+                cell = render_cell(base, net, disk_mask, (x0, x1, y0, y1, kind))
+                _, hf, cf, _ = cell
                 if kind in MALFORMED:
                     msg = "N/A"
                 elif cf is not None:
                     msg = f"{rms(cf, hf, disk_mask):.4f}"
                 else:
                     msg = "FAIL"
-                print(f"    pos{k} {kind}: classic-HBSN RMS = {msg}")
-                row_cells.append(cell)
-            cells.append(row_cells)
-        out = os.path.join(OUT_DIR, f"topology_candidates_{name}.png")
-        draw_figure(cells, tier_texts, title, out)
-        print(f"  output: {out}")
-        for tier_i, denom in enumerate(denoms):
-            if occ == "square":
-                s = h / denom
-                info = f"side={s:.4f} world / {s * PX:.1f} px"
-                centers = [
-                    (x0 + x1) / 2 for x0, x1, *_ in square_positions(w, s)
-                ]
-            else:
-                t = wbase / denom
-                info = (
-                    f"thick={t:.4f} world / {t * PX:.1f} px,"
-                    f" len={2 * (w(Y_CUT - t / 2) + MARGIN):.4f} world"
+                cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+                print(
+                    f"    step{k:02d} {kind}: RMS={msg}"
+                    f"  center=({cx:+.3f},{cy:+.3f})w"
+                    f"=({(cx + 1.5) * PX:.1f},{(1.5 - cy) * PX:.1f})px"
                 )
-                centers = [(x0 + x1) / 2 for x0, x1, *_ in rect_positions(w, t)]
-            ys = Y_SWEEP if occ == "square" else Y_CUT
-            px = [
-                (round((cx + 1.5) * PX, 1), round((1.5 - ys) * PX, 1))
-                for cx in centers
-            ]
-            print(f"  centers[{TIER_NAMES[tier_i]}] {info}")
-            print(f"    world x: {[round(c, 3) for c in centers]}, y={ys}")
-            print(f"    px (x,y): {px}")
+                block.append(cell)
+            blocks.append(block)
+        suffix = "_dense" if dense else ""
+        out = os.path.join(OUT_DIR, f"topology_candidates_{name}{suffix}.png")
+        draw_sheet(blocks, block_texts, title, out, col_numbers=dense)
+        print(f"  output: {out}")
 
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dense", action="store_true", help="13 档密集扫掠候选图")
+    main(dense=ap.parse_args().dense)
