@@ -103,35 +103,40 @@ def register_phi(f_a, f_b, z, mask) -> float:
 
 
 def snapshot_thetas(z, mask) -> list[float]:
-    """8 snapshot thetas: 4 crossings x +-eps, widen where classic fails."""
+    """Uniform 5-deg grid over the interval; nudge if needed.
+
+    A column is nudged +-0.5 deg if it falls inside an HBSN transition
+    core (bumps ~[70.2,70.9]/~[108.7,109.3]) +-0.4 deg, within 0.1 deg
+    of a classical flip, or if the classic field fails there.
+    """
+    ths_u = [65.0 + 5.0 * k for k in range(11)]
+    bumps = [(70.2, 70.9), (108.7, 109.3)]
     cols = []
-    for c in CROSSINGS:
-        for sign in [-1, +1]:
-            off = None
-            for cand in SNAP_OFFSETS:
-                th = c + sign * cand
-                if (
-                    classic_or_none(
-                        shapes.triangle(t=th / DEG_PER_T, base=BASE)
-                    )
-                    is not None
-                ):
-                    off = cand
-                    break
-            if off is None:
-                raise RuntimeError(f"no finite classic field near {c}")
-            cols.append(c + sign * off)
+    for th in ths_u:
+        for cand in [th, th - 0.5, th + 0.5, th - 1.0, th + 1.0]:
+            ok = all(not (lo - 0.4 <= cand <= hi + 0.4) for lo, hi in bumps)
+            ok = ok and all(abs(cand - f) > 0.1 for f in FLIPS)
+            if ok:
+                cf = classic_or_none(
+                    shapes.triangle(t=cand / DEG_PER_T, base=BASE)
+                )
+                ok = cf is not None
+            if ok:
+                cols.append(cand)
+                break
+        else:
+            raise RuntimeError(f"no valid snapshot column near {th}")
     return cols
 
 
 def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask) -> None:
     """Top: adjacent-sample d curves; bottom: 3x8 snapshot grid."""
-    fig = plt.figure(figsize=(16, 10.5))
+    fig = plt.figure(figsize=(18, 10.5))
     gs = fig.add_gridspec(2, 1, height_ratios=[1, 1.9], hspace=0.22)
     ax_a = fig.add_subplot(gs[0])
-    gs_b = gs[1].subgridspec(3, 8, hspace=0.12, wspace=0.08)
+    gs_b = gs[1].subgridspec(3, 11, hspace=0.12, wspace=0.08)
     axs = np.array(
-        [[fig.add_subplot(gs_b[r, c]) for c in range(8)] for r in range(3)]
+        [[fig.add_subplot(gs_b[r, c]) for c in range(11)] for r in range(3)]
     )
     ax_a.plot(
         xs_c,
@@ -149,6 +154,17 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask) -> None:
     )
     for f in FLIPS:
         ax_a.axvline(f, color="k", ls="--", lw=0.8)
+        ax_a.text(
+            f,
+            0.92,
+            rf"$\theta^*$={f:.2f}$^\circ$",
+            transform=ax_a.get_xaxis_transform(),
+            ha="center",
+            va="top",
+            fontsize=FONTSIZE - 2,
+            color="k",
+            bbox={"facecolor": "white", "alpha": 0.7, "edgecolor": "none"},
+        )
     ax_a.set_xlim(TH_LO, TH_HI)
     ax_a.set_xticks([65, 75, 85, 95, 105, 115])
     ax_a.set_xticklabels([f"{v}°" for v in [65, 75, 85, 95, 105, 115]])
@@ -229,7 +245,7 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask) -> None:
     fig.canvas.draw()
     pos_a = ax_a.get_position()
     pos_l = axs[0, 0].get_position()
-    pos_r = axs[0, 7].get_position()
+    pos_r = axs[0, 10].get_position()
     fig.text(
         (pos_a.x0 + pos_a.x1) / 2,
         0.955,
@@ -241,8 +257,7 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask) -> None:
     fig.text(
         (pos_l.x0 + pos_r.x1) / 2,
         0.955,
-        "(b) Snapshots at the four Im I2 zero crossings, +-eps"
-        f" (eps={EPS:g} deg, widened where classic fails)",
+        "(b) Snapshots, uniform 5-degree sampling",
         ha="center",
         fontsize=FONTSIZE + 1,
     )
