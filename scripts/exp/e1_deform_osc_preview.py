@@ -43,15 +43,13 @@ FLIPS = [40.38, 139.62, 220.89, 319.11]
 
 
 def _cols() -> list[float]:
-    """Uniform 20-deg lattice; lattice pt nearest each flip -> +-0.1 pair.
+    """Context columns kept finite for classic HBS + tight flip pairs.
 
-    Adds the max-tilt anchors 90/270 (mid-gap between 80/100, 260/280).
+    120/270 fall in zipper dead bands (117.0-123.2 / 251.3-288.4) so the
+    context uses nearest finite lattice points instead (123.5, 289) plus
+    the isosceles/max-tilt anchors 90/180/80.
     """
-    lat = {float(c) for c in np.arange(0.0, 360.0, 20.0)}
-    for f in FLIPS:
-        near = min(lat, key=lambda c: abs(c - f))
-        lat.remove(near)
-    ctx = sorted(lat | {90.0, 270.0})
+    ctx = [80.0, 90.0, 123.5, 180.0, 289.0]
     return sorted(ctx + [x for f in FLIPS for x in (f - 0.1, f + 0.1)])
 
 
@@ -147,9 +145,9 @@ def curve_data(ths, fields, z, mask):
 
 def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     """Top: local d curves (classical spikes vs HBSN morph humps).
-    Bottom: 3x11 snapshots (wide context + tight +-0.1-deg flip pairs).
+    Bottom: 3xN snapshots (context + tight +-0.1-deg flip pairs).
     """
-    fig = plt.figure(figsize=(24, 10.5))
+    fig = plt.figure(figsize=(17, 10.5))
     gs = fig.add_gridspec(2, 1, height_ratios=[1, 1.9], hspace=0.22)
     ax_a = fig.add_subplot(gs[0])
     n = len(cols)
@@ -167,8 +165,7 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     ax_a.set_ylabel(r"local field change $d(B_{\psi}, B_{\psi+0.25})$",
                     fontsize=FONTSIZE)
     ax_a.tick_params(labelsize=FONTSIZE - 2)
-    ax_a.legend(fontsize=FONTSIZE - 2, loc="upper left",
-                bbox_to_anchor=(1.0, 1.0))
+    ax_a.legend(fontsize=FONTSIZE - 2, loc="upper right")
     ax_a.set_xlabel(r"oscillation phase $\psi$ (deg), apex $x = 0.55\sin\psi$",
                     fontsize=FONTSIZE)
     for c_idx, ps in enumerate(cols):
