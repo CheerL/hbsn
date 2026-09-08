@@ -57,6 +57,13 @@ COLS = _cols()
 FONTSIZE = 13
 FIELD_CACHE = "/tmp/h3scan/fields_osc.npz"
 PNG_PATH = os.path.join(OUT_DIR, "deformation_osc_preview.png")
+SUBSTEP = 5.0  # deg, display-subsampling step for the curve panel
+# HBSN morph peaks (local-d ~0.088) sit ~1.3 deg BEFORE each classical flip
+# (39.1/140.9/219.9/320.1 vs flips 40.38/...).  Hide radius 0.75 keeps the
+# window (38.35, 39.85) disjoint from the flip keep-window (flip +-0.5) so
+# the classical 0.586 spikes survive.
+MORPH_HIDE = [39.1, 140.9, 219.9, 320.1]
+MORPH_RADIUS = 0.75
 
 
 def classic_or_none(bound):
@@ -143,26 +150,48 @@ def curve_data(ths, fields, z, mask):
     return np.array(xs), np.array(ds)
 
 
-def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
-    """Top: local d curves (classical spikes vs HBSN morph humps).
-    Bottom: 3xN snapshots (context + tight +-0.1-deg flip pairs).
+def sparse_curve(xs, ds, keep, hide):
+    """Subsample to ~5-deg points; keep every 0.25-deg point in a +-0.5 deg
+    window around each classical flip; drop points in HBSN morph windows
+    (hide) EXCEPT where a flip keep-window takes precedence.
     """
+    out, last = [], None
+    for k, x in enumerate(xs):
+        in_flip = any(abs(x - f) <= 0.5 for f in keep)
+        if in_flip:
+            out.append(k)
+            last = None
+            continue
+        if any(abs(x - h) <= MORPH_RADIUS for h in hide):
+            continue
+        if last is None or x - last >= SUBSTEP:
+            out.append(k)
+            last = x
+    return out
+
+
+def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
+    """Top: subsampled local-d curves ((a) panel); bottom: 3xN snapshots."""
     fig = plt.figure(figsize=(17, 10.5))
-    gs = fig.add_gridspec(2, 1, height_ratios=[1, 1.9], hspace=0.22)
+    gs = fig.add_gridspec(2, 1, height_ratios=[1, 1.9], hspace=0.18)
     ax_a = fig.add_subplot(gs[0])
     n = len(cols)
-    gs_b = gs[1].subgridspec(3, n, hspace=0.12, wspace=0.08)
+    gs_b = gs[1].subgridspec(3, n, hspace=0.05, wspace=0.06)
     axs = np.array(
         [[fig.add_subplot(gs_b[r, c]) for c in range(n)] for r in range(3)]
     )
-    ax_a.plot(xs_c, ds_c, color="r", lw=1.0, label="classical")
-    ax_a.plot(xs_h, ds_h, color="b", lw=1.6, label="HBSN (morph)")
+    i_c = sparse_curve(xs_c, ds_c, flips, MORPH_HIDE)
+    i_h = sparse_curve(xs_h, ds_h, flips, MORPH_HIDE)
+    ax_a.plot(xs_c[i_c], ds_c[i_c], "o-", color="r", lw=1.0, ms=3,
+              label="classical")
+    ax_a.plot(xs_h[i_h], ds_h[i_h], "o-", color="b", lw=1.6, ms=3,
+              label="HBSN (morph)")
     for f in flips:
         ax_a.axvline(f, color="k", ls="--", lw=0.8)
     ax_a.set_xlim(TH_LO, TH_HI)
     ax_a.set_xticks([0, 60, 120, 180, 240, 300, 360])
     ax_a.set_xticklabels([f"{v}" for v in [0, 60, 120, 180, 240, 300, 360]])
-    ax_a.set_ylabel(r"local field change $d(B_{\psi}, B_{\psi+0.25})$",
+    ax_a.set_ylabel(r"local field change $d(B_{\psi}, B_{\psi+\Delta\psi})$",
                     fontsize=FONTSIZE)
     ax_a.tick_params(labelsize=FONTSIZE - 2)
     ax_a.legend(fontsize=FONTSIZE - 2, loc="upper right")
@@ -196,9 +225,17 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
             vmin=0, vmax=0.8)
         axs[2, c_idx].axis("off")
     for r, label in enumerate(["input shape", "classical HBS", "HBSN"]):
-        axs[r, 0].text(-0.06, 0.5, label, transform=axs[r, 0].transAxes,
-                       va="center", ha="center", rotation=90,
-                       fontsize=FONTSIZE + 1)
+        axs[r, 0].text(-0.05, 0.5, label, transform=axs[r, 0].transAxes,
+                       va="center", ha="right", rotation=90,
+                       fontsize=FONTSIZE - 4)
+    fig.canvas.draw()
+    pa = ax_a.get_position()
+    pl = axs[0, 0].get_position()
+    pr = axs[0, n - 1].get_position()
+    fig.text((pa.x0 + pa.x1) / 2, pa.y1 + 0.02, "(a)", ha="center",
+             fontsize=FONTSIZE + 1)
+    fig.text((pl.x0 + pr.x1) / 2, pl.y1 + 0.02, "(b)", ha="center",
+             fontsize=FONTSIZE + 1)
     fig.savefig(PNG_PATH, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
