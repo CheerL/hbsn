@@ -57,49 +57,54 @@ def pick_cells(base, net, disk_mask, rects, steps, strict=True):
 
 
 def draw_final(blocks, titles, out):
-    """6 行 x 5 列终稿：两块各 3 行，横排板标题 + 左侧行标签。"""
-    fig, axs = plt.subplots(6, 5, figsize=(6.4, 8.2), squeeze=False)
+    """3 行 x 11 列终稿（左右并排）：(a) 板占列 0-4，(b) 板占列 6-10，
+    列 5 留空分隔，横排板标题 + 左侧行标签。"""
+    fig, axs = plt.subplots(3, 11, figsize=(13.0, 4.3), squeeze=False)
     fig.subplots_adjust(
-        left=0.09, right=0.99, top=0.94, bottom=0.005, wspace=0.03, hspace=0.06
+        left=0.055, right=0.995, top=0.93, bottom=0.01, wspace=0.03, hspace=0.04
     )
-    for r in range(6):
-        for c in range(5):
-            ax = axs[r, c]
-            ax.axis("off")
-            gray, hf, cf, _ = blocks[r // 3][c]
-            if r % 3 == 0:
-                ax.imshow(gray, cmap="gray", vmin=0, vmax=255)
-            elif r % 3 == 1:
-                ax.imshow(hf, cmap="jet", vmin=0, vmax=0.8)
-            elif cf is not None:
-                ax.imshow(cf, cmap="jet", vmin=0, vmax=0.8)
-            else:
-                ax.imshow(np.zeros((8, 8)), cmap="gray", vmin=0, vmax=1)
-                ax.text(
-                    0.5,
-                    0.5,
-                    "N/A",
-                    ha="center",
-                    va="center",
-                    transform=ax.transAxes,
-                    fontsize=13,
-                    color="w",
-                )
+    for r in range(3):
+        for b in range(2):
+            for c in range(5):
+                ax = axs[r, c if b == 0 else c + 6]  # (a) 列 0-4，(b) 列 6-10
+                ax.axis("off")
+                gray, hf, cf, _ = blocks[b][c]
+                if r == 0:
+                    ax.imshow(gray, cmap="gray", vmin=0, vmax=255)
+                elif r == 1:
+                    ax.imshow(hf, cmap="jet", vmin=0, vmax=0.8)
+                elif cf is not None:
+                    ax.imshow(cf, cmap="jet", vmin=0, vmax=0.8)
+                else:
+                    ax.imshow(np.zeros((8, 8)), cmap="gray", vmin=0, vmax=1)
+                    ax.text(
+                        0.5,
+                        0.5,
+                        "N/A",
+                        ha="center",
+                        va="center",
+                        transform=ax.transAxes,
+                        fontsize=13,
+                        color="w",
+                    )
+    for r in range(3):
+        axs[r, 5].axis("off")  # 中间分隔列不画轴
     for b in range(2):
-        x0 = axs[3 * b, 0].get_position().x0
-        x1 = axs[3 * b, 4].get_position().x1
-        y = axs[3 * b, 0].get_position().y1 + 0.012
-        fig.text((x0 + x1) / 2, y, titles[b], ha="center", fontsize=12)
-    for r in range(6):
+        c0 = 0 if b == 0 else 6  # (a) 板列 0-4，(b) 板列 6-10
+        x0 = axs[0, c0].get_position().x0
+        x1 = axs[0, c0 + 4].get_position().x1
+        y = axs[0, 0].get_position().y1 + 0.025
+        fig.text((x0 + x1) / 2, y, titles[b], ha="center", fontsize=13)
+    for r in range(3):
         pos = axs[r, 0].get_position()
         fig.text(
-            0.03,
+            0.028,
             (pos.y0 + pos.y1) / 2,
-            ts.ROW_LABELS[r % 3],
+            ts.ROW_LABELS[r],
             ha="center",
             va="center",
             rotation=90,
-            fontsize=9,
+            fontsize=10,
         )
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
