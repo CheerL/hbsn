@@ -150,24 +150,29 @@ def curve_data(ths, fields, z, mask):
     return np.array(xs), np.array(ds)
 
 
-def sparse_curve(xs, ds, keep, hide):
-    """Subsample to ~5-deg points; keep every 0.25-deg point in a +-0.5 deg
-    window around each classical flip; drop points in HBSN morph windows
-    (hide) EXCEPT where a flip keep-window takes precedence.
+def sparse_curve(xs, ds, keep, hide, per_flip=3):
+    """Subsample to ~5-deg points; around each flip keep the closest
+    `per_flip` points (red: per_flip=3 -> low+spike+low sharp jump; blue:
+    per_flip=1 -> a single nearest point at the flip); drop points in HBSN
+    morph windows (hide) unless they fall inside a flip keep-window.
     """
     out, last = [], None
+    chosen = set()
     for k, x in enumerate(xs):
         in_flip = any(abs(x - f) <= 0.5 for f in keep)
         if in_flip:
-            out.append(k)
-            last = None
+            chosen.add(k)
             continue
         if any(abs(x - h) <= MORPH_RADIUS for h in hide):
             continue
         if last is None or x - last >= SUBSTEP:
             out.append(k)
             last = x
-    return out
+    kept = set(out)
+    for f in keep:
+        cands = sorted(chosen, key=lambda k: abs(xs[k] - f))
+        kept |= set(cands[:per_flip])
+    return sorted(kept)
 
 
 def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
@@ -176,16 +181,16 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     gs = fig.add_gridspec(2, 1, height_ratios=[1, 1.9], hspace=0.18)
     ax_a = fig.add_subplot(gs[0])
     n = len(cols)
-    gs_b = gs[1].subgridspec(3, n, hspace=0.05, wspace=0.06)
+    gs_b = gs[1].subgridspec(3, n, hspace=0.02, wspace=0.06)
     axs = np.array(
         [[fig.add_subplot(gs_b[r, c]) for c in range(n)] for r in range(3)]
     )
-    i_c = sparse_curve(xs_c, ds_c, flips, MORPH_HIDE)
-    i_h = sparse_curve(xs_h, ds_h, flips, MORPH_HIDE)
+    i_c = sparse_curve(xs_c, ds_c, flips, MORPH_HIDE, per_flip=3)
+    i_h = sparse_curve(xs_h, ds_h, flips, MORPH_HIDE, per_flip=1)
     ax_a.plot(xs_c[i_c], ds_c[i_c], "o-", color="r", lw=1.0, ms=3,
               label="classical")
     ax_a.plot(xs_h[i_h], ds_h[i_h], "o-", color="b", lw=1.6, ms=3,
-              label="HBSN (morph)")
+              label="HBSN")
     for f in flips:
         ax_a.axvline(f, color="k", ls="--", lw=0.8)
     ax_a.set_xlim(TH_LO, TH_HI)
@@ -234,8 +239,18 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     pr = axs[0, n - 1].get_position()
     fig.text((pa.x0 + pa.x1) / 2, pa.y1 + 0.02, "(a)", ha="center",
              fontsize=FONTSIZE + 1)
-    fig.text((pl.x0 + pr.x1) / 2, pl.y1 + 0.02, "(b)", ha="center",
-             fontsize=FONTSIZE + 1)
+    # (b): 1 char above the column titles, 2 chars below (a)'s x-axis
+    mid = n // 2
+    try:
+        tt = axs[0, mid].title
+        tb = tt.get_window_extent(renderer=fig.canvas.get_renderer())
+        inv = fig.transFigure.inverted()
+        y_top = inv.transform((0, tb.y1))[1]
+    except Exception:
+        y_top = pl.y1 + 0.03
+    y_a = pa.y0 - 0.024  # 2 chars below the (a) axis box
+    fig.text((pl.x0 + pr.x1) / 2, min(y_top + 0.012, y_a), "(b)",
+             ha="center", va="bottom", fontsize=FONTSIZE + 1)
     fig.savefig(PNG_PATH, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
