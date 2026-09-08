@@ -40,9 +40,22 @@ AMP = 0.55  # osc amplitude; flips need |x| > 0.358
 TH_LO, TH_HI = 0.0, 360.0
 STEP = 0.25  # deg; spikes are instant, 0.25 resolves them
 FLIPS = [40.38, 139.62, 220.89, 319.11]
-# context (0/90/270) + tight +-0.1 deg pairs around the MEASURED flips
-COLS = [0.0, 40.28, 40.48, 90.0, 139.52, 139.72, 220.79, 220.99, 270.0,
-        319.01, 319.21]
+
+
+def _cols() -> list[float]:
+    """Uniform 20-deg lattice; lattice pt nearest each flip -> +-0.1 pair.
+
+    Adds the max-tilt anchors 90/270 (mid-gap between 80/100, 260/280).
+    """
+    lat = {float(c) for c in np.arange(0.0, 360.0, 20.0)}
+    for f in FLIPS:
+        near = min(lat, key=lambda c: abs(c - f))
+        lat.remove(near)
+    ctx = sorted(lat | {90.0, 270.0})
+    return sorted(ctx + [x for f in FLIPS for x in (f - 0.1, f + 0.1)])
+
+
+COLS = _cols()
 FONTSIZE = 13
 FIELD_CACHE = "/tmp/h3scan/fields_osc.npz"
 PNG_PATH = os.path.join(OUT_DIR, "deformation_osc_preview.png")
@@ -136,12 +149,13 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     """Top: local d curves (classical spikes vs HBSN morph humps).
     Bottom: 3x11 snapshots (wide context + tight +-0.1-deg flip pairs).
     """
-    fig = plt.figure(figsize=(19, 10.5))
+    fig = plt.figure(figsize=(24, 10.5))
     gs = fig.add_gridspec(2, 1, height_ratios=[1, 1.9], hspace=0.22)
     ax_a = fig.add_subplot(gs[0])
-    gs_b = gs[1].subgridspec(3, 11, hspace=0.12, wspace=0.1)
+    n = len(cols)
+    gs_b = gs[1].subgridspec(3, n, hspace=0.12, wspace=0.08)
     axs = np.array(
-        [[fig.add_subplot(gs_b[r, c]) for c in range(11)] for r in range(3)]
+        [[fig.add_subplot(gs_b[r, c]) for c in range(n)] for r in range(3)]
     )
     ax_a.plot(xs_c, ds_c, color="r", lw=1.0, label="classical")
     ax_a.plot(xs_h, ds_h, color="b", lw=1.6, label="HBSN (morph)")
@@ -153,7 +167,8 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     ax_a.set_ylabel(r"local field change $d(B_{\psi}, B_{\psi+0.25})$",
                     fontsize=FONTSIZE)
     ax_a.tick_params(labelsize=FONTSIZE - 2)
-    ax_a.legend(fontsize=FONTSIZE - 2, loc="upper right")
+    ax_a.legend(fontsize=FONTSIZE - 2, loc="upper left",
+                bbox_to_anchor=(1.0, 1.0))
     ax_a.set_xlabel(r"oscillation phase $\psi$ (deg), apex $x = 0.55\sin\psi$",
                     fontsize=FONTSIZE)
     for c_idx, ps in enumerate(cols):
