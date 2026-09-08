@@ -18,8 +18,9 @@
 HBS 场渲染固定口径（禁改）：np.abs(field) * 圆盘 mask -> jet [0, 0.8]，无色条。
 
 用法：uv run python scripts/exp/topology_series.py [--dense]
-默认出 Round A 三档候选图；--dense 出 13 档密集扫掠（单侧 0->0.6 六档渐深 +
-居中畸形位 + 镜像六档，列号标注图内），供用户挑 5 列组终稿。
+默认出 Round A 三档候选图；--dense 出 13 档密集扫掠（深档集中：单侧 0.3->上限
+六档渐深 + 居中畸形位 + 镜像六档，列号标注图内），供用户挑 5 列组终稿。
+密集 (b) 用更窄矩形 W/8-12（用户定：再窄一点），深度上限 0.65（扫描定）。
 输出：figures/hbsn/candidates/topology_candidates_{name}[_dense].png
 """
 
@@ -125,48 +126,51 @@ def rect_positions(w, t):
     ]
 
 
-N_SIDE = 6  # 密集扫掠单侧档数（6 浅->深 + 畸形 + 6 镜像 = 13 位，畸形居中）
-MAXF = 0.6  # 单侧最深遮挡比例（classic 饱和稳定上限，同 DEPTH 上限）
+N_SIDE = 6  # 密集扫掠单侧档数（6 深档 + 畸形 + 6 镜像 = 13 位，畸形居中）
+# 密集模式参数（用户定：档位集中到真正切进本体的深档，浅档近乎完整无意义）
+DENOMS_CUT_DENSE = (8, 10, 12)  # (b) 密集矩形厚 = W/denom（18/14/12px，更窄）
+D_LO, D_HI = 0.3, 0.65  # (b) 切入深度梯子（0.7+ 意外切断/饱和，扫描定）
+F_LO, F_HI = 0.3, 0.9  # (a) 咬合深度梯子（0.9 两侧三档全部稳定，扫描定）
 
 
-def square_sweep(w, s):
-    """(a) 密集扫掠 2*N_SIDE+1 位：方形咬合深度 0->MAXF 六档、成洞、右侧镜像。
+def square_sweep(w, s, f_lo, f_hi):
+    """(a) 密集扫掠 2*N_SIDE+1 位：方形咬合 f_lo->f_hi 六档、成洞、右侧镜像。
 
-    深度比例 f = MAXF*k/(N_SIDE-1)：f=0 方形内缘恰好贴边（轻咬合），f=MAXF 即
-    Round A 的深咬合位；畸形位（hole）与两侧 f=MAXF 镜像位构成 13 档序列。
+    深度比例 f = 占方形边长比例（中心高度处）。梯子集中深档（用户定：浅档
+    近乎完整三角形无意义）。f_hi=0.9 已扫描验证两侧三档全部稳定。
     """
     e = w(Y_SWEEP)
     out = []
     for k in range(N_SIDE):
-        cx = -e + s * (MAXF * k / (N_SIDE - 1) - 0.5)
+        cx = -e + s * (f_lo + (f_hi - f_lo) * k / (N_SIDE - 1) - 0.5)
         out.append(
             (cx - s / 2, cx + s / 2, Y_SWEEP - s / 2, Y_SWEEP + s / 2, "bite")
         )
     out.append((-s / 2, s / 2, Y_SWEEP - s / 2, Y_SWEEP + s / 2, "hole"))
     for k in reversed(range(N_SIDE)):
-        cx = e - s * (MAXF * k / (N_SIDE - 1) - 0.5)
+        cx = e - s * (f_lo + (f_hi - f_lo) * k / (N_SIDE - 1) - 0.5)
         out.append(
             (cx - s / 2, cx + s / 2, Y_SWEEP - s / 2, Y_SWEEP + s / 2, "bite")
         )
     return out
 
 
-def rect_sweep(w, t):
-    """(b) 密集扫掠 2*N_SIDE+1 位：切入深度 0->MAXF 六档、全宽切断、右侧镜像。
+def rect_sweep(w, t, d_lo, d_hi):
+    """(b) 密集扫掠 2*N_SIDE+1 位：切入 d_lo->d_hi 六档、全宽切断、右侧镜像。
 
-    深度比例 d = MAXF*k/(N_SIDE-1)（占切入高度处全宽比例）：d=0 恰好贴边，
-    d=MAXF 即 Round A 深切口位；畸形位（cut）居中第 N_SIDE+1 列。
+    深度比例 d = 占切入高度处全宽比例。d_hi=0.65 为扫描稳定上限（0.7+ 意外
+    切断或饱和）。畸形位（cut）居中第 N_SIDE+1 列。
     """
     e = w(Y_CUT)
     poke = w(Y_CUT - t / 2) + MARGIN
     y0, y1 = Y_CUT - t / 2, Y_CUT + t / 2
     out = []
     for k in range(N_SIDE):
-        tip = -e + MAXF * k / (N_SIDE - 1) * 2 * e
+        tip = -e + (d_lo + (d_hi - d_lo) * k / (N_SIDE - 1)) * 2 * e
         out.append((-poke, tip, y0, y1, "notch"))
     out.append((-poke, poke, y0, y1, "cut"))
     for k in reversed(range(N_SIDE)):
-        tip = e - MAXF * k / (N_SIDE - 1) * 2 * e
+        tip = e - (d_lo + (d_hi - d_lo) * k / (N_SIDE - 1)) * 2 * e
         out.append((tip, poke, y0, y1, "notch"))
     return out
 
@@ -309,21 +313,42 @@ def main(dense=False):
     _, disk_mask = grid.get_ghbs_grid()
     os.makedirs(OUT_DIR, exist_ok=True)
     groups = (
-        ("multiconn", DENOMS, "square", "Multi-connected (square occluder)"),
-        ("disconnected", DENOMS_CUT, "rect", "Disconnected (rect occluder)"),
+        (
+            "multiconn",
+            DENOMS,
+            DENOMS,
+            "square",
+            "Multi-connected (square occluder)",
+        ),
+        (
+            "disconnected",
+            DENOMS_CUT,
+            DENOMS_CUT_DENSE,
+            "rect",
+            "Disconnected (rect occluder)",
+        ),
     )
-    for name, denoms, occ, title in groups:
+    for name, denoms, denoms_dense, occ, title in groups:
         print(f"\n== {name}{' [dense]' if dense else ''} ==")
         blocks, block_texts = [], []
-        for tier, denom in zip(TIER_NAMES, denoms, strict=True):
+        used = denoms_dense if dense else denoms
+        for tier, denom in zip(TIER_NAMES, used, strict=True):
             if occ == "square":
                 s = h / denom
-                rects = square_sweep(w, s) if dense else square_positions(w, s)
+                rects = (
+                    square_sweep(w, s, F_LO, F_HI)
+                    if dense
+                    else square_positions(w, s)
+                )
                 block_texts.append(f"{tier}: side {s * PX:.0f} px (H/{denom})")
                 print(f"  [{tier}] side {s:.4f} world / {s * PX:.1f} px")
             else:
                 t = wbase / denom
-                rects = rect_sweep(w, t) if dense else rect_positions(w, t)
+                rects = (
+                    rect_sweep(w, t, D_LO, D_HI)
+                    if dense
+                    else rect_positions(w, t)
+                )
                 length = 2 * (w(Y_CUT - t / 2) + MARGIN)
                 block_texts.append(
                     f"{tier}: cut {t * PX:.0f}x{length * PX:.0f} px (W/{denom})"
