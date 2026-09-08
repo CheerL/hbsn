@@ -49,7 +49,7 @@ def _cols() -> list[float]:
     context uses nearest finite lattice points instead (123.5, 289) plus
     the isosceles/max-tilt anchors 90/180/80.
     """
-    ctx = [80.0, 90.0, 123.5, 180.0, 289.0]
+    ctx = [80.0, 123.5, 180.0, 289.0]
     return sorted(ctx + [x for f in FLIPS for x in (f - 0.1, f + 0.1)])
 
 
@@ -176,24 +176,26 @@ def sparse_curve(xs, ds, keep, hide, per_flip=3):
 
 
 def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
-    """Top: subsampled local-d curves ((a) panel); bottom: 3xN snapshots."""
-    fig = plt.figure(figsize=(17, 10.5))
-    gs = fig.add_gridspec(2, 1, height_ratios=[1, 1.9], hspace=0.18)
-    ax_a = fig.add_subplot(gs[0])
+    """Top: subsampled local-d curves ((a)); bottom: 3xN snapshot grid.
+
+    Snapshot cells are laid out by hand as pixel-squares so the aspect-
+    equal auto-centering (which padded each cell vertically and defeated
+    hspace) is bypassed; row/column gaps are controlled directly.
+    """
     n = len(cols)
-    gs_b = gs[1].subgridspec(3, n, hspace=0.02, wspace=0.06)
-    axs = np.array(
-        [[fig.add_subplot(gs_b[r, c]) for c in range(n)] for r in range(3)]
-    )
-    i_c = sparse_curve(xs_c, ds_c, flips, MORPH_HIDE, per_flip=3)
+    fig = plt.figure(figsize=(17, 10.5))
+    # (a) curve axes, upper band
+    ax_a = fig.add_axes([0.09, 0.60, 0.88, 0.30])
+    i_c = sparse_curve(xs_c, ds_c, flips, MORPH_HIDE, per_flip=5)
     i_h = sparse_curve(xs_h, ds_h, flips, MORPH_HIDE, per_flip=1)
-    ax_a.plot(xs_c[i_c], ds_c[i_c], "o-", color="r", lw=1.0, ms=3,
+    ax_a.plot(xs_c[i_c], ds_c[i_c], "o-", color="r", lw=1.1, ms=3.2,
               label="classical")
     ax_a.plot(xs_h[i_h], ds_h[i_h], "o-", color="b", lw=1.6, ms=3,
               label="HBSN")
     for f in flips:
-        ax_a.axvline(f, color="k", ls="--", lw=0.8)
+        ax_a.axvline(f, color="k", ls="--", lw=0.8, alpha=0.55)
     ax_a.set_xlim(TH_LO, TH_HI)
+    ax_a.set_ylim(0, 0.68)
     ax_a.set_xticks([0, 60, 120, 180, 240, 300, 360])
     ax_a.set_xticklabels([f"{v}" for v in [0, 60, 120, 180, 240, 300, 360]])
     ax_a.set_ylabel(r"local field change $d(B_{\psi}, B_{\psi+\Delta\psi})$",
@@ -202,22 +204,47 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     ax_a.legend(fontsize=FONTSIZE - 2, loc="upper right")
     ax_a.set_xlabel(r"oscillation phase $\psi$ (deg), apex $x = 0.55\sin\psi$",
                     fontsize=FONTSIZE)
+    for f in flips:
+        ax_a.text(
+            f, 1.02, rf"{f:.1f}$^\circ$",
+            transform=ax_a.get_xaxis_transform(),
+            ha="center", va="bottom", fontsize=FONTSIZE - 4, color="0.25",
+        )
+    # ---- bottom 3xN snapshot grid, hand-laid pixel squares ----
+    # fig region [x_l, x_r] x [y_lo, y_hi]; square cell side s; gaps gap_h
+    # (vertical, between rows) and gap_w (horizontal, between columns).
+    x_l, x_r = 0.145, 0.96
+    y_lo, y_hi = 0.03, 0.56
+    gap_w, gap_h = 0.004, 0.006
+    s = min((x_r - x_l - gap_w * (n - 1)) / n, (y_hi - y_lo - gap_h * 2) / 3)
+    cw = s + gap_w
+    rh = s + gap_h
+    axs = []
+    for r in range(3):
+        row = []
+        for c in range(n):
+            ax = fig.add_axes(
+                [x_l + c * cw, y_hi - rh * (r + 1), s, s]
+            )
+            ax.set_facecolor("black")
+            ax.set_xticks([])
+            ax.set_yticks([])
+            for sp in ax.spines.values():
+                sp.set_visible(False)
+            row.append(ax)
+        axs.append(row)
+    axs = np.array(axs)
     for c_idx, ps in enumerate(cols):
         bound = osc_bound(ps)
         zz = bound[:, 0] + 1j * bound[:, 1]
         zz = zz - zz.mean()
         zz = zz / np.abs(zz).max() * 0.85
         ax0 = axs[0, c_idx]
-        ax0.set_facecolor("black")
         ax0.fill(zz.real, zz.imag, color="white", edgecolor="white", lw=0)
         ax0.set_xlim(-1.5, 1.5)
         ax0.set_ylim(-1.5, 1.5)
-        ax0.set_aspect("equal")
-        ax0.set_title(rf"$\psi={ps:.1f}$", fontsize=FONTSIZE - 4)
-        ax0.set_xticks([])
-        ax0.set_yticks([])
-        for spine in ax0.spines.values():
-            spine.set_visible(False)
+        ax0.set_title(rf"$\psi={ps:.1f}$", fontsize=FONTSIZE - 4,
+                      pad=2)
         cf = classic_or_none(bound)
         img = shapes.shape_to_image(bound)[..., 0]
         hf = nets.field_to_complex(nets.infer(net, img))
@@ -230,27 +257,22 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
             vmin=0, vmax=0.8)
         axs[2, c_idx].axis("off")
     for r, label in enumerate(["input shape", "classical HBS", "HBSN"]):
-        axs[r, 0].text(-0.05, 0.5, label, transform=axs[r, 0].transAxes,
-                       va="center", ha="right", rotation=90,
-                       fontsize=FONTSIZE - 4)
+        axs[r, 0].text(-0.02, 0.5, label,
+                       transform=axs[r, 0].transAxes, va="center",
+                       ha="right", rotation=90, fontsize=FONTSIZE - 4)
     fig.canvas.draw()
+    # (a)/(b) panel tags
     pa = ax_a.get_position()
-    pl = axs[0, 0].get_position()
-    pr = axs[0, n - 1].get_position()
-    fig.text((pa.x0 + pa.x1) / 2, pa.y1 + 0.02, "(a)", ha="center",
+    fig.text(0.5, pa.y1 + 0.012, "(a)", ha="center", va="bottom",
              fontsize=FONTSIZE + 1)
-    # (b): 1 char above the column titles, 2 chars below (a)'s x-axis
-    mid = n // 2
-    try:
-        tt = axs[0, mid].title
-        tb = tt.get_window_extent(renderer=fig.canvas.get_renderer())
-        inv = fig.transFigure.inverted()
-        y_top = inv.transform((0, tb.y1))[1]
-    except Exception:
-        y_top = pl.y1 + 0.03
-    y_a = pa.y0 - 0.024  # 2 chars below the (a) axis box
-    fig.text((pl.x0 + pr.x1) / 2, min(y_top + 0.012, y_a), "(b)",
-             ha="center", va="bottom", fontsize=FONTSIZE + 1)
+    yt = max(ax.title.get_window_extent(fig.canvas.get_renderer()).y1
+             for ax in axs[0])
+    inv = fig.transFigure.inverted()
+    yt = inv.transform((0, yt))[1]
+    ya = pa.y0
+    yb = max(yt + 0.012, ya - 0.028)  # >=1 char above titles; >=2 below (a)
+    fig.text(0.5, yb, "(b)", ha="center", va="bottom",
+             fontsize=FONTSIZE + 1)
     fig.savefig(PNG_PATH, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
