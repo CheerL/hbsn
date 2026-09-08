@@ -17,10 +17,15 @@
 
 HBS 场渲染固定口径（禁改）：np.abs(field) * 圆盘 mask -> jet [0, 0.8]，无色条。
 
-用法：uv run python scripts/exp/topology_series.py [--dense]
-默认出 Round A 三档候选图；--dense 出 13 档密集扫掠（深档集中：单侧 0.3->上限
-六档渐深 + 居中畸形位 + 镜像六档，列号标注图内），供用户挑 5 列组终稿。
-密集 (b) 用更窄矩形 W/8-12（用户定：再窄一点），深度上限 0.65（扫描定）。
+渲染帧注意（重要）：shape_to_image 对边界做 max-模长重归一（k=0.85/max|z|，
+本三角形 k=0.9029）+ mpl 默认轴盒 [0.125,0.9]x[0.11,0.88]（66.1/65.7 px/world，
+中心 (131,129)）。本脚本的遮挡 mask 用全画布 85.33px/world 帧——mask 帧与
+渲染帧差 ~1.43x，脚本内 H/6、W/8 等比例是 mask 帧设计量；论文引用尺寸一律
+以渲染 px 为准（实测：三角形 100x71px、方形 mask 17.3px、切口厚 18.1px）。
+
+用法：uv run python scripts/exp/topology_series.py [--dense | --fine | --final]
+--fine：H/6 下 15 均匀细化位穿过洞过渡区（实测拓扑接管，洞态 N/A）。
+--final：不连通组定稿面板（用户选 W/8 + 密集步 2/5/7/8/12）。
 输出：figures/hbsn/candidates/topology_candidates_{name}[_dense].png
 """
 
@@ -175,6 +180,31 @@ def rect_sweep(w, t, d_lo, d_hi):
     return out
 
 
+# 细化模式（用户定 2026-09-08）：H/6 尺寸，6-9 列过渡区完全均匀 15 档，
+# 端点咬合占比 f=0.78（原密集图第 5/9 列状态），实测拓扑接管分类（洞态 N/A）。
+N_FINE = 15
+F_FINE = 0.78
+# 用户定稿（2026-09-08）：不连通组 W/8，密集步 2/5/7/8/12。
+FINAL_DISC = {"denom": 8, "steps": (2, 5, 7, 8, 12)}
+
+
+def fine_sweep(w, s):
+    """(a) 细化扫掠 N_FINE 个均匀位：cx 从 -x_end 到 +x_end 完全均匀。
+
+    x_end = e - s*(F_FINE-0.5)，即端点为咬合占比 F_FINE 的深咬合位；
+    中间穿过洞态（H/6 时洞区约 cx∈[-0.40,+0.40]，多数列为实测多连通）。
+    """
+    e = w(Y_SWEEP)
+    x_end = e - s * (F_FINE - 0.5)
+    out = []
+    for k in range(N_FINE):
+        cx = -x_end + 2 * x_end * k / (N_FINE - 1)
+        out.append(
+            (cx - s / 2, cx + s / 2, Y_SWEEP - s / 2, Y_SWEEP + s / 2, "bite")
+        )
+    return out
+
+
 def rect_mask(x0, x1, y0, y1):
     """像素中心世界坐标的轴对齐矩形 mask（256 网格，row=y/col=x）。"""
     v = (np.arange(IMG) + 0.5) / PX - 1.5
@@ -183,11 +213,8 @@ def rect_mask(x0, x1, y0, y1):
     return (yv >= y0) & (yv <= y1) & (xv >= x0) & (xv <= x1)
 
 
-def topo_check(gray, kind):
-    """拓扑 assert：连通域数 + 洞数符合遮挡类型（防静默错图）。
-
-    bite/notch：1 连通域、0 洞；hole：1 连通域且 >=1 洞；cut：>=2 连通域。
-    """
+def topo_measure(gray):
+    """二值图 -> (连通域数, 洞数)（RETR_CCOMP 层级计洞）。"""
     import cv2
 
     binary = (gray > 127).astype(np.uint8)
@@ -195,7 +222,12 @@ def topo_check(gray, kind):
     _, hier = cv2.findContours(
         binary * 255, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
     )
-    holes = int((hier[0][:, 3] >= 0).sum())
+    return n_cc, int((hier[0][:, 3] >= 0).sum())
+
+
+def topo_check(gray, kind):
+    """拓扑 assert：连通域/洞数符合预期类型（防静默错图）。"""
+    n_cc, holes = topo_measure(gray)
     if kind == "cut":
         assert n_cc >= 2, f"cut 未切断（{n_cc} 域）"
     else:
@@ -212,15 +244,22 @@ def rms(cf, hf, mask):
     return float(np.sqrt(np.sum(np.abs(cf - hf)[mask] ** 2) / mask.sum()))
 
 
-def render_cell(base, net, disk_mask, rect):
-    """单格：遮挡 -> 拓扑自检 -> 推理。返回 (gray, hf, cf|None, kind)。
+def render_cell(base, net, disk_mask, rect, strict=True):
+    """单格：遮挡 -> 拓扑检查 -> 推理。返回 (gray, hf, cf|None, kind)。
 
-    cf=None 时：畸形位（hole/cut）-> N/A；正常位 classic 失败 -> FAIL。
+    strict=True（默认）按意图类型 assert；strict=False（细化模式）实测拓扑
+    接管分类——实测成洞/碎裂即按畸形处理（classic -> N/A），不 raise。
+    cf=None 时：畸形位 -> N/A；正常位 classic 失败/饱和 -> FAIL。
     """
     x0, x1, y0, y1, kind = rect
     gray = base.copy()
     gray[rect_mask(x0, x1, y0, y1)] = 0
-    topo_check(gray, kind)
+    if strict:
+        topo_check(gray, kind)
+    else:
+        n_cc, holes = topo_measure(gray)
+        if holes >= 1 or n_cc >= 2:
+            kind = "hole"
     hf = np.abs(nets.field_to_complex(nets.infer(net, gray))) * disk_mask
     if kind in MALFORMED:
         cf = None
@@ -305,13 +344,22 @@ def draw_sheet(blocks, block_texts, title, out, col_numbers=False):
     plt.close(fig)
 
 
-def main(dense=False):
+def main(dense=False, fine=False, final=False):
     bound = shapes.triangle(T, base=BASE)
     h, wbase, w = tri_geometry(bound)
     base = shapes.shape_to_image(bound)[..., 0]
     net = nets.build_net(nets.BEST_CKPT)
     _, disk_mask = grid.get_ghbs_grid()
     os.makedirs(OUT_DIR, exist_ok=True)
+    if fine:
+        run_fine(base, net, disk_mask, w, h)
+    elif final:
+        run_final_panel(base, net, disk_mask, w, wbase)
+    else:
+        run_candidates(base, net, disk_mask, w, h, wbase, dense)
+
+
+def run_candidates(base, net, disk_mask, w, h, wbase, dense):
     groups = (
         (
             "multiconn",
@@ -360,7 +408,7 @@ def main(dense=False):
             block = []
             for k, (x0, x1, y0, y1, kind) in enumerate(rects, 1):
                 cell = render_cell(base, net, disk_mask, (x0, x1, y0, y1, kind))
-                _, hf, cf, _ = cell
+                _, hf, cf, kind = cell
                 if kind in MALFORMED:
                     msg = "N/A"
                 elif cf is not None:
@@ -381,7 +429,72 @@ def main(dense=False):
         print(f"  output: {out}")
 
 
+def run_fine(base, net, disk_mask, w, h):
+    """细化扫掠：H/6、15 均匀位穿过洞过渡区，实测拓扑接管分类。"""
+    s = h / 6
+    rects = fine_sweep(w, s)
+    block = []
+    for k, (x0, x1, y0, y1, kind) in enumerate(rects, 1):
+        cell = render_cell(
+            base, net, disk_mask, (x0, x1, y0, y1, kind), strict=False
+        )
+        gray, hf, cf, kind = cell
+        n_cc, holes = topo_measure(gray)
+        msg = (
+            "N/A"
+            if kind in MALFORMED
+            else (f"{rms(cf, hf, disk_mask):.4f}" if cf is not None else "FAIL")
+        )
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        print(
+            f"    step{k:02d} {kind} [{n_cc}cc/{holes}h]: RMS={msg}"
+            f"  center=({cx:+.3f},{cy:+.3f})w"
+            f"=({(cx + 1.5) * PX:.1f},{(1.5 - cy) * PX:.1f})px"
+        )
+        block.append(cell)
+    out = os.path.join(OUT_DIR, "topology_candidates_multiconn_fine.png")
+    draw_sheet(
+        [block],
+        [f"H/6: {N_FINE} uniform steps (s={s * PX:.0f} px)"],
+        "Multi-connected (fine sweep across hole transition)",
+        out,
+        col_numbers=True,
+    )
+    print(f"  output: {out}")
+
+
+def run_final_panel(base, net, disk_mask, w, wbase):
+    """不连通组定稿面板（用户选：W/8，密集步 2/5/7/8/12）。"""
+    denom = FINAL_DISC["denom"]
+    t = wbase / denom
+    sweep = rect_sweep(w, t, D_LO, D_HI)
+    block = []
+    for k in FINAL_DISC["steps"]:
+        cell = render_cell(base, net, disk_mask, sweep[k - 1])
+        _, hf, cf, kind = cell
+        msg = (
+            "N/A"
+            if kind in MALFORMED
+            else (f"{rms(cf, hf, disk_mask):.4f}" if cf is not None else "FAIL")
+        )
+        print(f"    final col {k}: RMS={msg}")
+        block.append(cell)
+    out = os.path.join(OUT_DIR, "topology_results_disc_preview.png")
+    draw_sheet(
+        [block],
+        [f"W/{denom}: cut {t * PX:.0f} px, dense steps {FINAL_DISC['steps']}"],
+        "Disconnected (rect occluder)",
+        out,
+    )
+    print(f"  output: {out}")
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--dense", action="store_true", help="13 档密集扫掠候选图")
-    main(dense=ap.parse_args().dense)
+    ap.add_argument(
+        "--fine", action="store_true", help="15 均匀细化扫掠（H/6）"
+    )
+    ap.add_argument("--final", action="store_true", help="不连通组定稿面板")
+    a = ap.parse_args()
+    main(dense=a.dense, fine=a.fine, final=a.final)
