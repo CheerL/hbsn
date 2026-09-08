@@ -172,16 +172,20 @@ def _scan(n_max, ds, dl, nets, dtype, dev):
     return stats, n
 
 
-def _replay_and_render(ds, nets, dtype, dev, picked):
-    """Pass 2: fresh dataloader + same seed → identical crops/noise; run the 3
-    models only for chosen pairs; render per-σ sheets from what is shown."""
+def _replay(ds, nets, dtype, dev, pairs):
+    """Replay seed-0 crops/noise; 3-model inference only for (idx, σ) pairs.
+
+    Per image the RNG consumes all 5 σ noisies in σ order (identical stream to
+    the scan pass), so noise/crops reproduce the sheets exactly. Returns
+    {(idx, σ): entry with noisy/mask_hw/preds/iou(pass-2)}. Stops once all
+    pairs are covered.
+    """
     _, dl = ds.get_dataloader(batch_size=1, split_rate=0, drop_last=True)
     torch.manual_seed(0)
-    want = {c["idx"]: set() for cs in picked.values() for c in cs}
-    for s, cs in picked.items():
-        for c in cs:
-            want[c["idx"]].add(s)
-    got = {s: [] for s in SIGMAS}
+    want = {}
+    for idx, s in pairs:
+        want.setdefault(idx, set()).add(s)
+    out = {}
     for i, (img, mask) in enumerate(dl):
         img_t = img.to(dev, dtype=dtype)
         noisies = [
@@ -199,25 +203,44 @@ def _replay_and_render(ds, nets, dtype, dev, picked):
                 p = hard[0, 0].float().detach().cpu().numpy()
                 preds.append(p)
                 ious.append(_iou(p, mask_hw))
-            c = next(c for c in picked[s] if c["idx"] == i)
-            c["iou"] = ious  # pass-2 IoU（与图一致）；pass-1 值保留供漂移检查
+            out[(i, s)] = {
+                "idx": i,
+                "noisy": noisy[0].float().detach().cpu().numpy(),
+                "mask_hw": mask_hw,
+                "preds": preds,
+                "iou": ious,
+            }
+        if len(out) == len(pairs):
+            break
+    return out
+
+
+def _replay_and_render(ds, nets, dtype, dev, picked):
+    """Pass 2: replay chosen (idx, σ) pairs, drift-check vs pass 1, group by σ
+    in picked (tier/margin) order."""
+    pairs = [(c["idx"], s) for s in SIGMAS for c in picked[s]]
+    out = _replay(ds, nets, dtype, dev, pairs)
+    got = {s: [] for s in SIGMAS}
+    for s in SIGMAS:
+        for c in picked[s]:
+            e = out[(c["idx"], s)]
+            c["iou"] = e[
+                "iou"
+            ]  # pass-2 IoU（与图一致）；pass-1 值保留供漂移检查
             for k in range(3):
-                if abs(ious[k] - c[f"iou{k + 1}"]) > 0.01:
+                if abs(e["iou"][k] - c[f"iou{k + 1}"]) > 0.01:
                     print(
-                        f"  [warn] σ={s} img#{i} M{k + 1} IoU drift "
-                        f"pass1={c[f'iou{k + 1}']:.3f} pass2={ious[k]:.3f}"
+                        f"  [warn] σ={s} img#{c['idx']} M{k + 1} IoU drift "
+                        f"pass1={c[f'iou{k + 1}']:.3f} pass2={e['iou'][k]:.3f}"
                     )
             got[s].append(
                 {
                     **c,
-                    "noisy": noisy[0].float().detach().cpu().numpy(),
-                    "mask_hw": mask_hw,
-                    "preds": preds,
+                    "noisy": e["noisy"],
+                    "mask_hw": e["mask_hw"],
+                    "preds": e["preds"],
                 }
             )
-    for s in got:  # dataloader order → picked (tier/margin) order
-        order = {c["idx"]: j for j, c in enumerate(picked[s])}
-        got[s].sort(key=lambda e: order[e["idx"]])
     return got
 
 
@@ -310,12 +333,8 @@ def _write_summary(picked, n_pool):
 _TIER_COUNTS = {}
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("max_samples", nargs="?", type=int, default=561)
-    args = ap.parse_args()
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-
+def _setup():
+    """Dataset + 3 nets exactly as vis_m1m2m3w.py (ckpt config + COMMON_SETS)."""
     spec = get_spec("unetpp")
     ckpt = torch.load(VARIANT[0][1], map_location="cpu", weights_only=False)
     _, dataset_cfg = _build_configs(
@@ -329,12 +348,22 @@ def main():
     )
     ds = spec.dataset(dataset_cfg)
     _, dl = ds.get_dataloader(batch_size=1, split_rate=0, drop_last=True)
-
     nets = load_compare_nets_no_hbsn(
-        [("unetpp", p, lab) for lab, p in VARIANT], COMMON_SETS, device
+        [("unetpp", p, lab) for lab, p in VARIANT],
+        COMMON_SETS,
+        "cuda" if torch.cuda.is_available() else "cpu",
     )
     dtype = torch_dtype(nets[0][1].config)
     dev = nets[0][1].config.device
+    return ds, dl, nets, dtype, dev
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("max_samples", nargs="?", type=int, default=561)
+    args = ap.parse_args()
+
+    ds, dl, nets, dtype, dev = _setup()
 
     print(f"pass 1: scanning ≤{args.max_samples} images × {len(SIGMAS)} σ × 3")
     stats, n = _scan(args.max_samples, ds, dl, nets, dtype, dev)

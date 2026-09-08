@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 CURVE = "figures/hbsn/f_noise_robust_cons.png"
-VIS = "figures/hbsn/f_noise_vis_m1m2m3w.png"
+VIS = "figures/hbsn/f_noise_vis_final.png"
 OUT = "figures/hbsn/f_noise_ab.png"
 
 
