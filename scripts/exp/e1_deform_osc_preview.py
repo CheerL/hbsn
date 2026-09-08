@@ -176,16 +176,26 @@ def sparse_curve(xs, ds, keep, hide, per_flip=3):
 
 
 def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
-    """Top: subsampled local-d curves ((a)); bottom: 3xN snapshot grid.
+    """Top (a): subsampled local-d curves; bottom (b): 3xN snapshot grid.
 
-    Snapshot cells are laid out by hand as pixel-squares so the aspect-
-    equal auto-centering (which padded each cell vertically and defeated
-    hspace) is bypassed; row/column gaps are controlled directly.
+    Layout is computed in inches: each snapshot cell is a true physical
+    square (fraction width s/17 vs height s/9.8), so the input row (fill)
+    matches the jet rows (imshow) exactly, and the band between the two
+    panels is sized to hold titles + panel tags without overlap.
     """
     n = len(cols)
-    fig = plt.figure(figsize=(17, 10.5))
+    fig = plt.figure(figsize=(17.0, 9.8))
+    # ---- geometry (inches) ----
+    gx0, gy0 = 0.42, 0.30          # grid left edge / bottom margin
+    gap_w, gap_h = 0.055, 0.085    # col gap; row gap = 1.5 x col gap
+    s = (17.0 - gx0 - 0.12 - gap_w * (n - 1)) / n  # true square side
+    cw, rh = s + gap_w, s + gap_h
+    grid_top = gy0 + 3 * s + 2 * gap_h
     # (a) curve axes, upper band
-    ax_a = fig.add_axes([0.09, 0.60, 0.88, 0.30])
+    a_x0, a_x1 = 1.05, gx0 + n * cw - gap_w
+    a_y0, a_y1 = 5.85, 9.25
+    ax_a = fig.add_axes([a_x0 / 17.0, a_y0 / 9.8, (a_x1 - a_x0) / 17.0,
+                         (a_y1 - a_y0) / 9.8])
     i_c = sparse_curve(xs_c, ds_c, flips, MORPH_HIDE, per_flip=5)
     i_h = sparse_curve(xs_h, ds_h, flips, MORPH_HIDE, per_flip=1)
     ax_a.plot(xs_c[i_c], ds_c[i_c], "o-", color="r", lw=1.1, ms=3.2,
@@ -210,22 +220,14 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
             transform=ax_a.get_xaxis_transform(),
             ha="center", va="bottom", fontsize=FONTSIZE - 4, color="0.25",
         )
-    # ---- bottom 3xN snapshot grid, hand-laid pixel squares ----
-    # fig region [x_l, x_r] x [y_lo, y_hi]; square cell side s; gaps gap_h
-    # (vertical, between rows) and gap_w (horizontal, between columns).
-    x_l, x_r = 0.145, 0.96
-    y_lo, y_hi = 0.03, 0.56
-    gap_w, gap_h = 0.004, 0.006
-    s = min((x_r - x_l - gap_w * (n - 1)) / n, (y_hi - y_lo - gap_h * 2) / 3)
-    cw = s + gap_w
-    rh = s + gap_h
+    # ---- bottom 3xN snapshot grid: true square cells (inches) ----
     axs = []
     for r in range(3):
         row = []
         for c in range(n):
-            ax = fig.add_axes(
-                [x_l + c * cw, y_hi - rh * (r + 1), s, s]
-            )
+            ax = fig.add_axes([(gx0 + c * cw) / 17.0,
+                               (gy0 + (2 - r) * rh) / 9.8,
+                               s / 17.0, s / 9.8])
             ax.set_facecolor("black")
             ax.set_xticks([])
             ax.set_yticks([])
@@ -243,6 +245,7 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
         ax0.fill(zz.real, zz.imag, color="white", edgecolor="white", lw=0)
         ax0.set_xlim(-1.5, 1.5)
         ax0.set_ylim(-1.5, 1.5)
+        ax0.set_aspect("equal")
         ax0.set_title(rf"$\psi={ps:.1f}$", fontsize=FONTSIZE - 4,
                       pad=2)
         cf = classic_or_none(bound)
@@ -257,21 +260,14 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
             vmin=0, vmax=0.8)
         axs[2, c_idx].axis("off")
     for r, label in enumerate(["input shape", "classical HBS", "HBSN"]):
-        axs[r, 0].text(-0.02, 0.5, label,
-                       transform=axs[r, 0].transAxes, va="center",
-                       ha="right", rotation=90, fontsize=FONTSIZE - 4)
-    fig.canvas.draw()
-    # (a)/(b) panel tags
-    pa = ax_a.get_position()
-    fig.text(0.5, pa.y1 + 0.012, "(a)", ha="center", va="bottom",
+        row_y = gy0 + (2 - r) * rh + s / 2
+        fig.text((gx0 - 0.10) / 17.0, row_y / 9.8, label,
+                 rotation=90, ha="right", va="center",
+                 fontsize=FONTSIZE - 4)
+    # (a)/(b) panel tags on fixed inch bands
+    fig.text(0.5, (a_y1 + 0.24) / 9.8, "(a)", ha="center", va="bottom",
              fontsize=FONTSIZE + 1)
-    yt = max(ax.title.get_window_extent(fig.canvas.get_renderer()).y1
-             for ax in axs[0])
-    inv = fig.transFigure.inverted()
-    yt = inv.transform((0, yt))[1]
-    ya = pa.y0
-    yb = max(yt + 0.012, ya - 0.028)  # >=1 char above titles; >=2 below (a)
-    fig.text(0.5, yb, "(b)", ha="center", va="bottom",
+    fig.text(0.5, (grid_top + 0.34) / 9.8, "(b)", ha="center", va="bottom",
              fontsize=FONTSIZE + 1)
     fig.savefig(PNG_PATH, dpi=150, bbox_inches="tight")
     plt.close(fig)
