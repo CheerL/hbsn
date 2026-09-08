@@ -16,8 +16,12 @@ jitter-cluster merge) -> flip verification per crossing (is_flip at
 (flip-verified vs graze), scan figure under figures/hbsn/candidates/.
 Pinned hbs==1.0.1 via HBS_PYTHON_DIR (fork 1.1.0 does not reproduce the
 paper phenomenon).  Rendering/field pipeline identical to e1_deform.
+
+CLI: --tags / --th-lo / --th-hi / --step / --suffix; defaults reproduce
+the original all-5-variant scan over [30, 150] at 0.1 deg.
 """
 
+import argparse
 import itertools
 import os
 import sys
@@ -161,9 +165,30 @@ def plot_variant(tag, ths, ims, cros, flips, path) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="variant-family Im I2 scan (defaults: all 5 variants)"
+    )
+    parser.add_argument("--tags", default="all", help="comma-separated tags")
+    parser.add_argument("--th-lo", type=float, default=TH_LO)
+    parser.add_argument("--th-hi", type=float, default=TH_HI)
+    parser.add_argument("--step", type=float, default=STEP)
+    parser.add_argument(
+        "--suffix", default="", help="figure filename suffix (e.g. full)"
+    )
+    args = parser.parse_args()
+    suf = args.suffix.strip("_")
+    suf = f"_{suf}" if suf else ""
     z, mask = grid.get_ghbs_grid()
-    ths = np.arange(TH_LO, TH_HI + STEP / 2, STEP)
+    ths = np.arange(args.th_lo, args.th_hi + args.step / 2, args.step)
+    tags = args.tags.split(",")
+    print(
+        f"range [{args.th_lo}, {args.th_hi}] step {args.step} "
+        f"({len(ths)} pts), tags={tags}",
+        flush=True,
+    )
     for tag, bound_fn in VARIANTS:
+        if "all" not in tags and tag not in tags:
+            continue
         print(f"=== variant {tag} ===", flush=True)
         ims = variant_scan(bound_fn, ths)
         ims = bridge_small_gaps(bound_fn, ths, ims)
@@ -180,7 +205,7 @@ def main() -> None:
             ims,
             cros,
             flips,
-            os.path.join(OUT_DIR, f"family_scan_{tag}.png"),
+            os.path.join(OUT_DIR, f"family_scan_{tag}{suf}.png"),
         )
     print("done")
 
