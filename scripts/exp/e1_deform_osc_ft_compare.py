@@ -19,7 +19,7 @@ import numpy as np
 os.environ["HBS_PYTHON_DIR"] = "/nonexistent"
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from hbsn_exp import grid
+from hbsn_exp import grid, shapes
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "../../figures/hbsn/candidates")
@@ -36,6 +36,21 @@ ROWS = ["input shape", "classical HBS", "HBSN", "HBSN finetuned"]
 FONTSIZE = 13
 
 
+def _infer11(net, ths):
+    out = []
+    for ps in COLS:
+        img = shapes.shape_to_image(
+            shapes.triangle_slide(x=AMP * np.sin(np.deg2rad(ps)),
+                                  h=H_SLIDE))[..., 0]
+        out.append(nets_field(net, img))
+    return out
+
+
+def nets_field(net, img):
+    from hbsn_exp import nets
+    return nets.field_to_complex(nets.infer(net, img))
+
+
 def _raw_slide(psi):
     """Common-scale input triangle (per-shape rescale removed)."""
     x = AMP * np.sin(np.deg2rad(psi))
@@ -48,9 +63,21 @@ def _raw_slide(psi):
 
 
 def main() -> None:
+    import argparse
+    ap = argparse.ArgumentParser(description="4-row osc column comparison")
+    ap.add_argument("--ft-cache", default=FT_CACHE,
+                    help="npz with dense hf fields for the finetuned row")
+    ap.add_argument("--ckpt", default=None,
+                    help="or a ckpt: infer the finetuned row live")
+    args = ap.parse_args()
     d = np.load(FIELD_CACHE)
     ths, cf, hf = d["ths"], d["cf"], d["hf"]
-    hft = np.load(FT_CACHE)["hf"]
+    if args.ckpt:
+        from hbsn_exp import nets
+        net = nets.build_net(args.ckpt)
+        hft = np.array(_infer11(net, ths), dtype=np.complex64)
+    else:
+        hft = np.load(args.ft_cache)["hf"]
     _, mask = grid.get_ghbs_grid()
     n = len(COLS)
     fig = plt.figure(figsize=(FIG_W, FIG_H))
@@ -87,10 +114,11 @@ def main() -> None:
         ax0.set_aspect("equal")
         ax0.set_title(rf"$\psi={ps:.1f}$", fontsize=FONTSIZE - 4, pad=7)
         cplx = cf[k].astype(complex)
+        hftr = hft[c_idx] if args.ckpt else hft[k]
         fields = [np.zeros_like(mask) if np.all(np.isnan(cplx))
                   else np.abs(cplx) * mask,
                   np.abs(hf[k].astype(complex)) * mask,
-                  np.abs(hft[k]) * mask]
+                  np.abs(hftr) * mask]
         for r, field in enumerate(fields):
             axs[r + 1, c_idx].imshow(field, cmap="jet",
                                      extent=[-1.5, 1.5, -1.5, 1.5],
