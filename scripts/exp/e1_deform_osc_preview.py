@@ -312,14 +312,37 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="osc-slide preview figure")
     parser.add_argument("--recompute", action="store_true",
                         help="ignore field cache")
+    parser.add_argument("--ckpt", default=None,
+                        help="override BEST_CKPT for HBSN inference")
+    parser.add_argument("--out", default=None,
+                        help="output png path (default: preview[_ft].png)")
     args = parser.parse_args()
     os.makedirs(OUT_DIR, exist_ok=True)
-    net = nets.build_net(nets.BEST_CKPT)
+    global PNG_PATH
+    net = nets.build_net(args.ckpt or nets.BEST_CKPT)
+    if args.out:
+        PNG_PATH = args.out
+    elif args.ckpt:
+        PNG_PATH = os.path.join(OUT_DIR, "deformation_osc_preview_ft.png")
     z, mask = grid.get_ghbs_grid()
     ths = np.arange(TH_LO, TH_HI + STEP / 2, STEP)
     if args.recompute and os.path.exists(FIELD_CACHE):
         os.remove(FIELD_CACHE)
-    cf_list, hf_list = load_or_compute_fields(ths, net)
+    if args.ckpt:
+        # finetuned net: recompute HBSN fields (own cache), reuse classic
+        cache_ft = FIELD_CACHE.replace(".npz", "_ft.npz")
+        if os.path.exists(cache_ft) and not args.recompute:
+            hf_list = list(np.load(cache_ft)["hf"].astype(complex))
+        else:
+            hf_list = []
+            for ps in ths:
+                img = shapes.shape_to_image(osc_bound(ps))[..., 0]
+                hf_list.append(nets.field_to_complex(nets.infer(net, img)))
+            np.savez(cache_ft, ths=ths,
+                     hf=np.array(hf_list, dtype=np.complex64))
+        cf_list, _ = load_or_compute_fields(ths, net)
+    else:
+        cf_list, hf_list = load_or_compute_fields(ths, net)
     ims = np.array([np.nan if f is None else ops.i2(f, z, mask).imag
                     for f in cf_list])
     cros = find_crossings(ths, ims)
