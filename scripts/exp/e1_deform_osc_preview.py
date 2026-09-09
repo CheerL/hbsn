@@ -150,28 +150,19 @@ def curve_data(ths, fields, z, mask):
     return np.array(xs), np.array(ds)
 
 
-def sparse_curve(xs, ds, keep, hide, per_flip=3):
-    """Subsample to ~5-deg points; around each flip keep the closest
-    `per_flip` points (red: per_flip=3 -> low+spike+low sharp jump; blue:
-    per_flip=1 -> a single nearest point at the flip); drop points in HBSN
-    morph windows (hide) unless they fall inside a flip keep-window.
-    """
+def sparse_curve(xs, hide, spikes=()):
+    """Uniform ~5-deg subsample (HBSN morph windows dropped); the extra
+    nearest sample is added only for `spikes` (classical flip peaks)."""
     out, last = [], None
-    chosen = set()
     for k, x in enumerate(xs):
-        in_flip = any(abs(x - f) <= 0.5 for f in keep)
-        if in_flip:
-            chosen.add(k)
-            continue
         if any(abs(x - h) <= MORPH_RADIUS for h in hide):
             continue
         if last is None or x - last >= SUBSTEP:
             out.append(k)
             last = x
     kept = set(out)
-    for f in keep:
-        cands = sorted(chosen, key=lambda k: abs(xs[k] - f))
-        kept |= set(cands[:per_flip])
+    for f in spikes:
+        kept.add(int(min(range(len(xs)), key=lambda k: abs(xs[k] - f))))
     return sorted(kept)
 
 
@@ -196,8 +187,8 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     a_y0, a_y1 = 5.85, 9.25
     ax_a = fig.add_axes([a_x0 / 17.0, a_y0 / 9.8, (a_x1 - a_x0) / 17.0,
                          (a_y1 - a_y0) / 9.8])
-    i_c = sparse_curve(xs_c, ds_c, flips, MORPH_HIDE, per_flip=5)
-    i_h = sparse_curve(xs_h, ds_h, flips, MORPH_HIDE, per_flip=1)
+    i_c = sparse_curve(xs_c, MORPH_HIDE, spikes=flips)
+    i_h = sparse_curve(xs_h, MORPH_HIDE)
     ax_a.plot(xs_c[i_c], ds_c[i_c], "o-", color="r", lw=1.1, ms=3.2,
               label="classical")
     ax_a.plot(xs_h[i_h], ds_h[i_h], "o-", color="b", lw=1.6, ms=3,
@@ -247,7 +238,7 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
         ax0.set_ylim(-1.5, 1.5)
         ax0.set_aspect("equal")
         ax0.set_title(rf"$\psi={ps:.1f}$", fontsize=FONTSIZE - 4,
-                      pad=2)
+                      pad=7)
         cf = classic_or_none(bound)
         img = shapes.shape_to_image(bound)[..., 0]
         hf = nets.field_to_complex(nets.infer(net, img))
@@ -259,6 +250,13 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
             np.abs(hf) * mask, cmap="jet", extent=[-1.5, 1.5, -1.5, 1.5],
             vmin=0, vmax=0.8)
         axs[2, c_idx].axis("off")
+    # dashed lines between each classical flip pair, spanning (b)
+    for f in flips:
+        i = min(range(n), key=lambda c: abs(cols[c] - (f - 0.1)))
+        xg = (gx0 + i * cw + s + gap_w / 2) / 17.0
+        fig.add_artist(plt.Line2D([xg, xg], [gy0 / 9.8, grid_top / 9.8],
+                                  transform=fig.transFigure, color="k",
+                                  ls="--", lw=1.4, alpha=0.9))
     for r, label in enumerate(["input shape", "classical HBS", "HBSN"]):
         row_y = gy0 + (2 - r) * rh + s / 2
         fig.text((gx0 - 0.10) / 17.0, row_y / 9.8, label,
