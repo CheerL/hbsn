@@ -45,11 +45,11 @@ FLIPS = [40.38, 139.62, 220.89, 319.11]
 def _cols() -> list[float]:
     """Context columns kept finite for classic HBS + tight flip pairs.
 
-    120/270 fall in zipper dead bands (117.0-123.2 / 251.3-288.4) so the
-    context uses nearest finite lattice points instead (123.5, 289) plus
-    the isosceles/max-tilt anchors 90/180/80.
+    120/270 fall in zipper dead bands (117.0-123.2 / 251.3-288.4), so the
+    context uses the max-tilt anchor 90, the isosceles anchor 180, and the
+    nearest finite point past the second dead band (289).
     """
-    ctx = [80.0, 123.5, 180.0, 289.0]
+    ctx = [90.0, 180.0, 289.0]
     return sorted(ctx + [x for f in FLIPS for x in (f - 0.1, f + 0.1)])
 
 
@@ -254,7 +254,8 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     for f in flips:
         i = min(range(n), key=lambda c: abs(cols[c] - (f - 0.1)))
         xg = (gx0 + i * cw + s + gap_w / 2) / 17.0
-        fig.add_artist(plt.Line2D([xg, xg], [gy0 / 9.8, grid_top / 9.8],
+        fig.add_artist(plt.Line2D([xg, xg], [gy0 / 9.8,
+                                  (grid_top + 0.26) / 9.8],
                                   transform=fig.transFigure, color="k",
                                   ls="--", lw=1.4, alpha=0.9))
     for r, label in enumerate(["input shape", "classical HBS", "HBSN"]):
