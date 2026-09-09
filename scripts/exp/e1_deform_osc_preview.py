@@ -166,6 +166,21 @@ def sparse_curve(xs, hide, spikes=()):
     return sorted(kept)
 
 
+def _raw_slide(psi):
+    """Raw (unscaled) slide-triangle boundary, mean-centered like
+    triangle_slide; input row draws all columns at one COMMON scale
+    (triangle_slide's per-shape rescale magnifies the isosceles ~14%)."""
+    x = AMP * np.sin(np.deg2rad(psi))
+    a = np.array([[-0.7, 0.0], [0.7, 0.0], [x, H_SLIDE]])
+    edges = []
+    for i in range(3):
+        p0, p1 = a[i], a[(i + 1) % 3]
+        seg = np.linspace(0, 1, 101, endpoint=False)
+        edges.append(p0 + (p1 - p0) * seg[:, None])
+    bd = np.concatenate(edges)
+    return bd - bd.mean(axis=0)
+
+
 def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     """Top (a): subsampled local-d curves; bottom (b): 3xN snapshot grid.
 
@@ -227,11 +242,12 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
             row.append(ax)
         axs.append(row)
     axs = np.array(axs)
+    zzs = [_raw_slide(ps) for ps in cols]
+    gmax = max(np.abs(zz).max() for zz in zzs)
     for c_idx, ps in enumerate(cols):
         bound = osc_bound(ps)
-        zz = bound[:, 0] + 1j * bound[:, 1]
-        zz = zz - zz.mean()
-        zz = zz / np.abs(zz).max() * 0.85
+        xy = zzs[c_idx] / gmax * 0.85
+        zz = xy[:, 0] + 1j * xy[:, 1]
         ax0 = axs[0, c_idx]
         ax0.fill(zz.real, zz.imag, color="white", edgecolor="white", lw=0)
         ax0.set_xlim(-1.5, 1.5)
