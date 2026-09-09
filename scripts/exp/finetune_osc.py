@@ -91,19 +91,24 @@ def _rot_torch(x, th):
                         -r[:, 0] * s2 + r[:, 1] * c2], 1)
 
 
-def _align_theta(pred, gt, mask_t):
+def _align_theta(pred, gt, mask_t, branch=False):
     """Per-sample optimal rotation (deg) aligning gt to pred.
 
-    Coarse 5-deg full circle + fine 1-deg within +-6 deg of the coarse
-    optimum.  pred/gt: (N,2,128,128) on GPU; mask_t: (1,1,128,128) bool.
+    Full mode: coarse 5-deg circle + fine 1-deg within +-6 deg.  Branch
+    mode: theta restricted to {0, 180} -- the seam is absorbed while the
+    orientation stays anchored to the classical frame.
     """
     n = pred.shape[0]
     mask_n = mask_t.float()
     denom = mask_n.sum()
     best_v = torch.full((n,), np.inf, device=pred.device)
     best_t = torch.zeros(n, device=pred.device)
-    for angs, fine in ((np.arange(0.0, 360.0, 5.0), False),
-                       (np.arange(-6.0, 6.01, 1.0), True)):
+    if branch:
+        stages = [(np.array([0.0, 180.0]), False)]
+    else:
+        stages = [(np.arange(0.0, 360.0, 5.0), False),
+                  (np.arange(-6.0, 6.01, 1.0), True)]
+    for angs, fine in stages:
         for th_deg in angs:
             th = torch.full((n,), np.deg2rad(th_deg),
                             device=pred.device)
@@ -138,12 +143,19 @@ def _band_loss(pred, gt, mask_t, tau_lo, tau_hi, w_mid):
     return l_hi + l_lo + w_mid * l_mid
 
 
-def _param_groups(net, lr):
-    """Backbone-only finetune; STNs frozen (canonical frame coupled)."""
-    for n_, p in net.named_parameters():
-        p.requires_grad_(n_.startswith("backbone"))
-    return [{"params": [p for n_, p in net.named_parameters()
-                        if p.requires_grad], "lr": lr}]
+def _param_groups(net, lr, rn_rate=0.0, pre_rate=0.0):
+    """backbone at lr; post_STN/pre_STN at lr*rate (0 = frozen)."""
+    groups = []
+    for prefix, rate in (("backbone", 1.0), ("post_stn", rn_rate),
+                         ("pre_stn", pre_rate)):
+        params = [p for n_, p in net.named_parameters()
+                  if n_.startswith(prefix)]
+        if rate == 0:
+            for p in params:
+                p.requires_grad_(False)
+            continue
+        groups.append({"params": params, "lr": lr * rate})
+    return groups
 
 
 def _distill_set(net, ths, imgs, window, device):
@@ -304,9 +316,9 @@ def _train(net, args, imgs, gts, sel, distill, mask_t, ths, cf, z,
     for m in net.modules():
         if isinstance(m, torch.nn.BatchNorm2d):
             m.eval()
-    groups = _param_groups(net, args.lr)
+    groups = _param_groups(net, args.lr, args.rn_rate, args.pre_rate)
     opt = torch.optim.Adam(groups, lr=args.lr)
-    anchor0 = ([q.detach().clone() for q in groups[0]["params"]]
+    anchor0 = ([[q.detach().clone() for q in g["params"]] for g in groups]
                if args.anchor > 0 else None)
     x_all = (torch.tensor(imgs[sel].astype(np.float32))[:, None].to(device)
              / 255.0)
@@ -322,7 +334,8 @@ def _train(net, args, imgs, gts, sel, distill, mask_t, ths, cf, z,
             pred_all = torch.cat([
                 net(x_all[lo:lo + 64])
                 for lo in range(0, len(sel), 64)])
-            theta = _align_theta(pred_all, gt_all, mask_t)
+            theta = _align_theta(pred_all, gt_all, mask_t,
+                                 branch=args.align == "branch")
             th_rad = torch.tensor(np.deg2rad(theta), device=device)
             gt_alg = torch.cat([
                 _rot_torch(gt_all[lo:lo + 64], th_rad[lo:lo + 64])
@@ -336,8 +349,12 @@ def _train(net, args, imgs, gts, sel, distill, mask_t, ths, cf, z,
         for lo in range(0, len(sel), args.batch_size):
             idx = perm[lo:lo + args.batch_size]
             pred = net(x_all[idx])
-            loss = _band_loss(pred, gt_alg[idx], mask_t,
-                              args.tau_lo, args.tau_hi, args.w_mid)
+            if args.loss == "plain":
+                ldict, _ = net.loss(pred, gt_alg[idx])
+                loss = ldict["loss"]
+            else:
+                loss = _band_loss(pred, gt_alg[idx], mask_t,
+                                  args.tau_lo, args.tau_hi, args.w_mid)
             if x_d is not None:
                 j = torch.randint(
                     0, len(x_d), (min(args.batch_size, len(x_d)),),
@@ -346,8 +363,9 @@ def _train(net, args, imgs, gts, sel, distill, mask_t, ths, cf, z,
                     (net(x_d[j]) - gt_d[j]) ** 2)
             if anchor0 is not None:
                 a = torch.zeros((), device=device)
-                for q, q0 in zip(groups[0]["params"], anchor0, strict=True):
-                    a = a + torch.sum((q - q0) ** 2)
+                for g, g0 in zip(groups, anchor0, strict=True):
+                    for q, q0 in zip(g["params"], g0, strict=True):
+                        a = a + torch.sum((q - q0) ** 2)
                 loss = loss + args.anchor * a
             opt.zero_grad()
             loss.backward()
@@ -383,6 +401,14 @@ def main() -> None:
     p.add_argument("--anchor", type=float, default=1e-3)
     p.add_argument("--distill-rate", type=float, default=1.0)
     p.add_argument("--w-mid", type=float, default=0.5)
+    p.add_argument("--rn-rate", type=float, default=0.0,
+                   help="post_STN lr multiplier (co-adaptation)")
+    p.add_argument("--align", choices=["full", "branch"], default="full",
+                   help="teacher rotation planning mode")
+    p.add_argument("--loss", choices=["band", "plain"], default="band",
+                   help="fit loss: 3-band weighted or plain masked MSE")
+    p.add_argument("--pre-rate", type=float, default=0.0,
+                   help="pre_STN lr multiplier (0 = frozen)")
     p.add_argument("--patience", type=int, default=2)
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--precache", action="store_true")
