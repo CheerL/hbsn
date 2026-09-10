@@ -55,7 +55,7 @@ def _cols() -> list[float]:
 
 COLS = _cols()
 FONTSIZE = 13
-FIELD_CACHE = "/tmp/h3scan/fields_osc.npz"
+FIELD_CACHE = "/home/nnb/projects/HBSN/python/runs/cache_osc/fields_osc.npz"
 PNG_PATH = os.path.join(OUT_DIR, "deformation_osc_preview.png")
 SUBSTEP = 5.0  # deg, display-subsampling step for the curve panel
 # HBSN morph peaks (local-d ~0.088) sit ~1.3 deg BEFORE each classical flip

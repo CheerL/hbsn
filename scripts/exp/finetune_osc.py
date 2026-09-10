@@ -37,9 +37,9 @@ from hbsn_exp import classic, grid, nets, ops, shapes
 H_SLIDE = 0.933
 AMP = 0.55
 FLIPS = [40.38, 139.62, 220.89, 319.11]
-FIELD_CACHE = "/tmp/h3scan/fields_osc.npz"
-IMG_CACHE = "/tmp/h3scan/imgs_osc.npz"
-V1_CACHE = "/tmp/h3scan/fields_osc_ftv1.npz"
+FIELD_CACHE = "/home/nnb/projects/HBSN/python/runs/cache_osc/fields_osc.npz"
+IMG_CACHE = "/home/nnb/projects/HBSN/python/runs/cache_osc/imgs_osc.npz"
+V1_CACHE = "/home/nnb/projects/HBSN/python/runs/cache_osc/fields_osc_ftv1.npz"
 REPO = os.path.abspath(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 OUT_DIR = os.path.join(REPO, "runs", "finetuned", "osc")
@@ -91,10 +91,10 @@ def _rot_torch(x, th):
                         -r[:, 0] * s2 + r[:, 1] * c2], 1)
 
 
-def _align_theta(pred, gt, mask_t, branch=False):
+def _align_theta(pred, gt, mask_t, branch=False, fine_step=1.0):
     """Per-sample optimal rotation (deg) aligning gt to pred.
 
-    Full mode: coarse 5-deg circle + fine 1-deg within +-6 deg.  Branch
+    Full mode: coarse 5-deg circle + fine search within +-6 deg.  Branch
     mode: theta restricted to {0, 180} -- the seam is absorbed while the
     orientation stays anchored to the classical frame.
     """
@@ -107,7 +107,7 @@ def _align_theta(pred, gt, mask_t, branch=False):
         stages = [(np.array([0.0, 180.0]), False)]
     else:
         stages = [(np.arange(0.0, 360.0, 5.0), False),
-                  (np.arange(-6.0, 6.01, 1.0), True)]
+                  (np.arange(-6.0, 6.01, fine_step), True)]
     for angs, fine in stages:
         for th_deg in angs:
             th = torch.full((n,), np.deg2rad(th_deg),

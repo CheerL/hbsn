@@ -29,8 +29,8 @@ AMP = 0.55
 FLIPS = [40.38, 139.62, 220.89, 319.11]
 COLS = [40.3, 40.5, 90.0, 139.5, 139.7, 180.0, 220.8, 221.0, 289.0,
         319.0, 319.2]
-FIELD_CACHE = "/tmp/h3scan/fields_osc.npz"
-FT_CACHE = "/tmp/h3scan/fields_osc_ft.npz"
+FIELD_CACHE = "/home/nnb/projects/HBSN/python/runs/cache_osc/fields_osc.npz"
+FT_CACHE = "/home/nnb/projects/HBSN/python/runs/cache_osc/fields_osc_ft.npz"
 PNG_PATH = os.path.join(OUT_DIR, "deformation_osc_ft_compare.png")
 ROWS = ["input shape", "classical HBS", "HBSN", "HBSN finetuned"]
 FONTSIZE = 13
