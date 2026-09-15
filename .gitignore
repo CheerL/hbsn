@@ -38,3 +38,4 @@ figures/hbsn/candidates/
 **/.claude/metrics/
 **/.claude/observations/
 **/.claude/sessions/
+**/.claude/compact-state.json
