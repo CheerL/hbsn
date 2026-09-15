@@ -40,9 +40,9 @@ tests/                pytest 覆盖套件（含 test_registry/test_eval_coco/num
 6. 本机仅 15GB 内存：`pin_memory` 默认 false（WSL2 CachingHostAllocator
    无界增长）；DataLoader worker 内存 ~1.2GB/个。
 7. hydra 配置文件的完整默认值不可删（override 依赖 key 存在）。
-8. **读图一律用 `claude-vision-skill`，禁止用 Read 工具直接读 PNG/JPG**：
-   `Read` 直接读图会把 base64 塞进会话上下文（撑爆/失真）。需要描述/检查/
-   识别图片时，调用 `claude-vision-skill`（`vision.js` 把图转成文字）再读其结果。
+8. **读图优先用原生 Read 工具**（模型可直接看图）。仅当原生读图不可用、
+   或同一张图需反复查看而担心上下文膨胀时，才改用 `claude-vision-skill`
+   （`vision.js` 把图转成文字）。
 
 ## 开发流程（提交前门禁）
 
