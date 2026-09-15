@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""E1 · 连续形变（半圆扫掠族）：经典 HBS 沿路径翻 180°，HBSN 连续。
+"""【已弃用】E1 · 连续形变（半圆扫掠族）——论文改用 osc 族，见 e1_deform_osc.py。
+
+半圆扫掠族：经典 HBS 沿路径翻 180°，HBSN 连续。
 
 半圆扫掠族：底边 A=(-base,0), B=(base,0) 固定，上顶点 C(t)=(cos πt, sin πt)
 沿上半单位圆扫过。参数用顶点极角 θ=πt（度数显示，纯 θ 不出现 t）。
@@ -10,7 +12,7 @@
 单 figure + GridSpec：左 (a) d(B_θ, B_θ*)-vs-θ 曲线（经典阶跃/HBSN 直线，xlim 聚焦翻转）；
 右 (b) 3 行×4 列快照（行=输入三角形（黑底白三角形 + C 顶点坐标）/经典/HBSN，
 列=θ*-2ε/θ*-ε/θ*+ε/θ*+2ε），每行开头竖排文字标签（无 bbox）。
-产出 figures/hbsn/f_deform.png。
+产出 figures/hbsn/f_deform_semicircle.png（不再被论文引用）。
 """
 
 import os
@@ -240,7 +242,7 @@ def main():
     )
 
     fig.savefig(
-        os.path.join(OUT_DIR, "f_deform.png"),
+        os.path.join(OUT_DIR, "f_deform_semicircle.png"),
         dpi=150,
         bbox_inches="tight",
     )
@@ -255,7 +257,7 @@ def main():
         f"d(B_θ,B_θ*) classic: 左侧阶跃 {np.nanmax(d_classic):.4f} → 右侧 ~0, "
         f"hbsn max={np.nanmax(d_hbsn):.4f}"
     )
-    print(f"输出: {OUT_DIR}/f_deform.png (a+b GridSpec)")
+    print(f"输出: {OUT_DIR}/f_deform_semicircle.png (a+b GridSpec)")
 
 
 if __name__ == "__main__":

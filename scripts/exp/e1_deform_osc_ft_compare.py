@@ -27,10 +27,21 @@ FIG_W, FIG_H = 17.0, 7.4
 H_SLIDE = 0.933
 AMP = 0.55
 FLIPS = [40.38, 139.62, 220.89, 319.11]
-COLS = [40.3, 40.5, 90.0, 139.5, 139.7, 180.0, 220.8, 221.0, 289.0,
-        319.0, 319.2]
-FIELD_CACHE = "/home/nnb/projects/HBSN/python/runs/cache_osc/fields_osc.npz"
-FT_CACHE = "/home/nnb/projects/HBSN/python/runs/cache_osc/fields_osc_ft.npz"
+COLS = [
+    40.3,
+    40.5,
+    90.0,
+    139.5,
+    139.7,
+    180.0,
+    220.8,
+    221.0,
+    289.0,
+    319.0,
+    319.2,
+]
+FIELD_CACHE = os.path.join(HERE, "../../runs/cache_osc/fields_osc.npz")
+FT_CACHE = os.path.join(HERE, "../../runs/cache_osc/fields_osc_ft.npz")
 PNG_PATH = os.path.join(OUT_DIR, "deformation_osc_ft_compare.png")
 ROWS = ["input shape", "classical HBS", "HBSN", "HBSN finetuned"]
 FONTSIZE = 13
@@ -40,14 +51,15 @@ def _infer11(net, ths):
     out = []
     for ps in COLS:
         img = shapes.shape_to_image(
-            shapes.triangle_slide(x=AMP * np.sin(np.deg2rad(ps)),
-                                  h=H_SLIDE))[..., 0]
+            shapes.triangle_slide(x=AMP * np.sin(np.deg2rad(ps)), h=H_SLIDE)
+        )[..., 0]
         out.append(nets_field(net, img))
     return out
 
 
 def nets_field(net, img):
     from hbsn_exp import nets
+
     return nets.field_to_complex(nets.infer(net, img))
 
 
@@ -55,25 +67,50 @@ def _raw_slide(psi):
     """Common-scale input triangle (per-shape rescale removed)."""
     x = AMP * np.sin(np.deg2rad(psi))
     a = np.array([[-0.7, 0.0], [0.7, 0.0], [x, H_SLIDE]])
-    edges = [a[i] + (a[(i + 1) % 3] - a[i])
-             * np.linspace(0, 1, 101, endpoint=False)[:, None]
-             for i in range(3)]
+    edges = [
+        a[i]
+        + (a[(i + 1) % 3] - a[i])
+        * np.linspace(0, 1, 101, endpoint=False)[:, None]
+        for i in range(3)
+    ]
     bd = np.concatenate(edges)
     return bd - bd.mean(axis=0)
 
 
 def main() -> None:
     import argparse
+
     ap = argparse.ArgumentParser(description="4-row osc column comparison")
-    ap.add_argument("--ft-cache", default=FT_CACHE,
-                    help="npz with dense hf fields for the finetuned row")
-    ap.add_argument("--ckpt", default=None,
-                    help="or a ckpt: infer the finetuned row live")
+    ap.add_argument(
+        "--ft-cache",
+        default=FT_CACHE,
+        help="npz with dense hf fields for the finetuned row",
+    )
+    ap.add_argument(
+        "--ckpt", default=None, help="or a ckpt: infer the finetuned row live"
+    )
+    ap.add_argument(
+        "--tag", default=None, help="label for row 4 + output filename suffix"
+    )
+    ap.add_argument(
+        "--out",
+        default=None,
+        help="output png (default: <dir>/deformation_osc_"
+        "ft_compare[_<tag>].png)",
+    )
     args = ap.parse_args()
+    tag = args.tag or (
+        os.path.basename(os.path.dirname(args.ckpt)) if args.ckpt else "ft"
+    )
+    png_path = args.out or os.path.join(
+        OUT_DIR,
+        "deformation_osc_ft_compare" + (f"_{tag}" if tag else "") + ".png",
+    )
     d = np.load(FIELD_CACHE)
     ths, cf, hf = d["ths"], d["cf"], d["hf"]
     if args.ckpt:
         from hbsn_exp import nets
+
         net = nets.build_net(args.ckpt)
         hft = np.array(_infer11(net, ths), dtype=np.complex64)
     else:
@@ -90,9 +127,14 @@ def main() -> None:
     for r in range(4):
         row = []
         for c in range(n):
-            ax = fig.add_axes([(gx0 + c * cw) / FIG_W,
-                               (gy0 + (3 - r) * rh) / FIG_H,
-                               s / FIG_W, s / FIG_H])
+            ax = fig.add_axes(
+                [
+                    (gx0 + c * cw) / FIG_W,
+                    (gy0 + (3 - r) * rh) / FIG_H,
+                    s / FIG_W,
+                    s / FIG_H,
+                ]
+            )
             ax.set_facecolor("black")
             ax.set_xticks([])
             ax.set_yticks([])
@@ -115,29 +157,51 @@ def main() -> None:
         ax0.set_title(rf"$\psi={ps:.1f}$", fontsize=FONTSIZE - 4, pad=7)
         cplx = cf[k].astype(complex)
         hftr = hft[c_idx] if args.ckpt else hft[k]
-        fields = [np.zeros_like(mask) if np.all(np.isnan(cplx))
-                  else np.abs(cplx) * mask,
-                  np.abs(hf[k].astype(complex)) * mask,
-                  np.abs(hftr) * mask]
+        fields = [
+            np.zeros_like(mask)
+            if np.all(np.isnan(cplx))
+            else np.abs(cplx) * mask,
+            np.abs(hf[k].astype(complex)) * mask,
+            np.abs(hftr) * mask,
+        ]
         for r, field in enumerate(fields):
-            axs[r + 1, c_idx].imshow(field, cmap="jet",
-                                     extent=[-1.5, 1.5, -1.5, 1.5],
-                                     vmin=0, vmax=0.8)
+            axs[r + 1, c_idx].imshow(
+                field,
+                cmap="jet",
+                extent=[-1.5, 1.5, -1.5, 1.5],
+                vmin=0,
+                vmax=0.8,
+            )
             axs[r + 1, c_idx].axis("off")
-    for r, label in enumerate(ROWS):
+    rows = [*ROWS[:3], f"HBSN finetuned ({tag})"]
+    for r, label in enumerate(rows):
         row_y = gy0 + (3 - r) * rh + s / 2
-        fig.text((gx0 - 0.10) / FIG_W, row_y / FIG_H, label, rotation=90,
-                 ha="right", va="center", fontsize=FONTSIZE - 4)
+        fig.text(
+            (gx0 - 0.10) / FIG_W,
+            row_y / FIG_H,
+            label,
+            rotation=90,
+            ha="right",
+            va="center",
+            fontsize=FONTSIZE - 4,
+        )
     for f in FLIPS:
         i = min(range(n), key=lambda c: abs(COLS[c] - (f - 0.1)))
         xg = (gx0 + i * cw + s + gap_w / 2) / FIG_W
-        fig.add_artist(plt.Line2D([xg, xg],
-                                  [gy0 / FIG_H, (grid_top + 0.26) / FIG_H],
-                                  transform=fig.transFigure, color="k",
-                                  ls="--", lw=1.4, alpha=0.9))
-    fig.savefig(PNG_PATH, dpi=150, bbox_inches="tight")
+        fig.add_artist(
+            plt.Line2D(
+                [xg, xg],
+                [gy0 / FIG_H, (grid_top + 0.26) / FIG_H],
+                transform=fig.transFigure,
+                color="k",
+                ls="--",
+                lw=1.4,
+                alpha=0.9,
+            )
+        )
+    fig.savefig(png_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print(f"figure: {PNG_PATH}")
+    print(f"figure: {png_path}")
 
 
 if __name__ == "__main__":

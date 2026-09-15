@@ -1,21 +1,37 @@
 #!/usr/bin/env python3
-"""Oscillating-slide preview: apex x = 0.55 sin(psi) -> 4 flips/cycle.
+"""Oscillating-slide preview: apex x = X0 + AMP sin(psi) -> 4 flips/cycle.
 
-The classical flip line is |x| = 0.358 (apex over the base endpoint).
-Oscillating x = 0.55 sin(psi) crosses it four times per full cycle
-(psi* = 40.6, 139.4, 220.6, 319.4 deg), so the classical representative
-flips R_pi 4 times with visibly different shapes between (isosceles at
-psi = 0/180, max tilt at 90/270).  HBSN morphs the same 180 deg net
-reorientation continuously over ~1 deg windows (adjacent-d peak ~0.03 vs
-classical 0.586).
+The apex slides horizontally at constant chirality.  With X0 = 0 the apex
+would cross the base midpoint twice per cycle, making the triangle
+isoceles (mirror-symmetric) at those two phases and flipping the family's
+chirality; the offset X0 > 0 removes that, so every member is scalene and
+the whole cycle is symmetry-free (see osc_family).
 
-Snapshots use a hybrid layout: wide context (isosceles psi = 0, max tilts
-90/270) plus a tight +-0.1-deg pair around each flip - the classical row
-flips 180 deg between visually identical input shapes, the HBSN row is
-near-identical (d2 ~0.01).
+The classical representative flips R_pi at the four phases where the apex
+crosses the flip line, measured at |x| = 0.35565 on the + side (NOT 0.358;
+see the note on FLIP_PAIRS).  The finetuned net goes through the same
+180 deg reorientation with no local increase at all -- the run prints the
+measured steps; on gtarc_x100a500_v1 the HBSN max step is 0.0132 against a
+classical peak of 0.586.  (That peak used to be ~0.088 with a ~1 deg morph
+window around each flip, back when the fit target was the raw,
+discontinuous classical field.  The target is now built continuous by
+scripts/exp/build_gt_arcs.py, so the window is gone and what is plotted is
+the plain "does it hold still" measurement.)
 
-Pinned hbs==1.0.1 (HBS_PYTHON_DIR); HBSN = nets.BEST_CKPT; rendering
-|field|*mask, jet, 0-0.8.  Preview: deformation_osc_preview.png.
+Panel (a) plots the local jump between adjacent psi: red = HBSN, blue =
+classical, on a LINEAR 0-0.68 axis.  The linear axis is deliberate -- a log
+axis shows both curves clearly but squashes the ~44x gap into ~1.6
+decades, which visually argues the opposite of the result.  Dashed
+verticals mark the four flips.
+
+Panel (b) is a 3xN snapshot grid: input shape / classical HBS / HBSN.
+Columns are context anchors clear of this family's six classical dead
+zones, plus the two measured grid samples bracketing each flip: the
+classical row flips 180 deg between those two columns, the HBSN row does
+not.
+
+Pinned hbs==1.0.1 (HBS_PYTHON_DIR); rendering |field|*mask, jet, 0-0.8.
+HBSN comes from --ckpt.  Output: --out, else deformation_osc_preview[_ft].png.
 """
 
 import itertools
@@ -31,39 +47,56 @@ import matplotlib.pyplot as plt
 os.environ["HBS_PYTHON_DIR"] = "/nonexistent"
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+import classical_arcs as CA
+import osc_family as OF
 from hbsn_exp import classic, grid, nets, ops, shapes
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(HERE, "../../figures/hbsn/candidates")
-H_SLIDE = 0.933
-AMP = 0.55  # osc amplitude; flips need |x| > 0.358
+H_SLIDE, AMP = OF.H_SLIDE, OF.AMP
 TH_LO, TH_HI = 0.0, 360.0
 STEP = 0.25  # deg; spikes are instant, 0.25 resolves them
-FLIPS = [40.38, 139.62, 220.89, 319.11]
+# The four flips are NOT at a fixed |x|: the classical half-plane selection
+# switches where Im I2 changes sign, measured at x* = 0.35565 on the +side,
+# which in THIS family lands between psi 30.75/31.00, 149.24/149.25,
+# 246.75/247.00 and 292.99/293.00... i.e. the flip is extremely sharp in x
+# and a column pair picked as (flip +- 0.13 deg) can easily land BOTH on the
+# same side (that is exactly what happened at 149).  So the pairs below are
+# the measured grid samples that straddle each flip, not offsets from it.
+FLIP_PAIRS = [
+    (30.75, 31.00),
+    (149.00, 149.25),
+    (246.75, 247.00),
+    (293.00, 293.25),
+]
+FLIPS = [0.5 * (a + b) for a, b in FLIP_PAIRS]
 
 
 def _cols() -> list[float]:
     """Context columns kept finite for classic HBS + tight flip pairs.
 
-    120/270 fall in zipper dead bands (117.0-123.2 / 251.3-288.4), so the
-    context uses the max-tilt anchor 90, the isosceles anchor 180, and the
-    nearest finite point past the second dead band (289).
+    Every entry is checked against this family's six classical dead zones
+    (28.75-30.50, 46.50-51.00, 129.00-133.50, 149.50-151.25, 233.75-234.75,
+    305.25-306.25); the context anchors sit clear of all of them, and each
+    flip is bracketed by the two grid samples that straddle it.
     """
-    ctx = [90.0, 180.0, 289.0]
-    return sorted(ctx + [x for f in FLIPS for x in (f - 0.1, f + 0.1)])
+    ctx = [0.0, 15.0, 90.0, 180.0, 215.0, 330.0, 350.0]
+    return sorted(ctx + [v for pair in FLIP_PAIRS for v in pair])
 
 
 COLS = _cols()
 FONTSIZE = 13
-FIELD_CACHE = "/home/nnb/projects/HBSN/python/runs/cache_osc/fields_osc.npz"
+FIELD_CACHE = (
+    os.path.join(HERE, "../../runs/cache_osc", f"fields_osc_{OF.FAMILY}.npz")
+)
 PNG_PATH = os.path.join(OUT_DIR, "deformation_osc_preview.png")
 SUBSTEP = 5.0  # deg, display-subsampling step for the curve panel
-# HBSN morph peaks (local-d ~0.088) sit ~1.3 deg BEFORE each classical flip
-# (39.1/140.9/219.9/320.1 vs flips 40.38/...).  Hide radius 0.75 keeps the
-# window (38.35, 39.85) disjoint from the flip keep-window (flip +-0.5) so
-# the classical 0.586 spikes survive.
-MORPH_HIDE = [39.1, 140.9, 219.9, 320.1]
+# Empty: the four windows this used to hide were the OLD model's morph
+# peaks, defined in the OLD family's psi coordinates.  Both changed, so
+# the windows are meaningless here and every curve point is now drawn.
+MORPH_HIDE = []
 MORPH_RADIUS = 0.75
+A_YLIM_LO, A_YLIM_HI = 0.0, 0.68  # panel (a) linear y-range (see plot_figure)
 
 
 def classic_or_none(bound):
@@ -75,8 +108,8 @@ def classic_or_none(bound):
 
 
 def osc_bound(psi):
-    """Apex oscillates horizontally: x = AMP sin(psi), height h fixed."""
-    return shapes.triangle_slide(x=AMP * np.sin(np.deg2rad(psi)), h=H_SLIDE)
+    """Apex slides at constant chirality: x = X0 + AMP sin(psi)."""
+    return OF.bound(psi)
 
 
 def dense_scan(ths, net):
@@ -95,19 +128,30 @@ def dense_scan(ths, net):
             ims[k] = ops.i2(cf, z, mask).imag
         if (k + 1) % 300 == 0:
             n_nan = sum(f is None for f in cf_list)
-            print(f"scan {k + 1}/{len(ths)} psi={ps:.1f} nan={n_nan}", flush=True)
+            print(
+                f"scan {k + 1}/{len(ths)} psi={ps:.1f} nan={n_nan}", flush=True
+            )
     return cf_list, hf_list, ims
 
 
 def find_crossings(ths, ims):
-    """Adjacent finite sign change, linear interp; merge 0.5-deg clusters."""
+    """Sign change of Im I2 over any two computable phases; linear interp.
+
+    Gap-straddling pairs count, and they are not an edge case: the
+    classical solver's failure band sits right against the flip
+    line (measured: NaN for apex offsets in roughly [0.342, 0.354], valid
+    again from 0.356).  At 0.25 deg the two samples bracketing a flip can
+    therefore land one inside the band and one already past the crossing,
+    so an adjacent-VALID-pair-only scan misses the flip completely -- it
+    is visible only in the pair spanning the gap.  classical_arcs.links
+    returns both kinds.
+    """
     valid = ~np.isnan(ims)
-    sgn = np.sign(ims)
-    idx = np.where(valid[:-1] & valid[1:] & (np.diff(sgn) != 0))[0]
     out = []
-    for i in idx:
-        a, b = ims[i], ims[i + 1]
-        out.append(ths[i] + (ths[i + 1] - ths[i]) * abs(a) / (abs(a) + abs(b)))
+    for i, j in CA.links(valid):
+        if np.sign(ims[i]) != np.sign(ims[j]):
+            a, b = abs(ims[i]), abs(ims[j])
+            out.append(ths[i] + (ths[j] - ths[i]) * a / (a + b))
     merged = []
     for c in out:
         if merged and c - merged[-1] <= 0.5:
@@ -169,7 +213,7 @@ def sparse_curve(xs, hide, spikes=()):
 def _raw_slide(psi):
     """Raw (unscaled) slide-triangle boundary, mean-centered like
     triangle_slide; input row draws all columns at one COMMON scale
-    (triangle_slide's per-shape rescale magnifies the isosceles ~14%)."""
+    (triangle_slide's per-shape rescale magnifies the near-isosceles ~14%)."""
     x = AMP * np.sin(np.deg2rad(psi))
     a = np.array([[-0.7, 0.0], [0.7, 0.0], [x, H_SLIDE]])
     edges = []
@@ -192,48 +236,85 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
     n = len(cols)
     fig = plt.figure(figsize=(17.0, 9.8))
     # ---- geometry (inches) ----
-    gx0, gy0 = 0.42, 0.30          # grid left edge / bottom margin
-    gap_w, gap_h = 0.055, 0.085    # col gap; row gap = 1.5 x col gap
+    gx0, gy0 = 0.42, 0.75  # grid left edge / bottom margin; gy0 sets the
+    # gap to panel (a) -- 0.75 puts (b) back to about half the clearance
+    # it had at 0.10 (the empty band below is cropped by bbox_inches)
+    gap_w, gap_h = 0.055, 0.085  # col gap; row gap = 1.5 x col gap
     s = (17.0 - gx0 - 0.12 - gap_w * (n - 1)) / n  # true square side
     cw, rh = s + gap_w, s + gap_h
     grid_top = gy0 + 3 * s + 2 * gap_h
     # (a) curve axes, upper band
     a_x0, a_x1 = 1.05, gx0 + n * cw - gap_w
     a_y0, a_y1 = 5.85, 9.25
-    ax_a = fig.add_axes([a_x0 / 17.0, a_y0 / 9.8, (a_x1 - a_x0) / 17.0,
-                         (a_y1 - a_y0) / 9.8])
+    ax_a = fig.add_axes(
+        [a_x0 / 17.0, a_y0 / 9.8, (a_x1 - a_x0) / 17.0, (a_y1 - a_y0) / 9.8]
+    )
     i_c = sparse_curve(xs_c, MORPH_HIDE, spikes=flips)
     i_h = sparse_curve(xs_h, MORPH_HIDE)
-    ax_a.plot(xs_c[i_c], ds_c[i_c], "o-", color="r", lw=1.1, ms=3.2,
-              label="classical")
-    ax_a.plot(xs_h[i_h], ds_h[i_h], "o-", color="b", lw=1.6, ms=3,
-              label="HBSN")
+    ax_a.plot(
+        xs_c[i_c],
+        ds_c[i_c],
+        "o-",
+        color="b",
+        lw=1.1,
+        ms=3.2,
+        label="classical",
+    )
+    ax_a.plot(
+        xs_h[i_h],
+        ds_h[i_h],
+        "o-",
+        color="r",
+        lw=1.6,
+        ms=3,
+        label="HBSN",
+    )
     for f in flips:
         ax_a.axvline(f, color="k", ls="--", lw=0.8, alpha=0.55)
     ax_a.set_xlim(TH_LO, TH_HI)
-    ax_a.set_ylim(0, 0.68)
+    # Linear y, 0-based.  Log was tried to lift the HBSN curve off the
+    # spine; it does, but it also squashes the 32x classical/HBSN gap into
+    # ~1.5 decades, which visually argues the opposite of the result.  On
+    # the linear axis the message is immediate: classical (blue) spikes to
+    # 0.586 at the four seams, HBSN (red) stays flat near 0.
+    ax_a.set_ylim(A_YLIM_LO, A_YLIM_HI)
     ax_a.set_xticks([0, 60, 120, 180, 240, 300, 360])
     ax_a.set_xticklabels([f"{v}" for v in [0, 60, 120, 180, 240, 300, 360]])
-    ax_a.set_ylabel(r"local field change $d(B_{\psi}, B_{\psi+\Delta\psi})$",
-                    fontsize=FONTSIZE)
+    ax_a.set_ylabel(
+        r"local field change $d(B_{\psi}, B_{\psi+\Delta\psi})$",
+        fontsize=FONTSIZE,
+    )
     ax_a.tick_params(labelsize=FONTSIZE - 2)
     ax_a.legend(fontsize=FONTSIZE - 2, loc="upper right")
-    ax_a.set_xlabel(r"oscillation phase $\psi$ (deg), apex $x = 0.55\sin\psi$",
-                    fontsize=FONTSIZE)
+    ax_a.set_xlabel(
+        rf"oscillation phase $\psi$ (deg), apex "
+        rf"$x = {OF.X0:.2f} + {OF.AMP:.2f}\sin\psi$",
+        fontsize=FONTSIZE,
+    )
     for f in flips:
         ax_a.text(
-            f, 1.02, rf"{f:.1f}$^\circ$",
+            f,
+            1.02,
+            rf"{f:.1f}$^\circ$",
             transform=ax_a.get_xaxis_transform(),
-            ha="center", va="bottom", fontsize=FONTSIZE - 4, color="0.25",
+            ha="center",
+            va="bottom",
+            fontsize=FONTSIZE - 4,
+            color="0.25",
         )
     # ---- bottom 3xN snapshot grid: true square cells (inches) ----
     axs = []
     for r in range(3):
         row = []
         for c in range(n):
-            ax = fig.add_axes([(gx0 + c * cw) / 17.0,
-                               (gy0 + (2 - r) * rh) / 9.8,
-                               s / 17.0, s / 9.8])
+            ax = fig.add_axes(
+                [
+                    (gx0 + c * cw) / 17.0,
+                    (gy0 + (2 - r) * rh) / 9.8,
+                    s / 17.0,
+                    s / 9.8,
+                ]
+            )
             ax.set_facecolor("black")
             ax.set_xticks([])
             ax.set_yticks([])
@@ -253,37 +334,69 @@ def plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips) -> None:
         ax0.set_xlim(-1.5, 1.5)
         ax0.set_ylim(-1.5, 1.5)
         ax0.set_aspect("equal")
-        ax0.set_title(rf"$\psi={ps:.1f}$", fontsize=FONTSIZE - 4,
-                      pad=7)
+        ax0.set_title(rf"$\psi={ps:.1f}$", fontsize=FONTSIZE - 4, pad=7)
         cf = classic_or_none(bound)
         img = shapes.shape_to_image(bound)[..., 0]
         hf = nets.field_to_complex(nets.infer(net, img))
         axs[1, c_idx].imshow(
             np.abs(cf) * mask if cf is not None else np.zeros_like(mask),
-            cmap="jet", extent=[-1.5, 1.5, -1.5, 1.5], vmin=0, vmax=0.8)
+            cmap="jet",
+            extent=[-1.5, 1.5, -1.5, 1.5],
+            vmin=0,
+            vmax=0.8,
+        )
         axs[1, c_idx].axis("off")
         axs[2, c_idx].imshow(
-            np.abs(hf) * mask, cmap="jet", extent=[-1.5, 1.5, -1.5, 1.5],
-            vmin=0, vmax=0.8)
+            np.abs(hf) * mask,
+            cmap="jet",
+            extent=[-1.5, 1.5, -1.5, 1.5],
+            vmin=0,
+            vmax=0.8,
+        )
         axs[2, c_idx].axis("off")
     # dashed lines between each classical flip pair, spanning (b)
     for f in flips:
         i = min(range(n), key=lambda c: abs(cols[c] - (f - 0.1)))
         xg = (gx0 + i * cw + s + gap_w / 2) / 17.0
-        fig.add_artist(plt.Line2D([xg, xg], [gy0 / 9.8,
-                                  (grid_top + 0.26) / 9.8],
-                                  transform=fig.transFigure, color="k",
-                                  ls="--", lw=1.4, alpha=0.9))
+        fig.add_artist(
+            plt.Line2D(
+                [xg, xg],
+                [gy0 / 9.8, (grid_top + 0.26) / 9.8],
+                transform=fig.transFigure,
+                color="k",
+                ls="--",
+                lw=1.4,
+                alpha=0.9,
+            )
+        )
     for r, label in enumerate(["input shape", "classical HBS", "HBSN"]):
         row_y = gy0 + (2 - r) * rh + s / 2
-        fig.text((gx0 - 0.10) / 17.0, row_y / 9.8, label,
-                 rotation=90, ha="right", va="center",
-                 fontsize=FONTSIZE - 4)
+        fig.text(
+            (gx0 - 0.10) / 17.0,
+            row_y / 9.8,
+            label,
+            rotation=90,
+            ha="right",
+            va="center",
+            fontsize=FONTSIZE - 4,
+        )
     # (a)/(b) panel tags on fixed inch bands
-    fig.text(0.5, (a_y1 + 0.24) / 9.8, "(a)", ha="center", va="bottom",
-             fontsize=FONTSIZE + 1)
-    fig.text(0.5, (grid_top + 0.34) / 9.8, "(b)", ha="center", va="bottom",
-             fontsize=FONTSIZE + 1)
+    fig.text(
+        0.5,
+        (a_y1 + 0.24) / 9.8,
+        "(a)",
+        ha="center",
+        va="bottom",
+        fontsize=FONTSIZE + 1,
+    )
+    fig.text(
+        0.5,
+        (grid_top + 0.34) / 9.8,
+        "(b)",
+        ha="center",
+        va="bottom",
+        fontsize=FONTSIZE + 1,
+    )
     fig.savefig(PNG_PATH, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
@@ -298,24 +411,35 @@ def load_or_compute_fields(ths, net):
             return cf, list(d["hf"].astype(complex))
     cf_list, hf_list, _ = dense_scan(ths, net)
     cf_arr = np.array(
-        [f if f is not None else np.full((128, 128), np.nan + 0j)
-         for f in cf_list], dtype=np.complex64)
+        [
+            f if f is not None else np.full((128, 128), np.nan + 0j)
+            for f in cf_list
+        ],
+        dtype=np.complex64,
+    )
     hf_arr = np.array(hf_list, dtype=np.complex64)
     np.savez(FIELD_CACHE, ths=ths, cf=cf_arr, hf=hf_arr)
-    cf_list = [None if np.all(np.isnan(f)) else f.astype(complex)
-               for f in cf_arr]
+    cf_list = [
+        None if np.all(np.isnan(f)) else f.astype(complex) for f in cf_arr
+    ]
     return cf_list, list(hf_arr.astype(complex))
 
 
 def main() -> None:
     import argparse
+
     parser = argparse.ArgumentParser(description="osc-slide preview figure")
-    parser.add_argument("--recompute", action="store_true",
-                        help="ignore field cache")
-    parser.add_argument("--ckpt", default=None,
-                        help="override BEST_CKPT for HBSN inference")
-    parser.add_argument("--out", default=None,
-                        help="output png path (default: preview[_ft].png)")
+    parser.add_argument(
+        "--recompute", action="store_true", help="ignore field cache"
+    )
+    parser.add_argument(
+        "--ckpt", default=None, help="override BEST_CKPT for HBSN inference"
+    )
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="output png path (default: preview[_ft].png)",
+    )
     args = parser.parse_args()
     os.makedirs(OUT_DIR, exist_ok=True)
     global PNG_PATH
@@ -329,8 +453,12 @@ def main() -> None:
     if args.recompute and os.path.exists(FIELD_CACHE):
         os.remove(FIELD_CACHE)
     if args.ckpt:
-        # finetuned net: recompute HBSN fields (own cache), reuse classic
-        cache_ft = FIELD_CACHE.replace(".npz", "_ft.npz")
+        # finetuned net: recompute HBSN fields (own cache), reuse classic.
+        # Key the cache by the checkpoint directory: a fixed `_ft.npz` is
+        # silently reused for a DIFFERENT --ckpt, which plots one model's
+        # fields under another model's name.
+        tag = os.path.basename(os.path.dirname(args.ckpt))
+        cache_ft = FIELD_CACHE.replace(".npz", f"_ft_{tag}.npz")
         if os.path.exists(cache_ft) and not args.recompute:
             hf_list = list(np.load(cache_ft)["hf"].astype(complex))
         else:
@@ -338,13 +466,15 @@ def main() -> None:
             for ps in ths:
                 img = shapes.shape_to_image(osc_bound(ps))[..., 0]
                 hf_list.append(nets.field_to_complex(nets.infer(net, img)))
-            np.savez(cache_ft, ths=ths,
-                     hf=np.array(hf_list, dtype=np.complex64))
+            np.savez(
+                cache_ft, ths=ths, hf=np.array(hf_list, dtype=np.complex64)
+            )
         cf_list, _ = load_or_compute_fields(ths, net)
     else:
         cf_list, hf_list = load_or_compute_fields(ths, net)
-    ims = np.array([np.nan if f is None else ops.i2(f, z, mask).imag
-                    for f in cf_list])
+    ims = np.array(
+        [np.nan if f is None else ops.i2(f, z, mask).imag for f in cf_list]
+    )
     cros = find_crossings(ths, ims)
     flips = [float(c) for c in cros if verify_flip(c, z, mask)]
     print("crossings:", [f"{c:.2f}" for c in cros])
@@ -352,9 +482,15 @@ def main() -> None:
     xs_c, ds_c = curve_data(ths, cf_list, z, mask)
     xs_h, ds_h = curve_data(ths, hf_list, z, mask)
     spike = ds_c > 0.3
-    print("classical spikes (d>0.3): "
-          + ", ".join(f"{x:.2f}" for x in xs_c[spike]))
+    print(
+        "classical spikes (d>0.3): "
+        + ", ".join(f"{x:.2f}" for x in xs_c[spike])
+    )
     print(f"HBSN max step: {ds_h.max():.4f}")
+    print(
+        f"curve range: classical {ds_c.min():.3g}..{ds_c.max():.3g}"
+        f"   HBSN {ds_h.min():.3g}..{ds_h.max():.3g}"
+    )
     cols = COLS
     plot_figure(ths, xs_c, ds_c, xs_h, ds_h, cols, net, z, mask, flips)
     print(f"figure: {PNG_PATH}")
