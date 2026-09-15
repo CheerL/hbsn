@@ -74,9 +74,9 @@ def main() -> None:
     p.add_argument("--ckpt", default=os.path.join(
         REPO, "runs/hbsn/Sep10_02-37-17_osc_ft2/checkpoints/best.pth"))
     p.add_argument("--data-dir",
-                   default="/home/nnb/projects/HBSN/python/img/osc_merged")
+                   default=os.path.join(REPO, "img", "osc_merged"))
     p.add_argument("--test-dir",
-                   default="/home/nnb/projects/HBSN/python/img/gen2")
+                   default=os.path.join(REPO, "img", "gen2"))
     p.add_argument("--epochs", type=int, default=6)
     p.add_argument("--lr", type=float, default=6.25e-6)
     p.add_argument("--batch-size", type=int, default=64)
