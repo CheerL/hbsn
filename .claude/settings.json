@@ -3,11 +3,11 @@
   "//": "项目级权限白名单（python/ 为 git 仓库根）。",
   "permissions": {
     "allow": [
-      "uv run *",
-      "uv pip install",
-      "uv pip sync",
-      "uv venv",
-      "git *"
+      "Bash(uv run:*)",
+      "Bash(uv pip install:*)",
+      "Bash(uv pip sync:*)",
+      "Bash(uv venv:*)",
+      "Bash(git *)"
     ],
     "deny": []
   }
